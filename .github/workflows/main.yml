@@ -1,0 +1,15 @@
+name: Checks
+on:
+  - push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v1
+      -
+        name: 'Bash it !'
+        run: 'sudo apt-get -y install snapd && sudo snap install shfmt && bash'
+      -
+        name: 'Here we go'
+        run: 'bash test.sh'
