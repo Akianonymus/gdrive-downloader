@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+if ! type -p shfmt > /dev/null 2>&1; then
+    printf 'Install shfmt to format script\n\n'
+    printf 'You can install it by bash install_shfmt, or\n'
+    printf 'Check https://github.com/mvdan/sh/releases\n'
+    exit 1
+fi
+
+for i in {install,install_shfmt,format,gdl,update_gdl,test}; do
+    if ! shfmt -ci -sr -i 4 -w "$i"; then
+        printf "%s\n" "$i: Failed" >> failedlog
+    else
+        printf "%s\n" "$i: Passed" >> log
+    fi
+done
+
+if [[ -f failedlog ]]; then
+    printf '\nSome checks have failed.\n\n'
+    cat failedlog && printf '\n'
+    cat log && rm -f failedlog log
+    exit 1
+else
+    printf 'All checks have passed.\n\n'
+    cat log && rm -f log
+    exit 0
+fi

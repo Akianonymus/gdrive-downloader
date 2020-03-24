@@ -1,0 +1,532 @@
+#!/usr/bin/env bash
+# Download file/folder from google drive.
+
+usage() {
+    printf "
+The script can be used to download file/directory from google drive.\n
+Usage:\n %s [options.. ] <file_[url|id]> or <folder[url|id]>\n
+Options:\n
+  -d | --directory <foldername> - option to download given input in custom directory.\n
+  -s | --skip-subdirs - Skip download of sub folders present in case of folders.\n
+  -p | --parallel <no_of_files_to_parallely_upload> - Download multiple files in parallel, Max value = 10.\n
+  -i | --input - Specify multiple URLs/IDs in one command.\n 
+  -l | --log <file_to_save_info> - Save downloaded files info to the given filename.\n
+  -v | --verbose - Display detailed message (only for non-parallel uploads).\n
+  -V | --verbose-progress - Display detailed message and detailed upload progress(only for non-parallel uploads).\n
+  -D | --debug - Display script command trace.\n
+  -U | --update - Update gdrive downloader.\n
+  -h | --help - Display usage instructions.\n\n" "${0##*/}"
+    exit 0
+}
+
+shortHelp() {
+    printf "No valid arguments provided, use -h/--help flag to see usage.\n\n"
+    exit 0
+}
+
+# Exit if bash present on system is older than 4.x
+checkBashVersion() {
+    { ! [[ "${BASH_VERSINFO:-0}" -ge 4 ]] && printf "Bash version lower than 4.x not supported\n\n" && exit 1; } || :
+}
+
+# Usage: bashSleep 1 ( where is time in seconds )
+# https://github.com/dylanaraps/pure-bash-bible#use-read-as-an-alternative-to-the-sleep-command
+bashSleep() {
+    read -rt "$1" <> <(:) || :
+}
+
+# Move cursor to nth no. of line and clear it to the begining.
+clearLine() {
+    printf "\033[%sA\033[2K" "$1"
+}
+
+# Remove array duplicates, maintain the order as original.
+# https://stackoverflow.com/a/37962595
+removeArrayDuplicates() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    declare -A Aseen
+    Aunique=()
+    for i in "$@"; do
+        [[ ${Aseen[$i]} ]] && continue
+        Aunique+=("$i") && Aseen[$i]=x
+    done
+    printf '%s\n' "${Aunique[@]}"
+}
+
+# Print a text to center interactively and fill the rest of the line with text specified.
+# https://gist.github.com/TrinityCoder/911059c83e5f7a351b785921cf7ecda
+printCenter() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    declare -i TERM_COLS="$COLUMNS"
+
+    if [[ -z $3 ]]; then
+        declare out="$1" && sym="$2"
+    else
+        declare out="[ $1 ]" && outt="$1"
+        TO_PRINT="$((TERM_COLS * 87 / 100))"
+        if [[ ${#outt} -gt ${TO_PRINT} ]]; then
+            outt="${1:0:TO_PRINT}.." && out="[ $outt ]" && unset sym
+        else
+            declare sym="$2"
+        fi
+    fi
+    declare -i str_len=${#out}
+    [[ $str_len -ge $TERM_COLS ]] && {
+        printf "%s\n" "$out" && return 0
+    }
+
+    declare -i filler_len="$(((TERM_COLS - str_len) / 2))"
+    [[ $# -ge 2 ]] && ch="${sym:0:1}" || ch=" "
+    filler=""
+    for ((i = 0; i < filler_len; i++)); do
+        filler="${filler}${ch}"
+    done
+
+    printf "%s%s%s" "$filler" "$out" "$filler"
+    [[ $(((TERM_COLS - str_len) % 2)) -ne 0 ]] && printf "%s" "${ch}"
+    printf "\n"
+
+    return 0
+}
+
+# Usage: count < "file" or count <<< "$variable" or pipe some output.
+# https://github.com/dylanaraps/pure-bash-bible#get-the-number-of-lines-in-a-file
+count() {
+    mapfile -tn 0 lines
+    printf '%s\n' "${#lines[@]}"
+}
+
+# Method to extract data from json response.
+# Usage: jsonValue key < json ( or use with a pipe output ).
+jsonValue() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    declare LC_ALL=C num="$2"
+    grep -o "\"""$1""\"\:.*" | sed -e "s/.*\"""$1""\": //" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/\"//" -n -e "${num}"p
+}
+
+# Extract file/folder ID from the given INPUT in case of gdrive URL.
+# Usage: extractID gdriveurl
+extractID() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    declare LC_ALL=C ID="${1//[[:space:]]/}"
+    case "$ID" in
+        *'drive.google.com'*'id='*) ID="${ID/*id=/}" && ID="${ID/&*/}" && ID="${ID/\?*/}" ;;
+        *'drive.google.com'*'file/d/'* | 'http'*'docs.google.com/file/d/'*) ID="${ID/*\/d\//}" && ID="${ID/\/*/}" ;;
+        *'drive.google.com'*'drive'*'folders'*) ID="${ID/*\/folders\//}" && ID="${ID/&*/}" && ID="${ID/\?*/}" ;;
+    esac
+    printf "%s\n" "$ID"
+}
+
+# Calculation of file in readable form from bytes.
+# https://unix.stackexchange.com/a/374877
+calcSize() {
+    awk '{ split( "B KB MB GB TB PB" , v ); s=1; while( $1>1024 ){ $1/=1024; s++ } printf "%.2f %s", $1, v[s] }'
+}
+
+# Default wget command used everywhere
+download() {
+    if [[ $VERBOSE_PROGRESS = true ]]; then
+        wget --header="Referer: https://drive.google.com" "$@"
+    else
+        wget --header="Referer: https://drive.google.com" -q --show-progress --progress=bar:force "$@"
+    fi
+}
+
+# Default curl command use everywhere
+curlFetch() {
+    curl -e "https://drive.google.com" -s --compressed "$@"
+}
+
+# Fetch the latest script and update.
+update() {
+    declare REPO="gdrive-downloader"
+    printf "Fetching update script.. \n"
+    curl -s https://raw.githubusercontent.com/Akianonymus/""$REPO""/master/update_gdl | bash
+    exit 0
+}
+
+# Check if the file ID exists and determine it's type [ folder | Files ], otherwise exit the script.
+checkID() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    printCenter "[ Validating URL.. ]" "="
+    declare ID="$1" KEY="$2" STATUS ERRORCODE
+    STATUS="$(curlFetch """$API_URL""/drive/""$API_VERSION""/files/""$ID""?alt=json&fields=mimeType&key=""$KEY""")"
+    ERRORCODE="$(jsonValue code <<< "$STATUS")"
+    if [[ -z $ERRORCODE ]]; then
+        clearLine 1 && printCenter "[ Valid URL/ID, determining type.. ]" "="
+        if [[ $STATUS =~ folder ]]; then
+            FOLDERID="$ID"
+            for _ in {1..2}; do clearLine 1; done && printCenter "[ Folder Detected ]" "=" && printf "\n"
+        else
+            FILEID="$ID"
+            for _ in {1..2}; do clearLine 1; done && printCenter "[ File Detected ]" "=" && printf "\n"
+        fi
+    else
+        for _ in {1..2}; do clearLine 1; done && printf "\n" && printCenter "[ Invalid URL/ID ]" "=" && printf "\n"
+        return 1
+    fi
+
+}
+
+# Type: Files
+downloadFile() {
+    [[ $# -lt 2 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    declare FILEID="$1" KEY="$2" PARALLEL="$3"
+    [[ -z "$PARALLEL" ]] && printCenter "[ Fetching file metadata.. ]" "="
+    declare INFO NAME SERVER_SIZE
+    INFO="$(curlFetch """$API_URL""/drive/""$API_VERSION""/files/""$FILEID""?alt=json&fields=name,size&key=""$KEY""")"
+    NAME="$(jsonValue name <<< "$INFO")"
+    if [[ -n $NAME ]]; then
+        SERVER_SIZE="$(jsonValue size <<< "$INFO")"
+        SERVER_SIZE_READABLE="$(calcSize <<< "$SERVER_SIZE")"
+
+        [[ -z "$PARALLEL" ]] && clearLine 1 && printCenter "[ $NAME | $SERVER_SIZE_READABLE ]" "="
+
+        URL="""$API_URL""/drive/""$API_VERSION""/files/""$FILEID""?alt=media&key=""$KEY"""
+
+        if [[ -f "$NAME" ]]; then
+            declare LOCAL_SIZE && LOCAL_SIZE="$(wc -c < "$NAME")"
+
+            if [[ $LOCAL_SIZE = "$SERVER_SIZE" ]]; then
+                printCenter "[ File already present ]" "=" && [[ -z "$PARALLEL" ]] && printf "\n"
+            else
+                [[ -z "$PARALLEL" ]] && printCenter "[ File is partially present, resuming.. ]" "="
+                download "$URL" -c -O ./"$NAME"
+                [[ -z "$PARALLEL" ]] && for _ in {1..2}; do clearLine 1; done
+                printCenter "[ Downloaded ]" "=" && [[ -z "$PARALLEL" ]] && printf "\n"
+            fi
+        else
+            [[ -z "$PARALLEL" ]] && printCenter "[ Downloading file.. ]" "="
+            download "$URL" -O ./"$NAME"
+            [[ -z "$PARALLEL" ]] && for _ in {1..2}; do clearLine 1; done
+            printCenter "[ Downloaded ]" "=" && [[ -z "$PARALLEL" ]] && printf "\n"
+        fi
+        if [[ -n $LOG_FILE_ID && ! -d $LOG_FILE_ID ]]; then
+            # shellcheck disable=SC2129
+            # https://github.com/koalaman/shellcheck/issues/1202#issuecomment-608239163
+            {
+                printf "%s\n" "Name: $NAME"
+                printf "%s\n" "Size: $SERVER_SIZE_READABLE"
+                printf "%s\n" "ID: $FILEID"
+
+                printf '\n'
+            } >> "$LOG_FILE_ID"
+        fi
+    else
+        printCenter "[ Failed, some unknown error ]" "=" 1>&2
+        DOWNLOAD_STATUS=ERROR && export DOWNLOAD_STATUS # Send a error status, used in folder downloads.
+        [[ -z "$PARALLEL" ]] && printf "%s\n" "$INFO"
+    fi
+}
+
+# Type: Folder [ First, the file IDs are fetched inside the folder, and then downloaded seperately ].
+downloadFolder() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    declare FOLDERID="$1" KEY="$2" parallel="$3" ERROR_STATUS=0 SUCCESS_STATUS=0
+    declare NAME FILES=() FOLDERS=()
+    printCenter "[ Fetching folder details.. ]" "="
+    NAME="$(jsonValue name <<< "$(curlFetch """$API_URL""/drive/""$API_VERSION""/files/""$FOLDERID""?alt=json&fields=name&key=""$KEY""")")"
+    if [[ -n $NAME ]]; then
+        printf '\n'
+        printCenter "[ $NAME ]" "="
+        INFO="$(curlFetch """$API_URL""/drive/""$API_VERSION""/files?q=%27""$FOLDERID""%27+in+parents&fields=files(id,mimeType)&key=""$KEY""")"
+
+        mapfile -t FILES <<< "$(jsonValue id <<< "$(grep -v folder <<< "$INFO" | grep mimeType -B1)")"
+        mapfile -t FOLDERS <<< "$(jsonValue id <<< "$(grep folder -B1 <<< "$INFO")")"
+        [[ -z ${FILES[*]} && -z ${FOLDERS[*]} ]] && for _ in {1..3}; do clearLine 1; done && printCenter "[ $NAME | Empty Folder ]" "=" && printf "\n" && return 0
+        for _ in {1..3}; do clearLine 1; done
+        printCenter "[ $NAME | ""${#FILES[@]}"" Files | ""${#FOLDERS[@]}"" sub-folders ]" "=" && printf "\n\n"
+
+        if [[ -f $NAME ]]; then
+            NAME="$NAME$RANDOM"
+            mkdir -p "$NAME"
+        else
+            mkdir -p "$NAME"
+        fi
+
+        cd "$NAME" || exit 1
+
+        if [[ -n "${FILES[*]}" ]]; then
+
+            if [[ -n $parallel ]]; then
+                if [[ $NO_OF_PARALLEL_JOBS -gt ${#FILES[@]} ]]; then
+                    NO_OF_PARALLEL_JOBS_FINAL="${#FILES[@]}"
+                else
+                    NO_OF_PARALLEL_JOBS_FINAL="$NO_OF_PARALLEL_JOBS"
+                fi
+                export -f printCenter jsonValue download clearLine calcSize downloadFile curlFetch
+                export KEY COLUMNS LOG_FILE_ID SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_UPLOAD API_URL API_VERSION
+                # shellcheck disable=SC2016
+                printf "%s\n" "${FILES[@]}" | xargs -n1 -P"$NO_OF_PARALLEL_JOBS_FINAL" -i bash -c '
+    downloadFile "{}" "$KEY" true
+    ' 1>| "$TMPFILE"SUCCESS 2>| "$TMPFILE"ERROR &
+
+                while true; do [[ -f "$TMPFILE"SUCCESS || -f "$TMPFILE"ERROR ]] && { break || bashSleep 0.5; }; done
+
+                while true; do
+                    SUCCESS_STATUS="$(count < "$TMPFILE"SUCCESS)"
+                    ERROR_STATUS="$(count < "$TMPFILE"ERROR)"
+                    bashSleep 1 && clearLine 1
+                    printCenter "[ Status: ""$SUCCESS_STATUS"" Downloaded | ""$ERROR_STATUS"" FAILED ]" "="
+                    if [[ $(((SUCCESS_STATUS + ERROR_STATUS))) = "${#FILES[@]}" ]]; then
+                        clearLine 1 && break
+                    fi
+                done
+                printf "\n"
+            else
+                for i in "${FILES[@]}"; do
+                    downloadFile "$i" "$KEY"
+                    [[ $DOWNLOAD_STATUS = ERROR ]] && ERROR_STATUS="$((ERROR_STATUS + 1))" || SUCCESS_STATUS="$((SUCCESS_STATUS + 1))" || :
+                    if ! [[ $VERBOSE = true || $VERBOSE_PROGRESS = true ]]; then
+                        for _ in {1..4}; do clearLine 1; done
+                    fi
+                    printCenter "[ Status: $SUCCESS_STATUS Downloaded | $ERROR_STATUS Failed ]" "="
+                done
+            fi
+        fi
+
+        for _ in {1..2}; do clearLine 1; done
+        printf "\n"
+        [[ $SUCCESS_STATUS -gt 0 ]] && printCenter "[ Downloaded: ""$SUCCESS_STATUS"" ]" "="
+        [[ $ERROR_STATUS -gt 0 ]] && printCenter "[ Failed: ""$ERROR_STATUS"" ]" "="
+        printf "\n"
+
+        if [[ -z $SKIP_SUBDIRS ]]; then
+            if [[ -n "${FOLDERS[*]}" ]]; then
+                for i in "${FOLDERS[@]}"; do
+                    downloadFolder "$i" "$KEY"
+                done
+            fi
+        fi
+    else
+        clearLine 1
+        printCenter "[ Failed, some unknown error ]" "="
+    fi
+}
+
+# Setup the varibles and process getopts flags.
+setupArguments() {
+    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
+    # Internal variables
+    # De-initialize if any variables set already.
+    unset FINAL_INPUT_ARRAY INPUT_ARRAY
+    unset PARALLEL NO_OF_PARALLEL_JOBS SKIP_SUBDIRS
+    unset VERBOSE VERBOSE_PROGRESS DEBUG LOG_FILE_ID
+
+    # Grab the first and second argument and shift, only if $1 doesn't contain -.
+    { ! [[ $1 = -* ]] && INPUT_ARRAY+=("$1") && shift; } || :
+
+    # API
+    API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
+    API_URL="https://www.googleapis.com"
+    API_VERSION="v3"
+
+    SHORTOPTS=":vVl:i:l:sp:d:ShUD-:"
+    while getopts "${SHORTOPTS}" OPTION; do
+        case "$OPTION" in
+            # Parse longoptions # https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options/28466267#28466267
+            -)
+                checkLongoptions() { [[ -z ${!OPTIND} ]] && printf '%s: --%s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "$0" "$OPTARG" "$0" && exit 1; }
+                case "$OPTARG" in
+                    help)
+                        usage
+                        ;;
+                    update)
+                        update
+                        ;;
+                    log)
+                        checkLongoptions
+                        LOG_FILE_ID="${!OPTIND}" && OPTIND=$((OPTIND + 1))
+                        ;;
+                    skip-subdirs)
+                        SKIP_SUBDIRS=true
+                        ;;
+                    parallel)
+                        checkLongoptions
+                        NO_OF_PARALLEL_JOBS="${!OPTIND}"
+                        case "$NO_OF_PARALLEL_JOBS" in
+                            '' | *[!0-9]*)
+                                printf "\nError: -p/--parallel value ranges between 1 to 10.\n"
+                                exit 1
+                                ;;
+                            *)
+                                [[ $NO_OF_PARALLEL_JOBS -gt 10 ]] && { NO_OF_PARALLEL_JOBS=10 || NO_OF_PARALLEL_JOBS="${!OPTIND}"; }
+                                ;;
+                        esac
+                        PARALLEL_DOWNLOAD=true && OPTIND=$((OPTIND + 1))
+                        ;;
+                    directory)
+                        checkLongoptions
+                        FOLDERNAME="${!OPTIND}" && OPTIND=$((OPTIND + 1))
+                        ;;
+                    input)
+                        checkLongoptions
+                        INPUT_ARRAY+=("${!OPTIND}") && OPTIND=$((OPTIND + 1))
+                        ;;
+                    verbose)
+                        VERBOSE=true
+                        ;;
+                    verbose-progress)
+                        VERBOSE_PROGRESS=true
+                        ;;
+                    debug)
+                        DEBUG=true
+                        ;;
+                    '')
+                        shorthelp
+                        ;;
+                    *)
+                        printf '%s: --%s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "$0" "$OPTARG" "$0" && exit 1
+                        ;;
+                esac
+                ;;
+            h)
+                usage
+                ;;
+            U)
+                update
+                ;;
+            l)
+                LOG_FILE_ID="$OPTARG"
+                ;;
+            s)
+                SKIP_SUBDIRS=true
+                ;;
+            p)
+                NO_OF_PARALLEL_JOBS="$OPTARG"
+                case "$NO_OF_PARALLEL_JOBS" in
+                    '' | *[!0-9]*)
+                        printf "\nError: -p/--parallel value ranges between 1 to 10.\n"
+                        exit 1
+                        ;;
+                    *)
+                        [[ $NO_OF_PARALLEL_JOBS -gt 10 ]] && { NO_OF_PARALLEL_JOBS=10 || NO_OF_PARALLEL_JOBS="$OPTARG"; }
+                        ;;
+                esac
+                PARALLEL_DOWNLOAD=true
+                ;;
+            d)
+                FOLDERNAME="$OPTARG"
+                ;;
+            i)
+                INPUT_ARRAY+=("$OPTARG")
+                ;;
+            v)
+                VERBOSE=true
+                ;;
+            V)
+                VERBOSE_PROGRESS=true
+                ;;
+            D)
+                DEBUG=true
+                ;;
+            :)
+                printf '%s: -%s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "$0" "$OPTARG" "$0" && exit 1
+                ;;
+            ?)
+                printf '%s: -%s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "$0" "$OPTARG" "$0" && exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+
+    # Incase $1 argument was not taken as input, check if any arguments after all the valid flags have been passed.
+    if [[ -z ${INPUT_ARRAY[*]} ]]; then
+        if [[ -n $1 ]]; then
+            FINAL_INPUT_ARRAY+=("$1")
+        fi
+    else
+        FINAL_INPUT_ARRAY+=("$(printf "%s\n" "${INPUT_ARRAY[@]}")")
+    fi
+    mapfile -t FINAL_INPUT_ARRAY <<< "$(removeArrayDuplicates "${FINAL_INPUT_ARRAY[@]}")"
+
+    mapfile -t FINAL_INPUT_ARRAY <<< "$(for i in "${FINAL_INPUT_ARRAY[@]}"; do
+        extractID "$i"
+    done)"
+    { [[ -n $VERBOSE_PROGRESS && -n $VERBOSE ]] && unset "$VERBOSE"; } || :
+}
+
+# To avoid spamming in debug mode.
+checkDebug() {
+    if [[ -n $DEBUG ]]; then
+        set -x
+        printCenter() {
+            printf "%s\n" "$1"
+        }
+    else
+        set +x
+        # This refreshes the interactive shell so we can use the $COLUMNS variable in the printCenter function.
+        shopt -s checkwinsize && (: && :)
+        trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+    fi
+}
+
+# If internet connection is not available.
+# Probably the fastest way, takes about 1 - 2 KB of data, don't check for more than 10 secs.
+# https://unix.stackexchange.com/a/18711 to timeout without any external program.
+checkInternet() {
+    printCenter "[ Checking Internet connection.. ]" "="
+    if [[ -t 1 ]]; then
+        CHECK_INTERNET="$(sh -ic 'exec 3>&1 2>/dev/null; { curl --compressed -Is google.com 1>&3; kill 0; } | { sleep 10; kill 0; }' || :)"
+    else
+        CHECK_INTERNET="$(curl --compressed -Is google.com -m 10)"
+    fi
+    if [[ -z $CHECK_INTERNET ]]; then
+        clearLine 1 && printf "\n" && printCenter "[ Error: Internet connection not available ]" "=" && printf "\n"
+        exit 1
+    else
+        clearLine 1
+    fi
+}
+
+# Set the path and random name for temp file ( used for showing parallel uploads progress ).
+setupTempfile() {
+    type -p mktemp > /dev/null && { TMPFILE="$(mktemp -u)" || TMPFILE="$PWD/$((RANDOM * 2)).LOG"; }
+    trap '[[ -f "$TMPFILE"SUCCESS ]] && rm "$TMPFILE"SUCCESS ; [[ -f "$TMPFILE"ERROR ]] && rm "$TMPFILE"ERROR' EXIT
+}
+
+# Loop through all the input.
+processArguments() {
+    if [[ -n $FOLDERNAME ]]; then
+        mkdir -p "$FOLDERNAME"
+        cd "$FOLDERNAME" || exit 1
+    fi
+
+    for INPUT in "${FINAL_INPUT_ARRAY[@]}"; do
+        for ((input = 0; input < ${#FINAL_INPUT_ARRAY[@]}; input++)); do
+            if ! checkID "$INPUT" "$API_KEY"; then
+                break
+            fi
+            if [[ -n $FOLDERID ]]; then
+                downloadFolder "$FOLDERID" "$API_KEY" "${PARALLEL_DOWNLOAD:-}"
+            else
+                downloadFile "$FILEID" "$API_KEY"
+            fi
+        done
+    done
+}
+
+main() {
+    [[ $# = 0 ]] && shortHelp
+
+    # To cleanup subprocesses.
+    trap 'exit' INT TERM && trap 'kill -- $$' EXIT
+
+    set -o errexit -o noclobber -o pipefail
+    checkBashVersion
+
+    setupArguments "$@"
+    checkDebug && checkInternet
+    setupTempfile
+
+    START=$(printf "%(%s)T\\n" "-1")
+    printCenter "[ Starting script ]" "="
+
+    processArguments
+
+    END="$(printf "%(%s)T\\n" "-1")"
+    DIFF="$((END - START))"
+    printCenter "[ Time Elapsed: ""$((DIFF / 60))"" minute(s) and ""$((DIFF % 60))"" seconds ]" "="
+}
+
+main "$@"

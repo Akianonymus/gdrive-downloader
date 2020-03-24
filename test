@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -xe
+
+# Format check
+bash format
+
+# Test gdrive IDs
+FILEID="1qzA3yqlcOctz_ZDcDaPqsvd7DWozsSHB"
+FOLDERID="1DbfjPfqDegvNMZBqI3cQvOTEi2KiSBaY"
+
+# Folder
+bash gdl "https://drive.google.com/folderview?id=""$FOLDERID""&usp=sharing"
+rm -rf Test/
+sleep 2
+bash gdl "https://drive.google.com/drive/u/0/mobile/folders/""$FOLDERID"""
+sleep 2
+# Do a check for log message when trying to download an existing folder contents
+bash gdl "https://drive.google.com/drive/folders/""$FOLDERID"""
+
+# File
+bash gdl "https://drive.google.com/file/d/""$FILEID""/view?usp=drivesdk"
+rm "New file.txt"
+sleep 2
+bash gdl "https://drive.google.com/uc?id=""$FILEID""&export=download"
+rm "New file.txt"
+sleep 2
+bash gdl "https://drive.google.com/open?id=""$FILEID"""
+sleep 2
+# Do a check for log message when trying to download an existing file
+bash gdl "https://docs.google.com/file/d/""$FILEID""/edit"
+
+set +xe
