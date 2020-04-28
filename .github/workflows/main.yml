@@ -1,9 +1,12 @@
 name: Checks
 on:
-  - push
+  push:
+    paths-ignore:
+      - 'README.md'
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[SKIP-CI]')"
     steps:
       -
         uses: actions/checkout@v1
@@ -12,4 +15,4 @@ jobs:
         run: 'sudo apt-get -y install snapd && sudo snap install shfmt && bash'
       -
         name: 'Here we go'
-        run: 'bash test.sh'
+        run: 'bash test'
