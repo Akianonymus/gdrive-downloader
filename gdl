@@ -433,16 +433,15 @@ setupArguments() {
     # Incase $1 argument was not taken as input, check if any arguments after all the valid flags have been passed.
     if [[ -z ${INPUT_ARRAY[*]} ]]; then
         if [[ -n $1 ]]; then
-            FINAL_INPUT_ARRAY+=("$1")
+            INPUT_ARRAY+=("$1")
         fi
-    else
-        FINAL_INPUT_ARRAY+=("$(printf "%s\n" "${INPUT_ARRAY[@]}")")
     fi
-    mapfile -t FINAL_INPUT_ARRAY <<< "$(removeArrayDuplicates "${FINAL_INPUT_ARRAY[@]}")"
+    mapfile -t FINAL_INPUT_ARRAY <<< "$(removeArrayDuplicates "${INPUT_ARRAY[@]}")"
 
     mapfile -t FINAL_INPUT_ARRAY <<< "$(for i in "${FINAL_INPUT_ARRAY[@]}"; do
         extractID "$i"
     done)"
+
     { [[ -n $VERBOSE_PROGRESS && -n $VERBOSE ]] && unset "$VERBOSE"; } || :
 }
 
@@ -493,7 +492,7 @@ processArguments() {
     fi
 
     for INPUT in "${FINAL_INPUT_ARRAY[@]}"; do
-        for ((input = 0; input < ${#FINAL_INPUT_ARRAY[@]}; input++)); do
+        for ((input = 0; input < "${#FINAL_INPUT_ARRAY[@]}"; input++)); do
             if ! checkID "$INPUT" "$API_KEY"; then
                 break
             fi
