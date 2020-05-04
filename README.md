@@ -127,7 +127,7 @@ Afterwards, in case of:
 
 First it fetches the name of the folder, then all the id and mimeType of files and sub-folders.
 
-Then it downloads the individual files using [downloadFile]() function.
+Then it downloads the individual files using `downloadFolder` function.
 
 In case of sub-folders, just repeat the process and download subfiles inside it, which can be skipped by -s/--skip-subdirs option.
 

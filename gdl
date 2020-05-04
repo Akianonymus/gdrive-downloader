@@ -29,6 +29,11 @@ checkBashVersion() {
     { ! [[ "${BASH_VERSINFO:-0}" -ge 4 ]] && printf "Bash version lower than 4.x not supported\n\n" && exit 1; } || :
 }
 
+# Check if we are running in a terminal.
+isTerminal() {
+    [[ -t 1 || -z $TERM ]] && return 0 || return 1
+}
+
 # Usage: bashSleep 1 ( where is time in seconds )
 # https://github.com/dylanaraps/pure-bash-bible#use-read-as-an-alternative-to-the-sleep-command
 bashSleep() {
@@ -37,7 +42,9 @@ bashSleep() {
 
 # Move cursor to nth no. of line and clear it to the begining.
 clearLine() {
-    printf "\033[%sA\033[2K" "$1"
+    if isTerminal; then
+        printf "\033[%sA\033[2K" "$1"
+    fi
 }
 
 # Remove array duplicates, maintain the order as original.
@@ -126,9 +133,9 @@ calcSize() {
 # Default wget command used everywhere
 download() {
     if [[ $VERBOSE_PROGRESS = true ]]; then
-        wget --header="Referer: https://drive.google.com" "$@"
+        wget "$@"
     else
-        wget --header="Referer: https://drive.google.com" -q --show-progress --progress=bar:force "$@"
+        wget -q --show-progress --progress=bar:force "$@"
     fi
 }
 
@@ -139,7 +146,6 @@ curlFetch() {
 
 # Fetch the latest script and update.
 update() {
-    declare REPO="gdrive-downloader"
     printf "Fetching update script.. \n"
     curl -s https://raw.githubusercontent.com/Akianonymus/""$REPO""/master/update_gdl | bash
     exit 0
@@ -180,7 +186,7 @@ downloadFile() {
         SERVER_SIZE="$(jsonValue size <<< "$INFO")"
         SERVER_SIZE_READABLE="$(calcSize <<< "$SERVER_SIZE")"
 
-        [[ -z "$PARALLEL" ]] && clearLine 1 && printCenter "[ $NAME | $SERVER_SIZE_READABLE ]" "="
+        [[ -z "$PARALLEL" ]] && clearLine 1 && printCenter "$NAME | $SERVER_SIZE_READABLE" "=" justify
 
         URL="""$API_URL""/drive/""$API_VERSION""/files/""$FILEID""?alt=media&key=""$KEY"""
 
@@ -191,13 +197,24 @@ downloadFile() {
                 printCenter "[ File already present ]" "=" && [[ -z "$PARALLEL" ]] && printf "\n"
             else
                 [[ -z "$PARALLEL" ]] && printCenter "[ File is partially present, resuming.. ]" "="
-                download "$URL" -c -O ./"$NAME"
+                wget -q --save-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=$FILEID"
+                if [[ -z "$PARALLEL" ]]; then
+                    download -c --load-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(tail -1 "$TMPFILE"COOKIE | sed 's/\s\+/\n/g' | tail -1)"
+                else
+                    wget -c -q --load-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(tail -1 "$TMPFILE"COOKIE | sed 's/\s\+/\n/g' | tail -1)"
+                fi
                 [[ -z "$PARALLEL" ]] && for _ in {1..2}; do clearLine 1; done
                 printCenter "[ Downloaded ]" "=" && [[ -z "$PARALLEL" ]] && printf "\n"
             fi
         else
             [[ -z "$PARALLEL" ]] && printCenter "[ Downloading file.. ]" "="
-            download "$URL" -O ./"$NAME"
+
+            wget -q --save-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=$FILEID"
+            if [[ -z "$PARALLEL" ]]; then
+                download --load-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(tail -1 "$TMPFILE"COOKIE | sed 's/\s\+/\n/g' | tail -1)"
+            else
+                wget -q --load-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(tail -1 "$TMPFILE"COOKIE | sed 's/\s\+/\n/g' | tail -1)"
+            fi
             [[ -z "$PARALLEL" ]] && for _ in {1..2}; do clearLine 1; done
             printCenter "[ Downloaded ]" "=" && [[ -z "$PARALLEL" ]] && printf "\n"
         fi
@@ -228,7 +245,7 @@ downloadFolder() {
     NAME="$(jsonValue name <<< "$(curlFetch """$API_URL""/drive/""$API_VERSION""/files/""$FOLDERID""?alt=json&fields=name&key=""$KEY""")")"
     if [[ -n $NAME ]]; then
         printf '\n'
-        printCenter "[ $NAME ]" "="
+        printCenter "$NAME" "=" justify
         INFO="$(curlFetch """$API_URL""/drive/""$API_VERSION""/files?q=%27""$FOLDERID""%27+in+parents&fields=files(id,mimeType)&key=""$KEY""")"
 
         mapfile -t FILES <<< "$(jsonValue id <<< "$(grep -v folder <<< "$INFO" | grep mimeType -B1)")"
@@ -294,7 +311,7 @@ downloadFolder() {
         if [[ -z $SKIP_SUBDIRS ]]; then
             if [[ -n "${FOLDERS[*]}" ]]; then
                 for i in "${FOLDERS[@]}"; do
-                    downloadFolder "$i" "$KEY"
+                    downloadFolder "$i" "$KEY" "${parallel:-}"
                 done
             fi
         fi
