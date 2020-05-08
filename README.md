@@ -70,7 +70,7 @@ Options:
 
     -D | --debug - Display script command trace.
   
-    -U | --update - Update gdrive downloader.
+    -u | --update - Update gdrive downloader.
 
     -h | --help - Display usage instructions.
   
@@ -95,17 +95,16 @@ Basically it will run on every unix based system, and have a proper bash setup, 
 
 Problem arises in case of android, because android isn't shipped with wget or **gawk**(awk), or if you have an old android system, even your curl will be of old version and may create problems.
 
-For this, just install **termux**, it comes with these tools and latest compiled, just make sure to configure you shell file before running the automatic script, also make sure to install wget and curl, if missing.
+For this, just install **termux**, it comes with these tools and latest compiled, just make sure to configure your shell file before running the automatic script, also make sure to install wget and curl, if missing.
 `pkg install curl wget`
 
 But for curiosity, here are the tools explicitly required:
 
 1.  Bash ( 4.x )
 2.  wget and curl
-3.  awk
-4.  grep
-5.  sed
-6.  xargs
+3.  grep
+4.  sed
+5.  xargs
 
 ## How it works
 
@@ -142,9 +141,9 @@ Fetches the id, name and size of files, then simply download it using the api ke
 
 ## To do list
 
-As i am using the official api, there can be many potential features, here are some of which i have thought about.
+As i am using the official api, there can be many features, here are some of which i have thought about.
 
-1.  Give direct download links of file URLs, and print to the user, which could be downloaded externally.
+1.  Give direct download links of file URLs, and print to the user, which could be downloaded externally ( not possible now because links are IP specific ).
 2.  You tell me :).
 
 ## Sane pull requests / suggestions / issues reports are always welcome
