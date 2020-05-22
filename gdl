@@ -232,7 +232,7 @@ downloadFile() {
 
             wget -q --save-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=$FILEID"
             if [[ -z "$PARALLEL" ]]; then
-                download --load-cookies "$TMPFILE"COKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(: "$(tail 1 < "$TMPFILE"COOKIE)" && : "${_//$'\t'/$'\n'}" && tail 1 <<< "$_")"
+                download --load-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(: "$(tail 1 < "$TMPFILE"COOKIE)" && : "${_//$'\t'/$'\n'}" && tail 1 <<< "$_")"
             else
                 wget -q --load-cookies "$TMPFILE"COOKIE -O ./"$NAME" "https://drive.google.com/uc?export=download&id=""$FILEID""&confirm=$(: "$(tail 1 < "$TMPFILE"COOKIE)" && : "${_//$'\t'/$'\n'}" && tail 1 <<< "$_")"
             fi
