@@ -1,153 +1,406 @@
-[![Actions Status](https://github.com/Akianonymus/gdrive-downloader/workflows/Checks/badge.svg)](https://github.com/akianonymus/Checks/actions)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/f524510e62654ab5bcd2ec460e9efcf9)](https://www.codacy.com/manual/Akianonymus/gdrive-downloader?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Akianonymus/gdrive-downloader&amp;utm_campaign=Badge_Grade)
+<h1 align="center">Google drive downloader</h1>
+<p align="center">
+<a href="https://github.com/Akianonymus/gdrive-downloader/commits/master"><img alt="GitHub last commit (branch)" src="https://img.shields.io/github/last-commit/Akianonymus/gdrive-downloader/master?color=red&label=LAST%20UPDATE&style=for-the-badge"></a>
+<a href="https://github.com/Akianonymus/gdrive-downloader/stargazers"><img src="https://img.shields.io/github/stars/Akianonymus/gdrive-downloader.svg?color=blueviolet&style=for-the-badge" alt="Stars"></a>
+<img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/Akianonymus/gdrive-downloader?style=for-the-badge">
+</p>
+<p align="center">
+<a href="https://www.codacy.com/manual/Akianonymus/gdrive-downloader?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Akianonymus/gdrive-downloader&amp;utm_campaign=Badge_Grade"><img alt="Codacy grade" src="https://img.shields.io/codacy/grade/f524510e62654ab5bcd2ec460e9efcf9/master?style=for-the-badge"></a>
+<a href="https://github.com/Akianonymus/gdrive-downloader/actions"><img alt="Github Action Checks" src="https://img.shields.io/github/workflow/status/Akianonymus/gdrive-downloader/Checks/master?label=CI%20Checks&style=for-the-badge"></a>
+</p>
+<p align="center">
+<a href="https://github.com/Akianonymus/gdrive-downloader/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Akianonymus/gdrive-downloader.svg?style=for-the-badge" alt="License"></a>
+</p>
 
-# gdrive-downloader
+> gdrive-downloader is a collection of bash compliant scripts to download google drive files and folders.
 
-## Why
+- Minimal
+- No authentication required
+- Download gdrive files and folders
+  - Download subfolders
+- Resume Interrupted downloads
+- Parallel downloading
+- Pretty logging
+- Easy to install and update
 
-The main reason i wrote this script is to download files inside the gdrive folders, without authentication.
+## Table of Contents
 
-But, since the new update, it uses gdrive api key to authenticate. Don't be sad, because here is the catch..
-I have provided the api key for your use, but here is another fun fact, that api key belongs to google, so win win.
-For more info on how i got the api key, go to [how it works](https://github.com/Akianonymus/gdrive-downloader#how-it-works) section.
-
-See "old" branch for the ugly implementation.( try not to.. )
-
-## Features
-
-1.  Download files inside gdrive folders/files.
-2.  Downloading files from recursive folders.
-3.  Download files parallely.
-4.  No dependencies at all.
-5.  Resume partially downloaded files, just make sure you run command from same location and the file is there.
-6.  Some custom flags.
-
-## Installation
-
-### Automatic
-
-To install the script, just run the below commands in your terminal, either with wget or curl.
-
-**Note:** The script assumes that current shell is either or bash or zsh, and respectively run the commands, if neither the case, do it manually.
-
-`wget -qO- https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install | bash`
-
-`curl -o- https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install | bash`
-
-### Manual
-
-git clone `https://github.com/Akianonymus/gdrive-downloader path/gdrive-downloader`
-
-`alias gdl='bash path/gdrive-downloader/gdl'`
-
-or Add gdl script to your PATH.
-
-Done
-
-## Usage
-
-`gdl input`
-
- **Where "input" can be file/folder url or file/folder id.**
-
-Usage: gdl options.. <file_url|id> or <folderurl|id>.
-
-Options:
-
-    -d | --directory <foldername> - option to download given input in custom directory.
-  
-    -s | --skip-subdirs - Skip download of sub folders present in case of folders.
-  
-    -p | --parallel <no_of_files_to_parallely_upload> - Download multiple files in parallel, Max value = 10.
-  
-    -i | --input - Specify multiple URLs/IDs in one command.
-  
-    -l | --log <file_to_save_info> - Save downloaded files info to the given filename.
-  
-    -v | --verbose - Display detailed message (only for non-parallel uploads).
-  
-    -V | --verbose-progress - Display detailed message and detailed upload progress(only for non-parallel uploads).
-
-    -D | --debug - Display script command trace.
-  
-    -u | --update - Update gdrive downloader.
-
-    -h | --help - Display usage instructions.
-  
-### Supported input types
-
-You can either give url or file id as input, both works.
-See the [test script](https://github.com/Akianonymus/gdrive-downloader/test) to see which URL formats are supported.
-
- **Note: Use single or double qoutes on urls having special characters like `&` .**
-
-If some URL format isn't working, make to sure create an issue.
-
-## Updates
-
-For updating, just run gdl --update/-U.
-
-It will update the script to the latest version available on github automatically.
+- [Compatibility](#compatibility)
+  - [Linux or MacOS](#linux-or-macos)
+  - [Android](#android)
+  - [iOS](#ios)
+  - [Windows](#windows)
+- [Installing and Updating](#installing-and-updating)
+  - [Native Dependencies](#native-dependencies)
+  - [Installation](#installation)
+    - [Basic Method](#basic-method)
+    - [Advanced Method](#advanced-method)
+  - [Updation](#updation)
+- [Usage](#usage)
+  - [Download Script Custom Flags](#download-script-custom-flags)
+  - [Multiple Inputs](#multiple-inputs)
+  - [Resuming Interrupted Downloads](#resuming-interrupted-downloads)
+- [Uninstall](#Uninstall)
+- [How it works](#how-it-works)
+- [Reporting Issues](#reporting-issues)
+  - [Adding new sources](#adding-new-sources)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Compatibility
 
-Basically it will run on every unix based system, and have a proper bash setup, and i am assuming that you don't have old enough system which doesn't ship basic tools like **curl**, **wget**, **awk**, **sed**, etc...
+As this repo is bash compliant, there aren't many dependencies. See [Native Dependencies](#native-dependencies) after this section for explicitly required program list.
 
-Problem arises in case of android, because android isn't shipped with wget or **gawk**(awk), or if you have an old android system, even your curl will be of old version and may create problems.
+### Linux or MacOS
 
-For this, just install **termux**, it comes with these tools and latest compiled, just make sure to configure your shell file before running the automatic script, also make sure to install wget and curl, if missing.
-`pkg install curl wget`
+For Linux or MacOS, you hopefully don't need to configure anything extra, it should work by default.
 
-But for curiosity, here are the tools explicitly required:
+### Android
 
-1.  Bash ( 4.x )
-2.  wget and curl
-3.  grep
-4.  sed
-5.  xargs
+Install [Termux](https://wiki.termux.com/wiki/Main_Page).
+
+Then, `pkg install curl` and done.
+
+It's fully tested for all usecases of this script.
+
+### iOS
+
+Install [iSH](https://ish.app/)
+
+While it has not been officially tested, but should work given the description of the app. Report if you got it working by creating an issue.
+
+### Windows
+
+Use [Windows Subsystem](https://docs.microsoft.com/en-us/windows/wsl/install-win10)
+
+Again, it has not been officially tested on windows, there shouldn't be anything preventing it from working. Report if you got it working by creating an issue.
+
+## Installing and Updating
+
+### Native Dependencies
+
+The script explicitly requires the following programs:
+
+| Program       | Role In Script                                         |
+| ------------- | ------------------------------------------------------ |
+| bash          | Execution of script                                    |
+| curl          | All network requests in the script                     |
+| xargs         | For parallel downloading                               |
+| mkdir         | To create folders                                      |
+| rm            | To remove temporary files                              |
+| grep          | Miscellaneous                                          |
+| sed           | Miscellaneous                                          |
+
+### Installation
+
+You can install the script by automatic installation script provided in the repository.
+
+Default values set by automatic installation script, which are changeable:
+
+**Repo:** `Akianonymus/gdrive-downloader`
+
+**Command name:** `gdl`
+
+**Installation path:** `$HOME/.gdrive-downloader`
+
+**Source value:** `master`
+
+**Shell file:** `.bashrc` or `.zshrc` or `.profile`
+
+For custom command name, repo, shell file, etc, see advanced installation method.
+
+**Now, for automatic install script, there are two ways:**
+
+#### Basic Method
+
+To install gdrive-downloader in your system, you can run the below command:
+
+```shell
+bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh)
+```
+
+and done.
+
+#### Advanced Method
+
+This section provides information on how to utilise the install.sh script for custom usescases.
+
+These are the flags that are available in the install.sh script:
+
+<details>
+
+<summary>Click to expand</summary>
+
+-   <strong>-i | --interactive</strong>
+
+    Install script interactively, will ask for all the variables one by one.
+
+    Note: This will disregard all arguments given with below flags.
+
+    ---
+
+-   <strong>-p | --path <dir_name></strong>
+
+    Custom path where you want to install the script.
+
+    ---
+
+-   <strong>-c | --cmd <command_name></strong>
+
+    Custom command name, after installation, script will be available as the input argument.
+
+    ---
+
+-   <strong>-r | --repo <Username/reponame></strong>
+
+    Install script from your custom repo, e.g --repo Akianonymus/gdrive-downloader, make sure your repo file structure is same as official repo.
+
+    ---
+
+-   <strong>-b | --branch <branch_name></strong>
+
+    Specify branch name for the github repo, applies to custom and default repo both.
+
+    ---
+
+-   <strong>-s | --shell-rc <shell_file></strong>
+
+    Specify custom rc file, where PATH is appended, by default script detects .zshrc, .bashrc. and .profile.
+
+    ---
+
+-   <strong>--skip-internet-check</strong>
+
+    Do not check for internet connection, recommended to use in sync jobs.
+
+    ---
+
+-   <strong>-D | --debug</strong>
+
+    Display script command trace.
+
+    ---
+
+-   <strong>-h | --help</strong>
+
+    Display usage instructions.
+
+    ---
+
+Now, run the script and use flags according to your usecase.
+
+E.g:
+
+```shell
+bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh) -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
+```
+</details>
+
+### Updation
+
+If you have followed the automatic method to install the script, then you can automatically update the script.
+
+There are two methods:
+
+1.  Use the script itself to update the script.
+
+    `gdl -u or gdl --update`
+
+    This will update the script where it is installed.
+
+    <strong>If you use the this flag without actually installing the script,</strong>
+
+    <strong>e.g just by `bash gdl.sh -u` then it will install the script or update if already installed.</strong>
+
+1.  Run the installation script again.
+
+    Yes, just run the installation script again as we did in install section, and voila, it's done.
+
+**Note: Above methods always obey the values set by user in advanced installation,**
+**e.g if you have installed the script with different repo, say `myrepo/gdrive-downloader`, then the update will be also fetched from the same repo.**
+
+## Usage
+
+After installation, no more configuration is needed.
+
+`gdl gdrive_id/gdrive_url`
+
+Script supports argument as gdrive_url, or a gdrive_id, given those should be publicly available.
+
+Now, we have covered the basics, move on to the next section for extra features and usage, like skipping sub folders, parallel downloads, etc.
+
+### Download Script Custom Flags
+
+These are the custom flags that are currently implemented:
+
+-   <strong>-d | --directory 'foldername'</strong>
+
+    Custom workspace folder where given input will be downloaded.
+
+    ---
+
+-   <strong>-s | --skip-subdirs</strong>
+
+    Skip downloading of sub folders present in case of folders.
+
+    ---
+
+-   <strong>-p | --parallel <no_of_files_to_parallely_download></strong>
+
+    Download multiple files in parallel.
+
+    Note:
+
+    - This command is only helpful if you are downloding many files which aren't big enough to utilise your full bandwidth, using it otherwise will not speed up your download and even error sometimes,
+    - 5 to 10 value is recommended. If errors with a high value, use smaller number.
+    - Beaware, this isn't magic, obviously it comes at a cost of increased cpu/ram utilisation as it forks multiple bash processes to download ( google how xargs works with -P option ).
+
+    ---
+
+-   <strong>-l | --log 'log_file_name'</strong>
+
+    Save downloaded files info to the given filename.
+
+    ---
+
+-   <strong>-v | --verbose</strong>
+
+    Display detailed message (only for non-parallel uploads).
+
+    ---
+
+-   <strong>--skip-internet-check</strong>
+
+    Do not check for internet connection, recommended to use in sync jobs.
+
+    ---
+
+-   <strong>-V | --version</strong>
+
+    Show detailed info, only if script is installed system wide.
+
+    ---
+
+-   <strong>-u | --update</strong>
+
+    Update the installed script in your system, if not installed, then install.
+
+    ---
+
+-   <strong>--uninstall</strong>
+
+    Uninstall the installed script in your system.
+
+    ---
+
+-   <strong>-h | --help</strong>
+
+    Display usage instructions.
+
+    ---
+
+-   <strong>-D | --debug</strong>
+
+    Display script command trace.
+
+    ---
+
+### Multiple Inputs
+
+You can use multiple inputs without any extra hassle.
+
+Pass arguments normally, e.g: `gdl url1 url2 id2 id2`
+
+where usr1 and usr2 is drive urls and rest two are gdrive ids.
+
+### Resuming Interrupted Downloads
+
+Downloads interrupted either due to bad internet connection or manual interruption, can be resumed from the same position.
+
+You can interrupt many times you want, it will resume ( hopefully ).
+
+It will not download again if file is already present, thus avoiding bandwidth waste.
+
+## Uninstall
+
+If you have followed the automatic method to install the script, then you can automatically uninstall the script.
+
+There are two methods:
+
+1.  Use the script itself to uninstall the script.
+
+    `gdl --uninstall`
+
+    This will remove the script related files and remove path change from shell file.
+
+1.  Run the installation script again with -U/--uninstall flag
+
+    ```shell
+    bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh) --uninstall
+    ```
+
+    Yes, just run the installation script again with the flag and voila, it's done.
+
+**Note: Above methods always obey the values set by user in advanced installation.**
 
 ## How it works
 
-The catch here is that i use drive v3 api, but without oauth authentication, enabling us to fetch the details with just the api key, which can be shared publicly because it belongs to google.
+In this section, the mechanism of the script it explained, if one is curious how it works to download folders as it is not supported officially.
 
-### API KEY
+The main catch here is that the script uses gdrive api to fetch details of a given file or folder id/url. But then how it is without authentication ?
 
-I have grabbed the api key from their gdrive file page, just open a gdrive folder on browser, open console and see network requests, open one of the POST requests and there you have it.
+Well, it does uses the api key but i have provided it in script. I have grabbed the api key from their gdrive file page, just open a gdrive folder on browser, open console and see network requests, open one of the POST requests and there you have it.
 
-Also, google api key have a check for referer, so we pass referer with curl/wget as `https://drive.google.com` to use the key.
+Also, google api key have a check for referer, so we pass referer with curl as `https://drive.google.com` to properly use the key.
 
-### URL Check
+Now, next steps are simple enough:
 
-Intially, it parses the input and extract the fileid, check if it's public/available, then proceed.
+### Input Check
 
-Afterwards, in case of:
+Main Function: `_check_id`
 
-### Folder
+It parses the input and extract the file_id, then it does a network request to fetch name, size and mimetype of id.
 
-First it fetches the name of the folder, then all the id and mimeType of files and sub-folders.
+If it's doesn't give http status 40*, then proceed.
 
-Then it downloads the individual files using `downloadFolder` function.
+In case of:
 
-In case of sub-folders, just repeat the process and download subfiles inside it, which can be skipped by -s/--skip-subdirs option.
+#### File
 
-### Files
+Main Function: `_download_file`
 
-Fetches the id, name and size of files, then simply download it using the api key.
+Before downloading, the script checks if file is already present. If present compare the file size to remote file size and resume the download if applicable.
 
-  **Also**, **another** **feature** the script has is to resume the partially downloaded files if already present in the path, but not full size, script checks for the size and compare to the size reported by server and [execute the script accordingly](https://github.com/Akianonymus/gdrive-downloader/blob/master/gdl#L176).
+Recent updates by google have the made the download links ip specific and very strict about cookies, so it can only be downloaded on the system where cookies was fetched.
+Earlier, cookies was only needed for a file greater than 100 MB.
 
-  **How do i achieve this ?**
-   By using wget -c flag which gives the ability to resume partially downloaded files.
+But either the case, the file can be moved to a different system and the script will resume the file from same position.
 
-## To do list
+#### Folder
 
-As i am using the official api, there can be many features, here are some of which i have thought about.
+Main Function: `_download_folder`
 
-1.  Give direct download links of file URLs, and print to the user, which could be downloaded externally ( not possible now because links are IP specific ).
-2.  You tell me :).
+First, all the files and sub folder details are fetched. Details include id and mimeType.
 
-## Sane pull requests / suggestions / issues reports are always welcome
+Now, it downloads the files using `_download_file` function, and in case of sub-folders, `_download_folder` function is repeated.
 
-**Note:** Before submitting a pull request, make sure to run [format](https://github.com/Akianonymus/gdrive-downloader/blob/master/format) script and it should pass shellcheck warnings.
+## Reporting Issues
 
-If you would like to query something, contact me at [telegram](https://t.me/Akianonymus).
+| Issues Status | [![GitHub issues](https://img.shields.io/github/issues/Akianonymus/gdrive-downloader.svg?label=&style=for-the-badge)](https://GitHub.com/Akianonymus/gdrive-downloader/issues/) | [![GitHub issues-closed](https://img.shields.io/github/issues-closed/Akianonymus/gdrive-downloader.svg?label=&color=success&style=for-the-badge)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Aissue+is%3Aclosed) |
+| :-----------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+
+Use the [GitHub issue tracker](https://github.com/Akianonymus/gdrive-downloader/issues) for any bugs or feature suggestions.
+
+## Contributing
+
+| Total Contributers | [![GitHub contributors](https://img.shields.io/github/contributors/Akianonymus/gdrive-downloader.svg?style=for-the-badge&label=)](https://GitHub.com/Akianonymus/gdrive-downloader/graphs/contributors/) |
+| :----------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+
+| Pull Requests | [![GitHub pull-requests](https://img.shields.io/github/issues-pr/Akianonymus/gdrive-downloader.svg?label=&style=for-the-badge&color=orange)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Apr+is%3Aopen) | [![GitHub pull-requests closed](https://img.shields.io/github/issues-pr-closed/Akianonymus/gdrive-downloader.svg?label=&color=success&style=for-the-badge)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Apr+is%3Aclosed) |
+| :-----------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+
+Submit patches to code or documentation as GitHub pull requests. Make sure to run format.sh before making a new pull request.
+
+## License
+
+[UNLICENSE](https://github.com/Akianonymus/gdrive-downloader/blob/master/LICENSE)
