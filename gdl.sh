@@ -144,7 +144,7 @@ _download_file() {
         [[ -z ${parallel} ]] && _print_center "justify" "Fetching" " cookies.." "-"
         curl -c "${TMPFILE}"COOKIE -I -s -o /dev/null "https://drive.google.com/uc?export=download&id=${file_id}" || :
         [[ -z ${parallel} ]] && _clear_line 1
-        confirm_string="$(: "$(_tail 2 < "${TMPFILE}"COOKIE | _head 1)" && : "${_//$'\t'/$'\n'}" && _tail 1 <<< "${_}")" || :
+        confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_//*$'\t'/}")" || :
         # shellcheck disable=SC2086 # Unnecessary to another check because ${CONTINUE} won't be anything problematic.
         curl -L -s ${CONTINUE} -b "${TMPFILE}"COOKIE -o "${name}" "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" &> /dev/null &
         pid="${!}" && printf "%s\n" "${pid}" >| "${TMPFILE}pid${pid}"
@@ -441,21 +441,6 @@ main() {
         exit 1
     fi
 
-    _cleanup() {
-        if ! [[ $(printf "%b\n" "${TMPFILE}"pid*) = "${TMPFILE}pid*" ]]; then
-            for pid in "${TMPFILE}"pid*; do
-                kill "$(< "${pid}")" &> /dev/null || :
-            done
-        fi
-        rm -f "${TMPFILE}"* &> /dev/null || :
-        if [[ -z "${intrap}" ]]; then
-            { export intrap=1 && kill -- -$$ &> /dev/null; } || :
-        fi
-    }
-
-    trap 'printf "\n" ; exit' SIGINT
-    trap '_cleanup' SIGTERM EXIT
-
     _check_bash_version && set -o errexit -o noclobber -o pipefail
 
     _setup_arguments "${@}"
@@ -463,6 +448,21 @@ main() {
     "${SKIP_INTERNET_CHECK:-_check_internet}"
 
     _setup_tempfile
+
+    _cleanup() {
+        if [[ -n ${PARALLEL_DOWNLOAD} ]]; then
+            for pid in "${TMPFILE}"pid*; do
+                kill "$(< "${pid}")" || :
+            done &> /dev/null
+        fi
+        rm -f "${TMPFILE:-$((RANDOM * RANDOM))}"* &> /dev/null || :
+        if [[ -z "${intrap}" ]]; then
+            { export intrap=1 && kill -- -$$ &> /dev/null; } || :
+        fi
+    }
+
+    trap 'printf "\n" ; exit' SIGINT
+    trap '_cleanup' SIGTERM EXIT
 
     _print_center "justify" "Starting script" "-"
     START="$(printf "%(%s)T\\n" "-1")"
