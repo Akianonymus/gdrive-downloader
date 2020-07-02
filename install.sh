@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Install, Update or Uninstall gdrive-downloader
+# shellcheck source=/dev/null
 
 _usage() {
     printf "
@@ -14,6 +15,7 @@ Options:\n
   -r | --repo <Username/reponame> - Upload script from your custom repo,e.g --repo Akianonymus/gdrive-downloader, make sure your repo file structure is same as official repo.\n
   -b | --branch <branch_name> - Specify branch name for the github repo, applies to custom and default repo both.\n
   -s | --shell-rc <shell_file> - Specify custom rc file, where PATH is appended, by default script detects .zshrc and .bashrc.\n
+  -t | --time 'no of days' - Specify custom auto update time ( given input will taken as number of days ) after which script will try to automatically update itself.\n
   --skip-internet-check - Like the flag says.\n
   -U | --uninstall - Uninstall the script and remove related files.\n
   -D | --debug - Display script command trace.\n
@@ -472,11 +474,11 @@ _variables() {
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
-    # shellcheck source=/dev/null
+    LAST_UPDATE_TIME="$(printf "%(%s)T\\n" "-1")" && export LAST_UPDATE_TIME
     if [[ -r ${INFO_PATH}/gdrive-downloader.info ]]; then
         source "${INFO_PATH}"/gdrive-downloader.info
     fi
-    __VALUES_ARRAY=(REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC)
+    __VALUES_ARRAY=(REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL)
 }
 
 ###################################################
@@ -713,6 +715,19 @@ _setup_arguments() {
                 _check_longoptions "${1}" "${2}"
                 SHELL_RC="${2}" && shift
                 ;;
+            -t | --time)
+                _check_longoptions "${1}" "${2}"
+                _AUTO_UPDATE_INTERVAL="${2}" && shift
+                case "${_AUTO_UPDATE_INTERVAL}" in
+                    *[!0-9]*)
+                        printf "\nError: -t/--time value can only be a positive integer.\n"
+                        exit 1
+                        ;;
+                    *)
+                        AUTO_UPDATE_INTERVAL="$((_AUTO_UPDATE_INTERVAL * 86400))"
+                        ;;
+                esac
+                ;;
             --skip-internet-check)
                 SKIP_INTERNET_CHECK=":"
                 ;;
@@ -729,6 +744,9 @@ _setup_arguments() {
         esac
         shift
     done
+
+    # 432000 secs = 5 days
+    AUTO_UPDATE_INTERVAL="${AUTO_UPDATE_INTERVAL:-432000}"
 
     if [[ -z ${SHELL_RC} ]]; then
         printf "No default shell file found, use -s/--shell-rc to use custom rc file\n"

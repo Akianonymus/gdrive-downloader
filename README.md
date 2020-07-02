@@ -20,6 +20,7 @@
 - Parallel downloading
 - Pretty logging
 - Easy to install and update
+  - Auto update
 
 ## Table of Contents
 
@@ -166,6 +167,14 @@ These are the flags that are available in the install.sh script:
 
     ---
 
+-   <strong>-t | --time 'no of days'</strong>
+
+    Specify custom auto update time ( given input will taken as number of days ) after which script will try to automatically update itself.
+
+    Default: 5 ( 5 days )
+
+    ---
+
 -   <strong>--skip-internet-check</strong>
 
     Do not check for internet connection, recommended to use in sync jobs.
@@ -197,7 +206,7 @@ bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive
 
 If you have followed the automatic method to install the script, then you can automatically update the script.
 
-There are two methods:
+There are three methods:
 
 1.  Use the script itself to update the script.
 
@@ -212,6 +221,12 @@ There are two methods:
 1.  Run the installation script again.
 
     Yes, just run the installation script again as we did in install section, and voila, it's done.
+
+1.  Automatic updates
+
+    By default, script checks for update after 3 days. Use -t / --time flag of install.sh to modify the interval.
+
+    An update log is saved in "${HOME}/.gdrive-downloader/update.log".
 
 **Note: Above methods always obey the values set by user in advanced installation,**
 **e.g if you have installed the script with different repo, say `myrepo/gdrive-downloader`, then the update will be also fetched from the same repo.**

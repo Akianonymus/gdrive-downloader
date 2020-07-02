@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Download file/folder from google drive.
+# shellcheck source=/dev/null
 
 _usage() {
     printf "
@@ -26,15 +27,31 @@ _short_help() {
 }
 
 ###################################################
+# Automatic updater, only update if script is installed system wide.
+###################################################
+_auto_update() {
+    (
+        if [[ -w ${INFO_FILE} ]] && source "${INFO_FILE}" && command -v "${COMMAND_NAME}" &> /dev/null; then
+            if [[ $((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL)) -lt $(printf "%(%s)T\\n" "-1") ]]; then
+                _update 2>&1 1>| "${INFO_PATH}/update.log"
+                _update_config LAST_UPDATE_TIME "$(printf "%(%s)T\\n" "-1")" "${INFO_FILE}"
+            fi
+        else
+            return 0
+        fi
+    ) &> /dev/null &
+    return 0
+}
+
+###################################################
 # Install/Update/uninstall the script.
 ###################################################
 _update() {
     declare job="${1:-update}"
     [[ ${job} =~ uninstall ]] && job_string="--uninstall"
     _print_center "justify" "Fetching ${job} script.." "-"
-    # shellcheck source=/dev/null
-    if [[ -f "${HOME}/.gdrive-downloader/gdrive-downloader.info" ]]; then
-        source "${HOME}/.gdrive-downloader/gdrive-downloader.info"
+    if [[ -w ${INFO_FILE} ]]; then
+        source "${INFO_FILE}"
     fi
     declare repo="${REPO:-Akianonymus/gdrive-downloader}" type_value="${TYPE_VALUE:-master}"
     if script="$(curl --compressed -Ls "https://raw.githubusercontent.com/${repo}/${type_value}/install.sh")"; then
@@ -52,10 +69,10 @@ _update() {
 # Path is "${HOME}/.gdrive-downloader/gdrive-downloader.info"
 ###################################################
 _version_info() {
-    if [[ -r "${HOME}/.gdrive-downloader/gdrive-downloader.info" ]]; then
-        printf "%s\n" "$(< "${HOME}/.gdrive-downloader/gdrive-downloader.info")"
+    if [[ -r ${INFO_FILE} ]] && source "${INFO_FILE}" && command -v "${COMMAND_NAME}" &> /dev/null; then
+        printf "%s\n" "$(< "${INFO_FILE}")"
     else
-        _print_center "justify" "gdrive-downloader is not installed system wide." "="
+        printf "%s\n" "gdrive-downloader is not installed system wide."
     fi
     exit 0
 }
@@ -322,6 +339,7 @@ _setup_arguments() {
     unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY
     INFO_PATH="${HOME}/.gdrive-downloader"
+    INFO_FILE="${INFO_PATH}/gdrive-downloader.info"
 
     # API
     API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
@@ -434,7 +452,6 @@ main() {
 
     UTILS_FILE="${UTILS_FILE:-./utils.sh}"
     if [[ -r ${UTILS_FILE} ]]; then
-        # shellcheck source=/dev/null
         source "${UTILS_FILE}" || { printf "Error: Unable to source utils file ( %s ) .\n" "${UTILS_FILE}" && exit 1; }
     else
         printf "Error: Utils file ( %s ) not found\n" "${UTILS_FILE}"
@@ -450,19 +467,22 @@ main() {
     _setup_tempfile
 
     _cleanup() {
-        if [[ -n ${PARALLEL_DOWNLOAD} ]]; then
-            for pid in "${TMPFILE}"pid*; do
-                kill "$(< "${pid}")" || :
-            done &> /dev/null
-        fi
-        rm -f "${TMPFILE:-$((RANDOM * RANDOM))}"* &> /dev/null || :
-        if [[ -z "${intrap}" ]]; then
-            { export intrap=1 && kill -- -$$ &> /dev/null; } || :
-        fi
+        (
+            if [[ -n ${PARALLEL_DOWNLOAD} ]]; then
+                for pid in "${TMPFILE}"pid*; do
+                    kill "$(< "${pid}")" || :
+                done
+            fi
+            rm -f "${TMPFILE:-$((RANDOM * RANDOM))}"* &> /dev/null || :
+            if [[ -z "${intrap}" ]]; then
+                { export intrap=1 && kill -- -$$ &> /dev/null; } || :
+            fi
+        ) &> /dev/null &
+        return 0
     }
 
     trap 'printf "\n" ; exit' SIGINT
-    trap '_cleanup' SIGTERM EXIT
+    trap '_cleanup ; _auto_update' SIGTERM EXIT
 
     _print_center "justify" "Starting script" "-"
     START="$(printf "%(%s)T\\n" "-1")"
