@@ -53,7 +53,6 @@ _check_bash_version() {
 #             Check QUIET, then check terminal size and enable print functions accordingly.
 ###################################################
 _check_debug() {
-    _print_center_quiet() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
     if [[ -n ${DEBUG} ]]; then
         set -x
         _print_center() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
@@ -76,6 +75,7 @@ _check_debug() {
         fi
         _newline() { printf "%b" "${1}"; }
     fi
+    return 0
 }
 
 ###################################################
@@ -98,7 +98,7 @@ _check_dependencies() {
         printf "%b" "not found, install before proceeding.\n"
         exit 1
     fi
-
+    return 0
 }
 
 ###################################################
@@ -130,6 +130,22 @@ _check_internet() {
 ###################################################
 _clear_line() {
     printf "\033[%sA\033[2K" "${1}"
+}
+
+###################################################
+# Alternative to wc -l command
+# Globals: None
+# Arguments: 1  or pipe
+#   ${1} = file, _count < file
+#          variable, _count <<< variable
+#   pipe = echo something | _count
+# Result: Read description
+# Reference:
+#   https://github.com/dylanaraps/pure-bash-bible#get-the-number-of-lines-in-a-file
+###################################################
+_count() {
+    mapfile -tn 0 lines
+    printf '%s\n' "${#lines[@]}"
 }
 
 ###################################################
@@ -199,27 +215,30 @@ _full_path() {
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
 # Globals: None
-# Arguments: 3
-#   ${1} = "branch" or "release"
-#   ${2} = branch name or release name
-#   ${3} = repo name e.g Akianonymus/gdrive-downloader
-# Result: print fetched sha
+# Arguments: 2
+#   ${1} = repo name
+#   ${2} = branch or release
+#   ${3} = branch name or release name
+# Result: print fetched shas
 ###################################################
 _get_files_and_commits() {
-    declare repo="${1:-${REPO}}" branch="${2:-${TYPE_VALUE}}"
+    declare repo="${1:-${REPO}}" type_value="${2:-${TYPE_VALUE}}"
     declare html commits files
 
     # shellcheck disable=SC2086
-    html="$(curl ${CURL_ARGS:--#} --compressed https://github.com/"${repo}"/file-list/"${branch}")"
+    html="$(curl ${CURL_ARGS:--#} --compressed https://github.com/"${repo}"/file-list/"${type_value}")"
     _clear_line 1 1>&2
-    commits="$(: "$(grep -o "commit/.*\"" <<< "${html}")" && : "${_//commit\//}" && printf "%s\n" "${_//\"/}")"
+    commits="$(: "$(grep -o "commit/.*\"" <<< "${html}" || :)" && : "${_//commit\//}" && printf "%s\n" "${_//\"/}")"
     # shellcheck disable=SC2001
-    files="$(: "$(grep -oE '(blob|tree)/'"${branch}"'.*\"' <<< "${html}")" && : "${_//\"/}" && sed "s/>.*//g" <<< "${_}")"
+    files="$(: "$(grep -oE '(blob|tree)/'"${type_value}"'.*\"' <<< "${html}" || :)" && : "${_//\"/}" && sed "s/>.*//g" <<< "${_}")"
+
+    if [[ $(_count <<< "${files}") -gt $(_count <<< "${commits}") ]]; then
+        files="$(sed 1d <<< "${files}")"
+    fi
 
     while read -u 4 -r file && read -r -u 5 commit; do
-        printf "%s\n" "${file//blob\/${branch}\//}__.__${commit}"
+        printf "%s\n" "${file//blob\/${type_value}\//}__.__${commit}"
     done 4<<< "${files}" 5<<< "${commits}" | grep -v tree || :
-
 }
 
 ###################################################
@@ -236,12 +255,12 @@ _get_latest_sha() {
     declare LATEST_SHA
     case "${1:-${TYPE}}" in
         branch)
-            LATEST_SHA="$(hash="$(curl --compressed -s https://github.com/"${3:-${REPO}}"/commits/"${2:-${TYPE_VALUE}}".atom -r 0-2000 | grep "Commit\\/" -m1)" && {
+            LATEST_SHA="$(hash="$(curl --compressed -s https://github.com/"${3:-${REPO}}"/commits/"${2:-${TYPE_VALUE}}".atom -r 0-2000 | grep "Commit\\/" -m1 || :)" && {
                 read -r firstline <<< "${hash}" && regex="(/.*<)" && [[ ${firstline} =~ ${regex} ]] && printf "%s\n" "${BASH_REMATCH[1]:1:-1}"
             })"
             ;;
         release)
-            LATEST_SHA="$(hash="$(curl -L --compressed -s https://github.com/"${3:-${REPO}}"/releases/"${2:-${TYPE_VALUE}}" | grep "=\"/""${3:-${REPO}}""/commit" -m1)" && {
+            LATEST_SHA="$(hash="$(curl -L --compressed -s https://github.com/"${3:-${REPO}}"/releases/"${2:-${TYPE_VALUE}}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && {
                 read -r firstline <<< "${hash}" && : "${hash/*commit\//}" && printf "%s\n" "${_/\"*/}"
             })"
             ;;
@@ -287,26 +306,6 @@ _insert_line() {
 ###################################################
 _is_terminal() {
     [[ -t 1 || -z ${TERM} ]] && return 0 || return 1
-}
-
-###################################################
-# Method to extract specified field data from json
-# Globals: None
-# Arguments: 2
-#   ${1} - value of field to fetch from json
-#   ${2} - Optional, no of lines to parse
-#   ${3} - Optional, nth number of value from extracted values, default it 1.
-# Input: file | here string | pipe
-#   _json_value "Arguments" < file
-#   _json_value "Arguments <<< "${varibale}"
-#   echo something | _json_value "Arguments"
-# Result: print extracted value
-###################################################
-_json_value() {
-    declare LC_ALL=C num
-    { [[ ${2} =~ ^([0-9]+)+$ ]] && no_of_lines="${2}"; } || :
-    { [[ ${3} =~ ^([0-9]+)+$ ]] && num="${3}"; } || { [[ ${3} != all ]] && num=1; }
-    grep -o "\"${1}\"\:.*" ${no_of_lines+-m ${no_of_lines}} | sed -e "s/.*\"""${1}""\"://" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num}"p
 }
 
 ###################################################
@@ -373,26 +372,6 @@ _print_center() {
 }
 
 ###################################################
-# Remove duplicates, maintain the order as original.
-# Globals: None
-# Arguments: 1
-#   ${@} = Anything
-# Result: read description
-# Reference:
-#   https://stackoverflow.com/a/37962595
-###################################################
-_remove_array_duplicates() {
-    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare -A Aseen
-    Aunique=()
-    for i in "$@"; do
-        { [[ -z ${i} || ${Aseen[${i}]} ]]; } && continue
-        Aunique+=("${i}") && Aseen[${i}]=x
-    done
-    printf '%s\n' "${Aunique[@]}"
-}
-
-###################################################
 # Alternative to tail -n command
 # Globals: None
 # Arguments: 1  or pipe
@@ -448,13 +427,15 @@ _timeout() {
 ###################################################
 _update_config() {
     [[ $# -lt 3 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare VALUE_NAME="${1}" VALUE="${2}" CONFIG_PATH="${3}" FINAL=()
+    declare VALUE_NAME="${1}" VALUE="${2}" CONFIG_PATH="${3}" FINAL=() _FINAL && declare -A Aseen
     printf "" >> "${CONFIG_PATH}" # If config file doesn't exist.
     mapfile -t VALUES < "${CONFIG_PATH}" && VALUES+=("${VALUE_NAME}=\"${VALUE}\"")
     for i in "${VALUES[@]}"; do
-        [[ ${i} =~ ${VALUE_NAME}\= ]] && FINAL+=("${VALUE_NAME}=\"${VALUE}\"") || FINAL+=("${i}")
+        [[ ${Aseen[${i}]} ]] && continue
+        [[ ${i} =~ ${VALUE_NAME}\= ]] && _FINAL="${VALUE_NAME}=\"${VALUE}\"" || _FINAL="${i}"
+        FINAL+=("${_FINAL}") && Aseen[${_FINAL}]=x
     done
-    _remove_array_duplicates "${FINAL[@]}" >| "${CONFIG_PATH}"
+    printf '%s\n' "${FINAL[@]}" >| "${CONFIG_PATH}"
 }
 
 ###################################################
@@ -677,8 +658,10 @@ _setup_arguments() {
     [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
 
     _check_longoptions() {
-        { [[ -z ${2} ]] &&
-            printf '%s: %s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" && exit 1; } || :
+        [[ -z ${2} ]] &&
+            printf '%s: %s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" &&
+            exit 1
+        return 0
     }
 
     while [[ $# -gt 0 ]]; do
@@ -761,10 +744,12 @@ _setup_arguments() {
             exit 1
         fi
     fi
+    return 0
 }
 
 main() {
     _check_bash_version && _check_dependencies
+    set -o errexit -o noclobber -o pipefail
 
     _variables
     if [[ $* ]]; then

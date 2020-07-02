@@ -164,7 +164,7 @@ _download_file() {
         confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_//*$'\t'/}")" || :
         # shellcheck disable=SC2086 # Unnecessary to another check because ${CONTINUE} won't be anything problematic.
         curl -L -s ${CONTINUE} -b "${TMPFILE}"COOKIE -o "${name}" "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" &> /dev/null &
-        pid="${!}" && printf "%s\n" "${pid}" >| "${TMPFILE}pid${pid}"
+        pid="${!}"
 
         if [[ -n ${parallel} ]]; then
             wait "${pid}" &> /dev/null
@@ -255,7 +255,6 @@ _download_folder() {
                 export TMPFILE
                 # shellcheck disable=SC2016
                 printf "\"%s\"\n" "${files[@]}" | xargs -n1 -P"${NO_OF_PARALLEL_JOBS_FINAL}" -i bash -c '
-                printf "%s\n" "$$" >| "${TMPFILE}"pid"$$"
                 id="{}"
                 if JSON="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id}?alt=json&fields=name,size&key=${API_KEY}")"; then
                     _download_file "${id}" true
@@ -423,6 +422,7 @@ _setup_arguments() {
 
     export DEBUG LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION
     export INFO_PATH FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK
+    export COLUMNS
     export -f _print_center _clear_line _newline _bash_sleep _tail _head _count _json_value _bytes_to_human
     export -f _fetch _check_id _download_file _download_folder
 
@@ -467,22 +467,20 @@ main() {
     _setup_tempfile
 
     _cleanup() {
-        (
-            if [[ -n ${PARALLEL_DOWNLOAD} ]]; then
-                for pid in "${TMPFILE}"pid*; do
-                    kill "$(< "${pid}")" || :
-                done
+        {
+            rm -f "${TMPFILE:?}"*
+            export abnormal_exit
+            if [[ -n ${abnormal_exit} ]]; then
+                kill -- -$$
+            else
+                _auto_update
             fi
-            rm -f "${TMPFILE:-$((RANDOM * RANDOM))}"* &> /dev/null || :
-            if [[ -z "${intrap}" ]]; then
-                { export intrap=1 && kill -- -$$ &> /dev/null; } || :
-            fi
-        ) &> /dev/null &
+        } &> /dev/null || :
         return 0
     }
 
-    trap 'printf "\n" ; exit' SIGINT
-    trap '_cleanup ; _auto_update' SIGTERM EXIT
+    trap 'printf "\n" ; abnormal_exit=1; exit' SIGINT SIGTERM
+    trap '_cleanup' EXIT
 
     _print_center "justify" "Starting script" "-"
     START="$(printf "%(%s)T\\n" "-1")"
