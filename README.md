@@ -34,6 +34,7 @@
   - [Installation](#installation)
     - [Basic Method](#basic-method)
     - [Advanced Method](#advanced-method)
+    - [Migrate from old version](#migrate-from-old-version)
   - [Updation](#updation)
 - [Usage](#usage)
   - [Download Script Custom Flags](#download-script-custom-flags)
@@ -201,6 +202,16 @@ E.g:
 bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh) -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
 ```
 </details>
+
+#### Migrate from old version
+
+If you have old gdrive-downloader installed in your system, then run below command and then do the installation command
+
+```shell
+rm -rf "${HOME}/.gdrive-downloader"
+```
+
+Remove any previously set alias to the gdl command.
 
 ### Updation
 

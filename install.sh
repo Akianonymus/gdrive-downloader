@@ -654,7 +654,8 @@ _uninstall() {
     if _new_rc="$(sed "s|${__bak}||g" "${SHELL_RC}")" &&
         printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; then
         rm -f "${INSTALL_PATH}"/{"${COMMAND_NAME}","${UTILS_FILE}"}
-        rm -f "${INFO_PATH}"/{gdrive-downloader.info,gdrive-downloader.binpath,gdrive-downloader.configpath}
+        rm -f "${INFO_PATH}"/{gdrive-downloader.info,gdrive-downloader.binpath,update.log}
+        [[ -z $(find "${INFO_PATH}" -type f) ]] && rm -rf "${INFO_PATH}"
         _clear_line 1
         _print_center "justify" "Uninstall complete." "="
     else
