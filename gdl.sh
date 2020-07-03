@@ -9,7 +9,8 @@ Usage:\n %s [options.. ] <file_[url|id]> or <folder[url|id]>\n
 Options:\n
   -d | --directory 'foldername' - option to _download given input in custom directory.\n
   -s | --skip-subdirs - Skip downloading of sub folders present in case of folders.\n
-  -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel, Max value = 10.\n
+  -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel.\n
+  --speed 'speed' - Limit the download speed, supported formats: 1K, 1M and 1G.\n
   -l | --log 'file_to_save_info' - Save downloaded files info to the given filename.\n
   -v | --verbose - Display detailed message (only for non-parallel uploads).\n
   --skip-internet-check - Do not check for internet connection, recommended to use in sync jobs.\n
@@ -163,7 +164,7 @@ _download_file() {
         [[ -z ${parallel} ]] && _clear_line 1
         confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_//*$'\t'/}")" || :
         # shellcheck disable=SC2086 # Unnecessary to another check because ${CONTINUE} won't be anything problematic.
-        curl -L -s ${CONTINUE} -b "${TMPFILE}"COOKIE -o "${name}" "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" &> /dev/null &
+        curl -L -s ${CONTINUE} ${CURL_SPEED} -b "${TMPFILE}"COOKIE -o "${name}" "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" &> /dev/null &
         pid="${!}"
 
         if [[ -n ${parallel} ]]; then
@@ -394,6 +395,16 @@ _setup_arguments() {
                 esac
                 PARALLEL_DOWNLOAD="true" && shift
                 ;;
+            --speed)
+                _check_longoptions "${1}" "${2}"
+                regex='^([0-9]+)([k,K]|[m,M]|[g,G])+$'
+                if [[ ${2} =~ ${regex} ]]; then
+                    CURL_SPEED="--limit-rate ${2}" && shift
+                else
+                    printf "Error: Wrong speed limit format, supported formats: 1K , 1M and 1G\n" 1>&2
+                    exit 1
+                fi
+                ;;
             -v | --verbose)
                 VERBOSE="true"
                 ;;
@@ -422,7 +433,7 @@ _setup_arguments() {
 
     export DEBUG LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION
     export INFO_PATH FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK
-    export COLUMNS
+    export COLUMNS CURL_SPEED
     export -f _print_center _clear_line _newline _bash_sleep _tail _head _count _json_value _bytes_to_human
     export -f _fetch _check_id _download_file _download_folder
 

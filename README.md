@@ -280,6 +280,12 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>--speed 'speed'</strong>
+
+    Limit the download speed, supported formats: 1K, 1M and 1G.
+
+    ---
+
 -   <strong>-l | --log 'log_file_name'</strong>
 
     Save downloaded files info to the given filename.
