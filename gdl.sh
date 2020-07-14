@@ -312,7 +312,8 @@ _download_folder() {
                 _print_center "justify" "Fetching folder" " name.." "-"
                 if JSON="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${folder}?alt=json&fields=name&key=${API_KEY}")"; then
                     _clear_line 1
-                    _download_folder "${folder}" "${parallel:-}"
+                    # do this in a subshell so that the directory change doesn't apply to main loop
+                    (_download_folder "${folder}" "${parallel:-}")
                 else
                     _clear_line 1
                     _print_center "justify" "Cannot fetch" "folder name" "=" 1>&2
