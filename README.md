@@ -115,7 +115,7 @@ For custom command name, repo, shell file, etc, see advanced installation method
 To install gdrive-downloader in your system, you can run the below command:
 
 ```shell
-bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh)
+bash <(curl -L -# --compressed drivedl.cf)
 ```
 
 and done.
@@ -199,7 +199,7 @@ Now, run the script and use flags according to your usecase.
 E.g:
 
 ```shell
-bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh) -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
+bash <(curl -L -# --compressed drivedl.cf) -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
 ```
 </details>
 
@@ -365,7 +365,7 @@ There are two methods:
 1.  Run the installation script again with -U/--uninstall flag
 
     ```shell
-    bash <(curl --compressed -s https://raw.githubusercontent.com/Akianonymus/gdrive-downloader/master/install.sh) --uninstall
+    bash <(curl -L -# --compressed drivedl.cf) --uninstall
     ```
 
     Yes, just run the installation script again with the flag and voila, it's done.
