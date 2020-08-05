@@ -2,19 +2,6 @@
 # Functions that will used in core script
 
 ###################################################
-# Alternative to sleep command
-# Globals: None
-# Arguments: 1
-#   ${1} = Positive integer ( amount of time in seconds to sleep )
-# Result: Sleeps for the specified amount of time.
-# Reference:
-#   https://github.com/dylanaraps/pure-bash-bible#use-read-as-an-alternative-to-the-sleep-command
-###################################################
-_bash_sleep() {
-    read -rt "${1}" <> <(:) || :
-}
-
-###################################################
 # Convert bytes to human readable form
 # Globals: None
 # Required Arguments: 1
@@ -60,42 +47,48 @@ _check_bash_version() {
 _check_debug() {
     _print_center_quiet() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
     if [[ -n ${DEBUG} ]]; then
-        set -x
+        set -x && PS4='-> '
         _print_center() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
         _clear_line() { :; } && _newline() { :; }
     else
-        set +x
-        if _is_terminal; then
-            # This refreshes the interactive shell so we can use the ${COLUMNS} variable in the _print_center function.
-            shopt -s checkwinsize && (: && :)
-            if [[ ${COLUMNS} -lt 40 ]]; then
-                _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+        if [[ -z ${QUIET} ]]; then
+            # check if running in terminal and support ansi escape sequences
+            if [[ -t 2 && -n ${TERM} && ${TERM} =~ (xterm|rxvt|urxvt|linux|vt) ]]; then
+                # This refreshes the interactive shell so we can use the ${COLUMNS} variable in the _print_center function.
+                shopt -s checkwinsize && (: && :)
+                if [[ ${COLUMNS} -lt 45 ]]; then
+                    _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+                else
+                    trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+                fi
+                EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG
             else
-                trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+                _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+                _clear_line() { :; }
             fi
+            _newline() { printf "%b" "${1}"; }
         else
-            _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
-            _clear_line() { :; }
+            _print_center() { :; } && _clear_line() { :; } && _newline() { :; }
         fi
-        _newline() { printf "%b" "${1}"; }
+        set +x
     fi
 }
 
 ###################################################
 # Check internet connection.
 # Probably the fastest way, takes about 1 - 2 KB of data, don't check for more than 10 secs.
-# Globals: 2 functions
-#   _print_center, _clear_line
+# Globals: 3 functions
+#   _print_center, _clear_line, _timeout
 # Arguments: None
 # Result: On
 #   Success - Nothing
 #   Error   - print message and exit 1
 ###################################################
 _check_internet() {
-    _print_center "justify" "Checking Internet Connection.." "-"
+    "${EXTRA_LOG}" "justify" "Checking Internet Connection.." "-"
     if ! _timeout 10 curl -Is google.com; then
         _clear_line 1
-        printf "Error: Internet connection not available.\n"
+        "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
         exit 1
     fi
     _clear_line 1
@@ -137,24 +130,21 @@ _count() {
 ###################################################
 _extract_id() {
     [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare LC_ALL=C ID="${1//[[:space:]]/}"
+    declare LC_ALL=C ID="${1}"
     case "${ID}" in
-        *'drive.google.com'*'id='*) ID="${ID/*id=/}" && ID="${ID//[?&]*/}" ;;
-        *'drive.google.com'*'file/d/'* | 'http'*'docs.google.com'*'/d/'*) ID="${ID/*\/d\//}" && ID="${ID/\/*/}" && ID="${ID//[?&]*/}" ;;
-        *'drive.google.com'*'drive'*'folders'*) ID="${ID/*\/folders\//}" && ID="${ID//[?&]*/}" ;;
+        *'drive.google.com'*'id='*) ID="${ID##*id=}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
+        *'drive.google.com'*'file/d/'* | 'http'*'docs.google.com'*'/d/'*) ID="${ID##*\/d\/}" && ID="${ID%%\/*}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
+        *'drive.google.com'*'drive'*'folders'*) ID="${ID##*\/folders\/}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
     esac
-    printf "%s\n" "${ID}"
+    printf "%b" "${ID:+${ID}\n}"
 }
 
 ###################################################
-# Check if script running in a terminal
-# Globals: 1 variable
-#   TERM
-# Arguments: None
-# Result: return 1 or 0
+# Default curl command used for gdrivr api requests.
 ###################################################
-_is_terminal() {
-    [[ -t 1 || -z ${TERM} ]] && return 0 || return 1
+_fetch() {
+    curl -e "https://drive.google.com" --compressed "${@}" ${CURL_PROGRESS} || return 1
+    _clear_line 1 1>&2
 }
 
 ###################################################
@@ -166,31 +156,17 @@ _is_terminal() {
 #   ${3} - Optional, nth number of value from extracted values, default it 1.
 # Input: file | here string | pipe
 #   _json_value "Arguments" < file
-#   _json_value "Arguments <<< "${varibale}"
+#   _json_value "Arguments" <<< "${varibale}"
 #   echo something | _json_value "Arguments"
-# Result: print extracted value
+# Result: print extracted value or return 1
 ###################################################
 _json_value() {
-    declare LC_ALL=C num
-    { [[ ${2} =~ ^([0-9]+)+$ ]] && no_of_lines="${2}"; } || :
-    { [[ ${3} =~ ^([0-9]+)+$ ]] && num="${3}"; } || { [[ ${3} != all ]] && num=1; }
-    grep -o "\"${1}\"\:.*" ${no_of_lines:+-m ${no_of_lines}} | sed -e "s/.*\"""${1}""\"://" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num}"p || :
-}
-
-###################################################
-# Alternative to head -n command
-# Globals: None
-# Arguments: 1  or pipe
-#   ${1} = file, _head 1 < file
-#          variable, _head 1 <<< variable
-#   pipe = echo something | _head 1
-# Result: Read description
-# Reference:
-#   https://github.com/dylanaraps/pure-bash-bible/blob/master/README.md#get-the-first-n-lines-of-a-file
-###################################################
-_head() {
-    mapfile -tn "$1" line
-    printf '%s\n' "${line[@]}"
+    declare num _tmp no_of_lines
+    { [[ ${2} -gt 0 ]] && no_of_lines="${2}"; } || :
+    { [[ ${3} -gt 0 ]] && num="${3}"; } || { [[ ${3} != all ]] && num=1; }
+    # shellcheck disable=SC2086
+    _tmp="$(grep -o "\"${1}\"\:.*" ${no_of_lines:+-m} ${no_of_lines})" || return 1
+    printf "%s\n" "${_tmp}" | sed -e "s/.*\"""${1}""\"://" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num}"p || :
 }
 
 ###################################################
@@ -218,9 +194,7 @@ _print_center() {
     declare -i TERM_COLS="${COLUMNS}"
     declare type="${1}" filler
     case "${type}" in
-        normal)
-            declare out="${2}" && symbol="${3}"
-            ;;
+        normal) declare out="${2}" && symbol="${3}" ;;
         justify)
             if [[ $# = 3 ]]; then
                 declare input1="${2}" symbol="${3}" TO_PRINT out
@@ -228,9 +202,9 @@ _print_center() {
                 { [[ ${#input1} -gt ${TO_PRINT} ]] && out="[ ${input1:0:TO_PRINT}..]"; } || { out="[ ${input1} ]"; }
             else
                 declare input1="${2}" input2="${3}" symbol="${4}" TO_PRINT temp out
-                TO_PRINT="$((TERM_COLS * 40 / 100))"
+                TO_PRINT="$((TERM_COLS * 47 / 100))"
                 { [[ ${#input1} -gt ${TO_PRINT} ]] && temp+=" ${input1:0:TO_PRINT}.."; } || { temp+=" ${input1}"; }
-                TO_PRINT="$((TERM_COLS * 55 / 100))"
+                TO_PRINT="$((TERM_COLS * 46 / 100))"
                 { [[ ${#input2} -gt ${TO_PRINT} ]] && temp+="${input2:0:TO_PRINT}.. "; } || { temp+="${input2} "; }
                 out="[${temp}]"
             fi
@@ -239,7 +213,7 @@ _print_center() {
     esac
 
     declare -i str_len=${#out}
-    [[ $str_len -ge $(((TERM_COLS - 1))) ]] && {
+    [[ $str_len -ge $((TERM_COLS - 1)) ]] && {
         printf "%s\n" "${out}" && return 0
     }
 
@@ -257,55 +231,6 @@ _print_center() {
 }
 
 ###################################################
-# Remove duplicates, maintain the order as original.
-# Globals: None
-# Arguments: 1
-#   ${@} = Anything
-# Result: read description
-# Reference:
-#   https://stackoverflow.com/a/37962595
-###################################################
-_remove_array_duplicates() {
-    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare -A Aseen
-    Aunique=()
-    for i in "$@"; do
-        { [[ -z ${i} || ${Aseen[${i}]} ]]; } && continue
-        Aunique+=("${i}") && Aseen[${i}]=x
-    done
-    printf '%s\n' "${Aunique[@]}"
-}
-
-###################################################
-# Setup Temporary file name for writing, uses mktemp, current dir as fallback
-# Used in parallel folder uploads progress
-# Globals: 2 variables
-#   PWD ( optional ), RANDOM ( optional )
-# Arguments: None
-# Result: Read description and export TMPFILE
-###################################################
-_setup_tempfile() {
-    { type -p mktemp &> /dev/null && TMPFILE="$(mktemp -u)"; } || TMPFILE="${PWD}/$((RANDOM * RANDOM)).tmpfile"
-    export TMPFILE
-}
-
-###################################################
-# Alternative to tail -n command
-# Globals: None
-# Arguments: 1  or pipe
-#   ${1} = file, _tail 1 < file
-#          variable, _tail 1 <<< variable
-#   pipe = echo something | _tail 1
-# Result: Read description
-# Reference:
-#   https://github.com/dylanaraps/pure-bash-bible/blob/master/README.md#get-the-last-n-lines-of-a-file
-###################################################
-_tail() {
-    mapfile -tn 0 line
-    printf '%s\n' "${line[@]: -$1}"
-}
-
-###################################################
 # Alternative to timeout command
 # Globals: None
 # Arguments: 1 and rest
@@ -313,21 +238,18 @@ _tail() {
 #   rest = command to execute
 # Result: Read description
 # Reference:
-#   https://stackoverflow.com/a/11056286
+#   https://stackoverflow.com/a/24416732
 ###################################################
 _timeout() {
-    declare -i sleep="${1}" && shift
-    declare -i pid watcher
+    declare timeout="${1:?Error: Specify Timeout}" && shift
     {
-        { "${@}"; } &
-        pid="${!}"
-        { read -r -t "${sleep:-10}" && kill -HUP "${pid}"; } &
-        watcher="${!}"
-        if wait "${pid}" 2> /dev/null; then
-            kill -9 "${watcher}"
-            return 0
-        else
-            return 1
-        fi
-    } &> /dev/null
+        "${@}" &
+        child="${!}"
+        trap -- "" TERM
+        {
+            sleep "${timeout}"
+            kill "${child}"
+        } &
+        wait "${child}"
+    } 2> /dev/null 1>&2
 }

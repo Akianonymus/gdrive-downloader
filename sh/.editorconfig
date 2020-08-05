@@ -17,6 +17,3 @@ indent_size = 4
 shell_variant      = posix
 switch_case_indent = true
 space_redirects    = true
-
-[*.md]
-trim_trailing_whitespace = false

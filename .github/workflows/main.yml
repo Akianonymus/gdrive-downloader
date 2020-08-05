@@ -1,23 +1,53 @@
 name: Checks
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - 'master'
+    paths-ignore:
+      - '*.md'
+  pull_request:
+    branches:
+      - 'master'
+    paths-ignore:
+      - '*.md'
 jobs:
-  installation_and_download:
-    name: Installation / Download
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[SKIP-CI]')"
+  install_test:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest]
+    name: Installation test on ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    if: "!contains(github.event.head_commit.message, 'SKIP-CI')"
     steps:
-      - uses: actions/checkout@v1
-      - uses: dorny/paths-filter@v2.2.0
-        id: filter
-        with:
-          filters: |
-            main:
-              - '+(gdl|utils|test).sh'
-            install:
-              - 'install.sh'
-      - name: 'Install gdrive-downloader'
-        if: steps.filter.outputs.install == 'true'
-        run: 'bash install.sh -b ${GITHUB_REF##*/}'
-      - name: 'Download Files'
-        if: steps.filter.outputs.main == 'true'
-        run: 'bash test.sh'
+    - name: Check out code
+      uses: actions/checkout@v1
+
+    - name: 'Install gdrive-downloader'
+      run: |
+          set -e
+          sh install.sh
+              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              gdl --info
+          sh install.sh -U && sh install.sh --posix
+              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              gdl --info
+          sh install.sh -U  && sh install.sh -c custom_gdl
+              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              custom_gdl --info
+  download_test:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest]
+    name: Download test on ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    if: "!contains(github.event.head_commit.message, 'SKIP-CI')"
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v1
+
+    - name: 'Install gdrive-downloader'
+      run: |
+          set -e
+          sh install.sh
+              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+          sh test.sh

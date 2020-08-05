@@ -10,7 +10,9 @@
 <a href="https://github.com/Akianonymus/gdrive-downloader/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Akianonymus/gdrive-downloader.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-> gdrive-downloader is a collection of bash compliant scripts to download google drive files and folders.
+> gdrive-downloader is a collection of shell scripts runnable on all POSIX compatible shells ( sh / ksh / dash / bash / zsh / etc ).
+>
+> It can be used to to download files or folders from google gdrive.
 
 - Minimal
 - No authentication required
@@ -48,7 +50,7 @@
 
 ## Compatibility
 
-As this repo is bash compliant, there aren't many dependencies. See [Native Dependencies](#native-dependencies) after this section for explicitly required program list.
+As this is a collection of shell scripts, there aren't many dependencies. See [Native Dependencies](#native-dependencies) after this section for explicitly required program list.
 
 ### Linux or MacOS
 
@@ -78,17 +80,28 @@ Again, it has not been officially tested on windows, there shouldn't be anything
 
 ### Native Dependencies
 
-The script explicitly requires the following programs:
+This repo contains two types of scripts, posix compatible and bash compatible.
 
-| Program       | Role In Script                                         |
-| ------------- | ------------------------------------------------------ |
-| bash          | Execution of script                                    |
-| curl          | All network requests in the script                     |
-| xargs         | For parallel downloading                               |
-| mkdir         | To create folders                                      |
-| rm            | To remove temporary files                              |
-| grep          | Miscellaneous                                          |
-| sed           | Miscellaneous                                          |
+<strong>These programs are required in both bash and posix scripts.</strong>
+
+| Program          | Role In Script                                         |
+| ---------------- | ------------------------------------------------------ |
+| curl             | All network requests                                   |
+| xargs            | For parallel downloading                               |
+| mkdir            | To create folders                                      |
+| rm               | To remove files and folders                            |
+| grep             | Miscellaneous                                          |
+| sed              | Miscellaneous                                          |
+| mktemp           | To generate temporary files ( optional )               |
+| sleep            | Self explanatory                                       |
+
+<strong>If BASH is not available or BASH is available but version is less tham 4.x, then below programs are also required:</strong>
+
+| Program             | Role In Script                             |
+| ------------------- | ------------------------------------------ |
+| date                | For installation, update and Miscellaneous |
+| cat                 | Miscellaneous                              |
+| stty or zsh or tput | To determine column size ( optional )      |
 
 ### Installation
 
@@ -115,7 +128,13 @@ For custom command name, repo, shell file, etc, see advanced installation method
 To install gdrive-downloader in your system, you can run the below command:
 
 ```shell
-bash <(curl -L -# --compressed drivedl.cf)
+curl -Ls --compressed drivedl.cf | sh -s
+```
+
+alternatively, you can use the original github url instead of drivedl.cf
+
+```shell
+curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s
 ```
 
 and done.
@@ -129,14 +148,6 @@ These are the flags that are available in the install.sh script:
 <details>
 
 <summary>Click to expand</summary>
-
--   <strong>-i | --interactive</strong>
-
-    Install script interactively, will ask for all the variables one by one.
-
-    Note: This will disregard all arguments given with below flags.
-
-    ---
 
 -   <strong>-p | --path <dir_name></strong>
 
@@ -176,6 +187,18 @@ These are the flags that are available in the install.sh script:
 
     ---
 
+-   <strong>--sh | --posix</strong>
+
+    Force install posix scripts even if system has compatible bash binary present.
+
+    ---
+
+-   <strong>-q | --quiet</strong>
+
+    Only show critical error/sucess logs.
+
+    ---
+
 -   <strong>--skip-internet-check</strong>
 
     Do not check for internet connection, recommended to use in sync jobs.
@@ -199,7 +222,7 @@ Now, run the script and use flags according to your usecase.
 E.g:
 
 ```shell
-bash <(curl -L -# --compressed drivedl.cf) -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
+curl -Ls --compressed drivedl.cf | sh -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
 ```
 </details>
 
@@ -227,7 +250,7 @@ There are three methods:
 
     <strong>If you use the this flag without actually installing the script,</strong>
 
-    <strong>e.g just by `bash gdl.sh -u` then it will install the script or update if already installed.</strong>
+    <strong>e.g just by `sh gdl.sh -u` then it will install the script or update if already installed.</strong>
 
 1.  Run the installation script again.
 
@@ -286,15 +309,27 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-R | --retry 'num of retries'</strong>
+
+    Retry the file download if it fails, postive integer as argument. Currently only for file downloads.
+
+    ---
+
 -   <strong>-l | --log 'log_file_name'</strong>
 
     Save downloaded files info to the given filename.
 
     ---
 
--   <strong>-v | --verbose</strong>
+-   <strong>-q | --quiet</strong>
 
-    Display detailed message (only for non-parallel uploads).
+    Supress the normal output, only show success/error download messages for files, and one extra line at the beginning for folder showing no. of files and sub folders.
+
+    ---
+
+-   <strong>-V | --verbose</strong>
+
+    Display detailed message (only for non-parallel downloads).
 
     ---
 
@@ -304,9 +339,9 @@ These are the custom flags that are currently implemented:
 
     ---
 
--   <strong>-V | --version</strong>
+-   <strong>--info</strong>
 
-    Show detailed info, only if script is installed system wide.
+    Show detailed info about script ( if script is installed system wide ).
 
     ---
 
@@ -365,7 +400,7 @@ There are two methods:
 1.  Run the installation script again with -U/--uninstall flag
 
     ```shell
-    bash <(curl -L -# --compressed drivedl.cf) --uninstall
+    curl -Ls --compressed drivedl.cf | sh -s -- --uninstall
     ```
 
     Yes, just run the installation script again with the flag and voila, it's done.
