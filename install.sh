@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # Install, Update or Uninstall gdrive-downloader
-# shellcheck source=/dev/null
 
 _usage() {
     printf "
@@ -17,6 +16,8 @@ Options:\n
   -s | --shell-rc <shell_file> - Specify custom rc file, where PATH is appended, by default script detects .zshrc and .bashrc.\n
   -t | --time 'no of days' - Specify custom auto update time ( given input will taken as number of days ) after which script will try to automatically update itself.\n
   --skip-internet-check - Like the flag says.\n
+  --sh | --posix - Force install posix scripts even if system has compatible bash binary present.\n
+  -q | --quiet - Only show critical error/sucess logs.\n
   -U | --uninstall - Uninstall the script and remove related files.\n
   -D | --debug - Display script command trace.\n
   -h | --help - Display usage instructions.\n" "${0##*/}" "${HOME}" "${HOME}"
@@ -29,16 +30,23 @@ _short_help() {
 }
 
 ###################################################
+# Wrapper for cat
+###################################################
+_cat() {
+    file_cat="${1}" && export file_cat
+    { [ "${INSTALLATION}" = bash ] && bash -c 'printf "%s\n" "$(< "${file_cat}")"'; } || cat "${file_cat}"
+}
+
+###################################################
 # Check for bash version >= 4.x
-# Globals: 1 Variable
-#   BASH_VERSINFO
-# Required Arguments: None
+# Globals: None
+# Arguments: None
 # Result: If
 #   SUCEESS: Status 0
 #   ERROR: print message and exit 1
 ###################################################
 _check_bash_version() {
-    { ! [[ ${BASH_VERSINFO:-0} -ge 4 ]] && printf "Bash version lower than 4.x not supported.\n" && exit 1; } || :
+    { command -v bash && [ "$(bash --version | grep -oE '[0-9]+\.[0-9]' | grep -o '^[0-9]')" -ge 4 ] && return 0; } 2> /dev/null 1>&2 || return 1
 }
 
 ###################################################
@@ -53,29 +61,30 @@ _check_bash_version() {
 #             Check QUIET, then check terminal size and enable print functions accordingly.
 ###################################################
 _check_debug() {
-    if [[ -n ${DEBUG} ]]; then
-        set -x
-        _print_center() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
+    _print_center_quiet() { { [ $# = 3 ] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
+    if [ -n "${DEBUG}" ]; then
+        _print_center() { { [ $# = 3 ] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
         _clear_line() { :; } && _newline() { :; }
-        CURL_ARGS=" -s " && export CURL_ARGS
+        set -x
     else
-        set +x
-        if _is_terminal; then
-            # This refreshes the interactive shell so we can use the ${COLUMNS} variable in the _print_center function.
-            shopt -s checkwinsize && (: && :)
-            if [[ ${COLUMNS} -lt 40 ]]; then
-                _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+        if [ -z "${QUIET}" ]; then
+            # check if running in terminal and support ansi escape sequences
+            case "${TERM}" in
+                xterm* | rxvt* | urxvt* | linux* | vt*) ansi_escapes="true" ;;
+            esac
+            if [ -t 2 ] && [ -n "${ansi_escapes}" ]; then
+                ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2> /dev/null &&
+                    _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
             else
-                trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+                _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+                _clear_line() { :; }
             fi
+            _newline() { printf "%b" "${1}"; }
         else
-            CURL_ARGS=" -s " && export CURL_ARGS
-            _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
-            _clear_line() { :; }
+            _print_center() { :; } && _clear_line() { :; } && _newline() { :; }
         fi
-        _newline() { printf "%b" "${1}"; }
+        set +x
     fi
-    return 0
 }
 
 ###################################################
@@ -85,19 +94,23 @@ _check_debug() {
 #   Error   - print message and exit 1
 ###################################################
 _check_dependencies() {
-    declare programs_for_download error_list
+    posix_check_dependencies="${1:-0}" error_list=""
 
-    programs_for_download=(curl xargs mkdir rm grep sed)
-    for program in "${programs_for_download[@]}"; do
-        type "${program}" &> /dev/null || error_list+=("${program}")
+    for program in curl find xargs mkdir rm grep sed sleep; do
+        command -v "${program}" 2> /dev/null 1>&2 || error_list="${error_list}\n${program}"
     done
 
-    if [[ -n ${error_list[*]} && -z ${UNINSTALL} ]]; then
+    [ "${posix_check_dependencies}" != 0 ] &&
+        for program in cat date; do
+            command -v "${program}" 2> /dev/null 1>&2 || error_list="${error_list}\n${program}"
+        done
+
+    [ -n "${error_list}" ] && [ -z "${UNINSTALL}" ] && {
         printf "Error: "
-        printf "%b, " "${error_list[@]}"
+        printf "%b, " "${error_list}"
         printf "%b" "not found, install before proceeding.\n"
         exit 1
-    fi
+    }
     return 0
 }
 
@@ -113,11 +126,11 @@ _check_dependencies() {
 ###################################################
 _check_internet() {
     _print_center "justify" "Checking Internet Connection.." "-"
-    if ! _timeout 10 curl -Is google.com; then
+    ! _timeout 10 curl -Is google.com && {
         _clear_line 1
-        printf "Error: Internet connection not available.\n"
+        "${QUIET:-_print_center}" "Error: Internet connection not available.\n"
         exit 1
-    fi
+    }
     _clear_line 1
 }
 
@@ -133,19 +146,18 @@ _clear_line() {
 }
 
 ###################################################
-# Alternative to wc -l command
+# print current date in epoch seconds
+# Use printf if bash, else date
 # Globals: None
-# Arguments: 1  or pipe
-#   ${1} = file, _count < file
-#          variable, _count <<< variable
-#   pipe = echo something | _count
+# Arguments: None
 # Result: Read description
-# Reference:
-#   https://github.com/dylanaraps/pure-bash-bible#get-the-number-of-lines-in-a-file
 ###################################################
-_count() {
-    mapfile -tn 0 lines
-    printf '%s\n' "${#lines[@]}"
+_date() {
+    if [ "${INSTALLATION}" = bash ]; then
+        bash -c 'printf "%(%s)T\\n" "-1"'
+    else
+        date +'%s'
+    fi
 }
 
 ###################################################
@@ -159,15 +171,12 @@ _count() {
 #   Error   - print error message and exit 1
 ###################################################
 _detect_profile() {
-    declare CURRENT_SHELL="${SHELL##*/}"
+    CURRENT_SHELL="${SHELL##*/}"
     case "${CURRENT_SHELL}" in
-        'bash') DETECTED_PROFILE="${HOME}/.bashrc" ;;
-        'zsh') DETECTED_PROFILE="${HOME}/.zshrc" ;;
-        *) if [[ -f "${HOME}/.profile" ]]; then
-            DETECTED_PROFILE="${HOME}/.profile"
-        else
-            printf "No compaitable shell file\n" && exit 1
-        fi ;;
+        *bash*) DETECTED_PROFILE="${HOME}/.bashrc" ;;
+        *zsh*) DETECTED_PROFILE="${HOME}/.zshrc" ;;
+        *ksh*) DETECTED_PROFILE="${HOME}/.kshrc" ;;
+        *) DETECTED_PROFILE="${HOME}/.profile" ;;
     esac
     printf "%s\n" "${DETECTED_PROFILE}"
 }
@@ -179,66 +188,69 @@ _detect_profile() {
 #   ${1} = path of file or folder
 # Result: read description
 # Reference:
-#   https://github.com/dylanaraps/pure-bash-bible#get-the-directory-name-of-a-file-path
+#   https://github.com/dylanaraps/pure-sh-bible#file-paths
 ###################################################
 _dirname() {
-    declare tmp=${1:-.}
-
-    [[ ${tmp} != *[!/]* ]] && { printf '/\n' && return; }
-    tmp="${tmp%%"${tmp##*[!/]}"}"
-
-    [[ ${tmp} != */* ]] && { printf '.\n' && return; }
-    tmp=${tmp%/*} && tmp="${tmp%%"${tmp##*[!/]}"}"
-
-    printf '%s\n' "${tmp:-/}"
+    dir_dirname="${1:-.}"
+    dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}" && [ "${dir_dirname##*/*}" ] && dir_dirname=.
+    dir_dirname="${dir_dirname%/*}" && dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}"
+    printf '%s\n' "${dir_dirname:-/}"
 }
 
 ###################################################
-# Print full path of a file/folder
-# Globals: 1 variable
-#   PWD
-# Arguments: 1
-#   ${1} = name of file/folder
-# Result: print full path
+# print column size
+# use bash or zsh or stty or tput
 ###################################################
-_full_path() {
-    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare input="${1}"
-    if [[ -f ${input} ]]; then
-        printf "%s/%s\n" "$(cd "$(_dirname "${input}")" &> /dev/null && pwd)" "${input##*/}"
-    elif [[ -d ${input} ]]; then
-        printf "%s\n" "$(cd "${input}" &> /dev/null && pwd)"
-    fi
+_get_columns_size() {
+    { command -v bash 2> /dev/null 1>&2 && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
+        zsh -c 'printf "%s\n" "${COLUMNS}" 2>&1' 2> /dev/null ||
+        { _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }" 2> /dev/null; } ||
+        tput cols 2> /dev/null ||
+        return 1
 }
 
 ###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
 # Globals: None
-# Arguments: 2
+# Arguments: 3
 #   ${1} = repo name
-#   ${2} = branch or release
-#   ${3} = branch name or release name
+#   ${2} = sha sum or branch name or tag name
+#   ${3} = path ( optional )
 # Result: print fetched shas
 ###################################################
 _get_files_and_commits() {
-    declare repo="${1:-${REPO}}" type_value="${2:-${TYPE_VALUE}}"
-    declare html commits files
+    repo_get_files_and_commits="${1:-${REPO}}" type_value_get_files_and_commits="${2:-${LATEST_CURRENT_SHA}}" path_get_files_and_commits="${3:-}"
+    unset html_get_files_and_commits commits_get_files_and_commits files_get_files_and_commits
 
     # shellcheck disable=SC2086
-    html="$(curl ${CURL_ARGS:--#} --compressed https://github.com/"${repo}"/file-list/"${type_value}")"
-    _clear_line 1 1>&2
-    commits="$(: "$(grep -o "commit/.*\"" <<< "${html}" || :)" && : "${_//commit\//}" && printf "%s\n" "${_//\"/}")"
+    html_get_files_and_commits="$(curl -s --compressed "https://github.com/${repo_get_files_and_commits}/file-list/${type_value_get_files_and_commits}/${path_get_files_and_commits}")" ||
+        { _print_center "normal" "Error: Cannot fetch" " update details" "=" 1>&2 && exit 1; }
+    commits_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -o "commit/.*\"" | sed -e 's/commit\///g' -e 's/\"//g' -e 's/>.*//g')"
     # shellcheck disable=SC2001
-    files="$(: "$(grep -oE '(blob|tree)/'"${type_value}"'.*\"' <<< "${html}" || :)" && : "${_//\"/}" && sed "s/>.*//g" <<< "${_}")"
+    files_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -oE '(blob|tree)/'"${type_value_get_files_and_commits}"'.*\"' | sed -e 's/\"//g' -e 's/>.*//g')"
 
-    if [[ $(_count <<< "${files}") -gt $(_count <<< "${commits}") ]]; then
-        files="$(sed 1d <<< "${files}")"
+    total_files="$(printf "%s\n" "${files_get_files_and_commits}" | wc -l)"
+    total_commits="$(printf "%s\n" "${commits_get_files_and_commits}" | wc -l)"
+    if [ "$((total_files - 2))" -eq "$((total_commits))" ]; then
+        files_get_files_and_commits="$(printf "%s\n" "${files_get_files_and_commits}" | sed 1,2d)"
+    elif [ "$((total_files))" -gt "$((total_commits))" ]; then
+        files_get_files_and_commits="$(printf "%s\n" "${files_get_files_and_commits}" | sed 1d)"
     fi
 
-    while read -u 4 -r file && read -r -u 5 commit; do
-        printf "%s\n" "${file//blob\/${type_value}\//}__.__${commit}"
-    done 4<<< "${files}" 5<<< "${commits}" | grep -v tree || :
+    exec 4<< EOF
+$(printf "%s\n" "${files_get_files_and_commits}")
+EOF
+    exec 5<< EOF
+$(printf "%s\n" "${commits_get_files_and_commits}")
+EOF
+
+    while read -r file <&4 && read -r commit <&5; do
+        printf "%s\n" "${file##blob\/${type_value_get_files_and_commits}\/}__.__${commit}"
+    done | grep -v tree || :
+
+    exec 4<&- && exec 5<&-
+    return 0
 }
 
 ###################################################
@@ -252,60 +264,22 @@ _get_files_and_commits() {
 # Result: print fetched sha
 ###################################################
 _get_latest_sha() {
-    declare LATEST_SHA
+    unset latest_sha_get_latest_sha raw_get_latest_sha
     case "${1:-${TYPE}}" in
         branch)
-            LATEST_SHA="$(hash="$(curl --compressed -s https://github.com/"${3:-${REPO}}"/commits/"${2:-${TYPE_VALUE}}".atom -r 0-2000 | grep "Commit\\/" -m1 || :)" && {
-                read -r firstline <<< "${hash}" && regex="(/.*<)" && [[ ${firstline} =~ ${regex} ]] && printf "%s\n" "${BASH_REMATCH[1]:1:-1}"
-            })"
+            latest_sha_get_latest_sha="$(
+                raw_get_latest_sha="$(curl --compressed -s https://github.com/"${3:-${REPO}}"/commits/"${2:-${TYPE_VALUE}}".atom -r 0-2000)"
+                _tmp="$(printf "%s\n" "${raw_get_latest_sha}" | grep -o "Commit\\/.*<" -m1 || :)" && _tmp="${_tmp##*\/}" && printf "%s\n" "${_tmp%%<*}"
+            )"
             ;;
         release)
-            LATEST_SHA="$(hash="$(curl -L --compressed -s https://github.com/"${3:-${REPO}}"/releases/"${2:-${TYPE_VALUE}}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && {
-                read -r firstline <<< "${hash}" && : "${hash/*commit\//}" && printf "%s\n" "${_/\"*/}"
-            })"
+            latest_sha_get_latest_sha="$(
+                raw_get_latest_sha="$(curl -L --compressed -s https://github.com/"${3:-${REPO}}"/releases/"${2:-${TYPE_VALUE}}")"
+                _tmp="$(printf "%s\n" "${raw_get_latest_sha}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && _tmp="${_tmp##*commit\/}" && printf "%s\n" "${_tmp%%\"*}"
+            )"
             ;;
     esac
-    printf "%b" "${LATEST_SHA:+${LATEST_SHA}\n}"
-}
-
-###################################################
-# Insert line to the nth number of line, in a varible, or a file
-# Doesn't actually write to the file but print to stdout
-# Globals: None
-# Arguments: 1 and rest
-#   ${1} = line number
-#          _insert_line 1 sometext < file
-#          _insert_line 1 sometext <<< variable
-#          echo something | _insert_line 1 sometext
-#   ${@} = rest of the arguments
-#          text which will showed in the nth no of line, space is treated as newline, use quotes to avoid.
-# Result: Read description
-###################################################
-_insert_line() {
-    declare line_number="${1}" total head insert tail
-    shift
-    mapfile -t total
-    # shellcheck disable=SC2034
-    head="$(printf "%s\n" "${total[@]::$((line_number - 1))}")"
-    # shellcheck disable=SC2034
-    insert="$(printf "%s\n" "${@}")"
-    # shellcheck disable=SC2034
-    tail="$(printf "%s\n" "${total[@]:$((line_number - 1))}")"
-    for string in head insert tail; do
-        [[ -z ${!string} ]] && continue
-        printf "%s\n" "${!string}"
-    done
-}
-
-###################################################
-# Check if script running in a terminal
-# Globals: 1 variable
-#   TERM
-# Arguments: None
-# Result: return 1 or 0
-###################################################
-_is_terminal() {
-    [[ -t 1 || -z ${TERM} ]] && return 0 || return 1
+    printf "%b" "${latest_sha_get_latest_sha:+${latest_sha_get_latest_sha}\n}"
 }
 
 ###################################################
@@ -329,62 +303,47 @@ _is_terminal() {
 #   https://gist.github.com/TrinityCoder/911059c83e5f7a351b785921cf7ecda
 ###################################################
 _print_center() {
-    [[ $# -lt 3 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare -i TERM_COLS="${COLUMNS}"
-    declare type="${1}" filler
-    case "${type}" in
-        normal)
-            declare out="${2}" && symbol="${3}"
-            ;;
+    [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
+    term_cols_print_center="${COLUMNS}"
+    type_print_center="${1}" filler_print_center=""
+    case "${type_print_center}" in
+        normal) out_print_center="${2}" && symbol_print_center="${3}" ;;
         justify)
-            if [[ $# = 3 ]]; then
-                declare input1="${2}" symbol="${3}" TO_PRINT out
-                TO_PRINT="$((TERM_COLS - 5))"
-                { [[ ${#input1} -gt ${TO_PRINT} ]] && out="[ ${input1:0:TO_PRINT}..]"; } || { out="[ ${input1} ]"; }
+            if [ $# = 3 ]; then
+                input1_print_center="${2}" symbol_print_center="${3}" to_print_print_center="" out_print_center=""
+                to_print_print_center="$((term_cols_print_center - 5))"
+                { [ "${#input1_print_center}" -gt "${to_print_print_center}" ] && out_print_center="[ $(printf "%.${to_print_print_center}s\n" "${input1_print_center}")..]"; } ||
+                    { out_print_center="[ ${input1_print_center} ]"; }
             else
-                declare input1="${2}" input2="${3}" symbol="${4}" TO_PRINT temp out
-                TO_PRINT="$((TERM_COLS * 40 / 100))"
-                { [[ ${#input1} -gt ${TO_PRINT} ]] && temp+=" ${input1:0:TO_PRINT}.."; } || { temp+=" ${input1}"; }
-                TO_PRINT="$((TERM_COLS * 55 / 100))"
-                { [[ ${#input2} -gt ${TO_PRINT} ]] && temp+="${input2:0:TO_PRINT}.. "; } || { temp+="${input2} "; }
-                out="[${temp}]"
+                input1_print_center="${2}" input2_print_center="${3}" symbol_print_center="${4}" to_print_print_center="" temp_print_center="" out_print_center=""
+                to_print_print_center="$((term_cols_print_center * 47 / 100))"
+                { [ "${#input1_print_center}" -gt "${to_print_print_center}" ] && temp_print_center=" $(printf "%.${to_print_print_center}s\n" "${input1_print_center}").."; } ||
+                    { temp_print_center=" ${input1_print_center}"; }
+                to_print_print_center="$((term_cols_print_center * 46 / 100))"
+                { [ "${#input2_print_center}" -gt "${to_print_print_center}" ] && temp_print_center="${temp_print_center}$(printf "%.${to_print_print_center}s\n" "${input2_print_center}").. "; } ||
+                    { temp_print_center="${temp_print_center}${input2_print_center} "; }
+                out_print_center="[${temp_print_center}]"
             fi
             ;;
         *) return 1 ;;
     esac
 
-    declare -i str_len=${#out}
-    [[ $str_len -ge $(((TERM_COLS - 1))) ]] && {
-        printf "%s\n" "${out}" && return 0
+    str_len_print_center="${#out_print_center}"
+    [ "${str_len_print_center}" -ge "$((term_cols_print_center - 1))" ] && {
+        printf "%s\n" "${out_print_center}" && return 0
     }
 
-    declare -i filler_len="$(((TERM_COLS - str_len) / 2))"
-    [[ $# -ge 2 ]] && ch="${symbol:0:1}" || ch=" "
-    for ((i = 0; i < filler_len; i++)); do
-        filler="${filler}${ch}"
+    filler_print_center_len="$(((term_cols_print_center - str_len_print_center) / 2))"
+
+    i_print_center=1 && while [ "${i_print_center}" -le "${filler_print_center_len}" ]; do
+        filler_print_center="${filler_print_center}${symbol_print_center}" && i_print_center="$((i_print_center + 1))"
     done
 
-    printf "%s%s%s" "${filler}" "${out}" "${filler}"
-    [[ $(((TERM_COLS - str_len) % 2)) -ne 0 ]] && printf "%s" "${ch}"
+    printf "%s%s%s" "${filler_print_center}" "${out_print_center}" "${filler_print_center}"
+    [ "$(((term_cols_print_center - str_len_print_center) % 2))" -ne 0 ] && printf "%s" "${symbol_print_center}"
     printf "\n"
 
     return 0
-}
-
-###################################################
-# Alternative to tail -n command
-# Globals: None
-# Arguments: 1  or pipe
-#   ${1} = file, _tail 1 < file
-#          variable, _tail 1 <<< variable
-#   pipe = echo something | _tail 1
-# Result: Read description
-# Reference:
-#   https://github.com/dylanaraps/pure-bash-bible/blob/master/README.md#get-the-last-n-lines-of-a-file
-###################################################
-_tail() {
-    mapfile -tn 0 line
-    printf '%s\n' "${line[@]: -$1}"
 }
 
 ###################################################
@@ -395,30 +354,26 @@ _tail() {
 #   rest = command to execute
 # Result: Read description
 # Reference:
-#   https://stackoverflow.com/a/11056286
+#   https://stackoverflow.com/a/24416732
 ###################################################
 _timeout() {
-    declare -i sleep="${1}" && shift
-    declare -i pid watcher
+    timeout_timeout="${1:?Error: Specify Timeout}" && shift
     {
-        { "${@}"; } &
-        pid="${!}"
-        { read -r -t "${sleep:-10}" && kill -HUP "${pid}"; } &
-        watcher="${!}"
-        if wait "${pid}" 2> /dev/null; then
-            kill -9 "${watcher}"
-            return 0
-        else
-            return 1
-        fi
-    } &> /dev/null
+        "${@}" &
+        child="${!}"
+        trap -- "" TERM
+        {
+            sleep "${timeout_timeout}"
+            kill -9 "${child}"
+        } &
+        wait "${child}"
+    } 2> /dev/null 1>&2
 }
 
 ###################################################
 # Config updater
 # Incase of old value, update, for new value add.
-# Globals: 1 function
-#   _remove_array_duplicates
+# Globals: None
 # Arguments: 3
 #   ${1} = value name
 #   ${2} = value
@@ -426,16 +381,11 @@ _timeout() {
 # Result: read description
 ###################################################
 _update_config() {
-    [[ $# -lt 3 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare VALUE_NAME="${1}" VALUE="${2}" CONFIG_PATH="${3}" FINAL=() _FINAL && declare -A Aseen
-    printf "" >> "${CONFIG_PATH}" # If config file doesn't exist.
-    mapfile -t VALUES < "${CONFIG_PATH}" && VALUES+=("${VALUE_NAME}=\"${VALUE}\"")
-    for i in "${VALUES[@]}"; do
-        [[ ${Aseen[${i}]} ]] && continue
-        [[ ${i} =~ ${VALUE_NAME}\= ]] && _FINAL="${VALUE_NAME}=\"${VALUE}\"" || _FINAL="${i}"
-        FINAL+=("${_FINAL}") && Aseen[${_FINAL}]=x
-    done
-    printf '%s\n' "${FINAL[@]}" >| "${CONFIG_PATH}"
+    [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
+    value_name_update_config="${1}" value_update_config="${2}" config_path_update_config="${3}"
+    ! [ -f "${config_path_update_config}" ] && : >| "${config_path_update_config}" # If config file doesn't exist.
+    printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name_update_config}=" "${config_path_update_config}" || :)" \
+        "${value_name_update_config}=\"${value_update_config}\"" >| "${config_path_update_config}"
 }
 
 ###################################################
@@ -451,173 +401,129 @@ _variables() {
     COMMAND_NAME="gdl"
     INFO_PATH="${HOME}/.gdrive-downloader"
     INSTALL_PATH="${HOME}/.gdrive-downloader/bin"
-    UTILS_FILE="utils.sh"
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
-    LAST_UPDATE_TIME="$(printf "%(%s)T\\n" "-1")" && export LAST_UPDATE_TIME
-    if [[ -r ${INFO_PATH}/gdrive-downloader.info ]]; then
-        source "${INFO_PATH}"/gdrive-downloader.info
-    fi
-    __VALUES_ARRAY=(REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL)
+    LAST_UPDATE_TIME="$(if [ "${INSTALLATION}" = bash ]; then
+        bash -c 'printf "%(%s)T\\n" "-1"'
+    else
+        date +'%s'
+    fi)" && export LAST_UPDATE_TIME
+
+    # shellcheck source=/dev/null
+    [ -r "${INFO_PATH}/gdrive-downloader.info" ] && . "${INFO_PATH}"/gdrive-downloader.info
+
+    __VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL"
+    return 0
 }
 
 ###################################################
-# Download files, script and utils
+# Download scripts
 ###################################################
 _download_files() {
-    files_with_commits="$(_get_files_and_commits | grep 'gdl.sh\|utils.sh')"
+    files_with_commits="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "${INSTALLATION}" | grep -E "gdl.${INSTALLATION}|utils.${INSTALLATION}")"
     repo="${REPO}"
 
-    cd "${INSTALL_PATH}" &> /dev/null || exit 1
+    cd "${INSTALL_PATH}" 2> /dev/null 1>&2 || exit 1
 
-    while read -r -u 4 line; do
-        file="${line/__.__*/}" && sha="${line/*__.__/}"
-        local_file="${file/gdl.sh/${COMMAND_NAME}}"
+    while read -r line <&4; do
+        file="${line%%__.__*}" && sha="${line##*__.__}"
 
-        if [[ -f ${local_file} && $(_tail 1 < "${local_file}") = "#${sha}" ]]; then
-            continue
-        fi
+        case "${file##${INSTALLATION}\/}" in
+            gdl.*) local_file="${COMMAND_NAME}" ;;
+            *) local_file="${file##${INSTALLATION}\/}" ;;
+        esac
 
-        _print_center "justify" "Downloading" " ${local_file}.." "-"
+        [ -f "${local_file}" ] && [ "$(sed -n -e '$p' "${local_file}")" = "#${sha}" ] && continue
+        _print_center "justify" "${local_file}" "-"
         # shellcheck disable=SC2086
-        if ! curl ${CURL_ARGS:--#} --compressed "https://raw.githubusercontent.com/${repo}/${sha}/${file}" -o "${local_file}"; then
-            return 1
-        fi
-        for _ in {1..2}; do _clear_line 1; done
+        ! curl -s --compressed "https://raw.githubusercontent.com/${repo}/${sha}/${file}" -o "${local_file}" && return 1
+        _clear_line 1
 
         printf "\n#%s\n" "${sha}" >> "${local_file}"
-    done 4<<< "${files_with_commits}"
+    done 4<< EOF
+$(printf "%s\n" "${files_with_commits}")
+EOF
 
-    cd - &> /dev/null || exit 1
+    cd - 2> /dev/null 1>&2 || exit 1
+    return 0
 }
 
 ###################################################
-# Inject utils.sh realpath to gdl
+# Inject utils folder realpath to gdl
 ###################################################
 _inject_utils_path() {
-    declare gdl
-    gdl="$(_insert_line 2 "UTILS_FILE=\"${INSTALL_PATH}/${UTILS_FILE}\"" < "${INSTALL_PATH}/${COMMAND_NAME}")"
-    printf "%s\n" "${gdl}" >| "${INSTALL_PATH}/${COMMAND_NAME}"
+    unset script_inject_utils_path
+
+    ! grep -q "UTILS_FOLDER=\"${INSTALL_PATH}\"" "${INSTALL_PATH}/${COMMAND_NAME}" &&
+        script_inject_utils_path="$(
+            read -r line < "${INSTALL_PATH}/${COMMAND_NAME}" && printf "%s\n" "${line}" &&
+                printf "%s\n" "UTILS_FOLDER=\"${INSTALL_PATH}\"" &&
+                _cat "${INSTALL_PATH}/${COMMAND_NAME}" | sed 1d
+        )" &&
+        printf "%s\n" "${script_inject_utils_path}" >| "${INSTALL_PATH}/${COMMAND_NAME}"
+    return 0
 }
 
 ###################################################
-# Start a interactive session, asks for all the varibles.
-# Globals: 1 variable, 1 function
-#   Variable - __VALUES_ARRAY ( array )
-#   Function - _clear_line
-# Arguments: None
-# Result: read description
-#   If tty absent, then exit
-###################################################
-_start_interactive() {
-    _print_center "justify" "Interactive Mode" "="
-    _print_center "justify" "Press return for default values.." "-"
-    for i in "${__VALUES_ARRAY[@]}"; do
-        j="${!i}" && k="${i}"
-        read -r -p "${i} [ Default: ${j} ]: " "${i?}"
-        if [[ -z ${!i} ]]; then
-            read -r "${k?}" <<< "${j}"
-        fi
-    done
-    for _ in "${__VALUES_ARRAY[@]}"; do _clear_line 1; done
-    for _ in {1..3}; do _clear_line 1; done
-    for i in "${__VALUES_ARRAY[@]}"; do
-        if [[ -n ${i} ]]; then
-            printf "%s\n" "${i}: ${!i}"
-        fi
-    done
-}
-
-###################################################
-# Install the upload and sync script
+# Install/Update the download script
 # Globals: 10 variables, 6 functions
 #   Variables - INSTALL_PATH, INFO_PATH, UTILS_FILE, COMMAND_NAME, SHELL_RC,
-#               TYPE, TYPE_VALUE, REPO, __VALUES_ARRAY ( array )
+#               TYPE, TYPE_VALUE, REPO, __VALUES_LIST
 #   Functions - _print_center, _newline, _clear_line
 #               _get_latest_sha, _update_config
 # Arguments: None
 # Result: read description
 #   If cannot download, then print message and exit
 ###################################################
-_install() {
-    mkdir -p "${INSTALL_PATH}"
-    _print_center "justify" 'Installing gdrive-downloader..' "-"
-    _print_center "justify" "Fetching latest sha.." "-"
-    LATEST_CURRENT_SHA="$(_get_latest_sha "${TYPE}" "${TYPE_VALUE}" "${REPO}")"
-    _clear_line 1
-    _print_center "justify" "Latest sha fetched." "=" && _print_center "justify" "Downloading scripts.." "-"
-    if _download_files; then
-        _inject_utils_path || { _print_center "justify" "Cannot edit installed files" ", run with -D flag, grab a log and create a issue in the repo." "=" && exit 1; }
-        chmod +x "${INSTALL_PATH}"/*
-        for i in "${__VALUES_ARRAY[@]}"; do
-            _update_config "${i}" "${!i}" "${INFO_PATH}"/gdrive-downloader.info
-        done
-        _update_config LATEST_INSTALLED_SHA "${LATEST_CURRENT_SHA}" "${INFO_PATH}"/gdrive-downloader.info
-        _update_config PATH "${INSTALL_PATH}:${PATH}" "${INFO_PATH}"/gdrive-downloader.binpath
-        if ! grep "source ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" &> /dev/null; then
-            printf "\nsource %s/gdrive-downloader.binpath" "${INFO_PATH}" >> "${SHELL_RC}"
-        fi
-        for _ in {1..3}; do _clear_line 1; done
-        _print_center "justify" "Installed Successfully" "="
-        _print_center "normal" "[ Command name: ${COMMAND_NAME} ]" "="
-        _print_center "justify" "To use the command, do" "-"
-        _newline "\n" && _print_center "normal" "source ${SHELL_RC}" " "
-        _print_center "normal" "or" " "
-        _print_center "normal" "restart your terminal." " "
-        _newline "\n" && _print_center "normal" "To update the script in future, just run ${COMMAND_NAME} -u/--update." " "
-    else
-        _clear_line 1
-        _print_center "justify" "Cannot download the script." "="
-        exit 1
-    fi
-}
+_start() {
+    job="${1:-install}"
 
-###################################################
-# Update the script
-# Globals: 10 variables, 6 functions
-#   Variables - INSTALL_PATH, INFO_PATH, UTILS_FILE, COMMAND_NAME, SHELL_RC,
-#               TYPE, TYPE_VALUE, REPO, __VALUES_ARRAY ( array )
-#   Functions - _print_center, _newline, _clear_line
-#               _get_latest_sha _update_config
-# Arguments: None
-# Result: read description
-#   If cannot download, then print message and exit
-###################################################
-_update() {
+    [ "${job}" = install ] && mkdir -p "${INSTALL_PATH}" && _print_center "justify" 'Installing gdrive-downloader..' "-"
+
     _print_center "justify" "Fetching latest version info.." "-"
     LATEST_CURRENT_SHA="$(_get_latest_sha "${TYPE}" "${TYPE_VALUE}" "${REPO}")"
-    if [[ -z "${LATEST_CURRENT_SHA}" ]]; then
-        _print_center "justify" "Cannot fetch remote latest version." "="
+    [ -z "${LATEST_CURRENT_SHA}" ] && "${QUIET:-_print_center}" "justify" "Cannot fetch remote latest version." "=" && exit 1
+    _clear_line 1
+
+    [ "${job}" = update ] && {
+        [ "${LATEST_CURRENT_SHA}" = "${LATEST_INSTALLED_SHA}" ] && "${QUIET:-_print_center}" "justify" "Latest gdrive-downloader already installed." "=" && return 0
+        _print_center "justify" "Updating.." "-"
+    }
+
+    _print_center "justify" "Downloading scripts.." "-"
+    if _download_files; then
+        _inject_utils_path || { "${QUIET:-_print_center}" "justify" "Cannot edit installed files" ", check if create a issue on github with proper log." "=" && exit 1; }
+        chmod +x "${INSTALL_PATH}"/*
+
+        # Add/Update config and inject shell rc
+        for i in ${__VALUES_LIST}; do
+            _update_config "${i}" "$(eval printf "%s" \"\$"${i}"\")" "${INFO_PATH}"/gdrive-downloader.info
+        done
+        _update_config LATEST_INSTALLED_SHA "${LATEST_CURRENT_SHA}" "${INFO_PATH}"/gdrive-downloader.info
+        _update_config PATH "${INSTALL_PATH}:"\$\{PATH\} "${INFO_PATH}"/gdrive-downloader.binpath
+        ! grep -qE "(.|source) ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" 2> /dev/null &&
+            printf "\n%s\n" ". ${INFO_PATH}/gdrive-downloader.binpath" >> "${SHELL_RC}"
+
+        for _ in 1 2; do _clear_line 1; done
+
+        if [ "${job}" = install ]; then
+            "${QUIET:-_print_center}" "justify" "Installed Successfully" "="
+            "${QUIET:-_print_center}" "normal" "[ Command name: ${COMMAND_NAME} ]" "="
+            _print_center "justify" "To use the command, do" "-"
+            _newline "\n" && _print_center "normal" ". ${SHELL_RC}" " "
+            _print_center "normal" "or" " "
+            _print_center "normal" "restart your terminal." " "
+            _newline "\n" && _print_center "normal" "To update the script in future, just run ${COMMAND_NAME} -u/--update." " "
+        else
+            "${QUIET:-_print_center}" "justify" 'Successfully Updated.' "="
+        fi
+    else
+        _clear_line 1
+        "${QUIET:-_print_center}" "justify" "Cannot download the scripts." "="
         exit 1
     fi
-    _clear_line 1
-    if [[ ${LATEST_CURRENT_SHA} = "${LATEST_INSTALLED_SHA}" ]]; then
-        _print_center "justify" "Latest gdrive-downloader already installed." "="
-    else
-        _print_center "justify" "Updating.." "-"
-        if _download_files; then
-            _inject_utils_path || { _print_center "justify" "Cannot edit installed files" ", check if sed program is working correctly" "=" && exit 1; }
-            chmod +x "${INSTALL_PATH}"/*
-            for i in "${__VALUES_ARRAY[@]}"; do
-                _update_config "${i}" "${!i}" "${INFO_PATH}"/gdrive-downloader.info
-            done
-            _update_config LATEST_INSTALLED_SHA "${LATEST_CURRENT_SHA}" "${INFO_PATH}"/gdrive-downloader.info
-            _update_config PATH "${INSTALL_PATH}:${PATH}" "${INFO_PATH}"/gdrive-downloader.binpath
-            if ! grep "source ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" &> /dev/null; then
-                printf "\nsource %s/gdrive-downloader.binpath" "${INFO_PATH}" >> "${SHELL_RC}"
-            fi
-            _clear_line 1
-            for i in "${__VALUES_ARRAY[@]}"; do
-                _update_config "${i}" "${!i}" "${INFO_PATH}"/gdrive-downloader.info
-            done
-            _print_center "justify" 'Successfully Updated.' "="
-        else
-            _clear_line 1
-            _print_center "justify" "Cannot download the script." "="
-            exit 1
-        fi
-    fi
+    return 0
 }
 
 ###################################################
@@ -631,53 +537,41 @@ _update() {
 ###################################################
 _uninstall() {
     _print_center "justify" "Uninstalling.." "-"
-    __bak="source ${INFO_PATH}/gdrive-downloader.binpath"
-    if _new_rc="$(sed "s|${__bak}||g" "${SHELL_RC}")" &&
-        printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; then
-        rm -f "${INSTALL_PATH}"/{"${COMMAND_NAME}","${UTILS_FILE}"}
-        rm -f "${INFO_PATH}"/{gdrive-downloader.info,gdrive-downloader.binpath,update.log}
-        [[ -z $(find "${INFO_PATH}" -type f) ]] && rm -rf "${INFO_PATH}"
+    __bak="${INFO_PATH}/gdrive-downloader.binpath"
+    if _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; then
+        rm -f "${INSTALL_PATH}"/"${COMMAND_NAME}" "${INSTALL_PATH}"/*utils."${INSTALLATION}" \
+            "${INFO_PATH}"/gdrive-downloader.info "${INFO_PATH}"/gdrive-downloader.binpath \
+            "${INFO_PATH}"/update.log
+        [ -z "$(find "${INFO_PATH}" -type f)" ] && rm -rf "${INFO_PATH}"
         _clear_line 1
         _print_center "justify" "Uninstall complete." "="
     else
         _print_center "justify" 'Error: Uninstall failed.' "="
     fi
+    return 0
 }
 
 ###################################################
 # Process all arguments given to the script
-# Globals: 1 variable, 2 functions
+# Globals: 1 variable, 1 function
 #   Variable - SHELL_RC
-#   Functions - _is_terminal, _full_path
+#   Functions - _is_terminal
 # Arguments: Many
 #   ${@} = Flags with arguments
 # Result: read description
 #   If no shell rc file found, then print message and exit
 ###################################################
 _setup_arguments() {
-    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-
     _check_longoptions() {
-        [[ -z ${2} ]] &&
+        [ -z "${2}" ] &&
             printf '%s: %s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" &&
             exit 1
         return 0
     }
 
-    while [[ $# -gt 0 ]]; do
+    while [ $# -gt 0 ]; do
         case "${1}" in
-            -h | --help)
-                _usage
-                ;;
-            -i | --interactive)
-                if _is_terminal; then
-                    INTERACTIVE="true"
-                    return 0
-                else
-                    printf "Cannot start interactive mode in an non tty environment\n"
-                    exit 1
-                fi
-                ;;
+            -h | --help) _usage ;;
             -p | --path)
                 _check_longoptions "${1}" "${2}"
                 INSTALL_PATH="${2}" && shift
@@ -701,82 +595,70 @@ _setup_arguments() {
                 ;;
             -t | --time)
                 _check_longoptions "${1}" "${2}"
-                _AUTO_UPDATE_INTERVAL="${2}" && shift
-                case "${_AUTO_UPDATE_INTERVAL}" in
-                    *[!0-9]*)
-                        printf "\nError: -t/--time value can only be a positive integer.\n"
-                        exit 1
-                        ;;
-                    *)
-                        AUTO_UPDATE_INTERVAL="$((_AUTO_UPDATE_INTERVAL * 86400))"
-                        ;;
-                esac
+                if [ "${2}" -gt 0 ] 2> /dev/null; then
+                    AUTO_UPDATE_INTERVAL="$((2 * 86400))" && shift
+                else
+                    printf "\nError: -t/--time value can only be a positive integer.\n"
+                    exit 1
+                fi
                 ;;
-            --skip-internet-check)
-                SKIP_INTERNET_CHECK=":"
-                ;;
-            -U | --uninstall)
-                UNINSTALL="true"
-                ;;
-            -D | --debug)
-                DEBUG=true
-                export DEBUG
-                ;;
-            *)
-                printf '%s: %s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" && exit 1
-                ;;
+            --sh | --posix) INSTALLATION="sh" ;;
+            -q | --quiet) QUIET="_print_quiet" ;;
+            --skip-internet-check) SKIP_INTERNET_CHECK=":" ;;
+            -U | --uninstall) UNINSTALL="true" ;;
+            -D | --debug) DEBUG="true" && export DEBUG ;;
+            *) printf '%s: %s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" && exit 1 ;;
         esac
         shift
     done
 
-    # 432000 secs = 5 days
+    # 86400 secs = 1 day
     AUTO_UPDATE_INTERVAL="${AUTO_UPDATE_INTERVAL:-432000}"
 
-    if [[ -z ${SHELL_RC} ]]; then
-        printf "No default shell file found, use -s/--shell-rc to use custom rc file\n"
-        exit 1
-    else
-        if ! [[ -f ${SHELL_RC} ]]; then
-            printf "Given shell file ( %s ) does not exist.\n" "${SHELL_RC}"
-            exit 1
-        elif [[ -d ${SHELL_RC} ]]; then
-            printf "Given shell file ( %s ) is a directory.\n" "${SHELL_RC}"
-            exit 1
-        fi
-    fi
+    [ -z "${SHELL_RC}" ] && printf "No default shell file found, use -s/--shell-rc to use custom rc file\n" && exit 1
+
+    _check_debug
+
     return 0
 }
 
 main() {
-    _check_bash_version && _check_dependencies
-    set -o errexit -o noclobber -o pipefail
+    { _check_bash_version && INSTALLATION="bash"; } 2> /dev/null 1>&2
+    _check_dependencies "${?}" && INSTALLATION="${INSTALLATION:-sh}"
 
-    _variables
-    if [[ $* ]]; then
-        _setup_arguments "${@}"
-    fi
+    set -o errexit -o noclobber
 
-    _check_debug
+    _variables && _setup_arguments "${@}"
 
-    if [[ -n ${INTERACTIVE} ]]; then
-        _start_interactive
-    fi
-
-    if [[ -n ${UNINSTALL} ]]; then
-        if type -a "${COMMAND_NAME}" &> /dev/null; then
-            _uninstall
+    _check_existing_command() {
+        if command -v "${COMMAND_NAME}" 2> /dev/null 1>&2; then
+            if grep -q COMMAND_NAME "${INFO_PATH}"/gdrive-downloader.info 2> /dev/null 1>&2; then
+                return 0
+            else
+                printf "%s\n" "Error: Cannot validate existing installation, make sure no other program is installed as ${COMMAND_NAME}."
+                printf "%s\n" "You can use -c / --cmd flag to specify custom command name."
+                printf "%s\n" "Otherwise uninstall the ${COMMAND_NAME} command manually and run this script again."
+                exit 1
+            fi
         else
-            _print_center "justify" "gdrive-downloader is not installed." "="
-            exit 1
+            return 1
         fi
+    }
+
+    if [ -n "${UNINSTALL}" ]; then
+        { _check_existing_command && _uninstall; } || {
+            "${QUIET:-_print_center}" "justify" "gdrive-downloader is not installed." "="
+            exit 0
+        }
     else
         "${SKIP_INTERNET_CHECK:-_check_internet}"
-        if type -a "${COMMAND_NAME}" &> /dev/null; then
-            _update
-        else
-            _install
-        fi
+        { _check_existing_command && INSTALL_PATH="$(_dirname "$(command -v "${COMMAND_NAME}")")" &&
+            _start update; } || {
+            _start install
+        }
     fi
+
+    return 0
 }
 
 main "${@}"

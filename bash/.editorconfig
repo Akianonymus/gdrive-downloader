@@ -11,12 +11,9 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 
 # for shfmt
-[*.sh]
+[*.bash]
 indent_style = space
 indent_size = 4
-shell_variant      = posix
+shell_variant      = bash
 switch_case_indent = true
 space_redirects    = true
-
-[*.md]
-trim_trailing_whitespace = false
