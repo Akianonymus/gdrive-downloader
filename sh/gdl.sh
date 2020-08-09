@@ -268,7 +268,7 @@ main() {
 
     set -o errexit -o noclobber
 
-    TMPFILE="$(mktemp -u)" 2> /dev/null 1>&2 || TMPFILE="$(pwd)/$(date +'%s').tmpfile"
+    TMPFILE="$(command -v mktemp 1> /dev/null && mktemp -u)" || TMPFILE="$(pwd)/$(date +'%s').tmpfile"
     export TMPFILE
 
     _setup_arguments "${@}"

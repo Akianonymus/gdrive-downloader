@@ -260,7 +260,7 @@ main() {
 
     _check_bash_version && set -o errexit -o noclobber -o pipefail
 
-    TMPFILE="$(mktemp -u)" 2> /dev/null 1>&2 || TMPFILE="$(pwd)/$(printf "%(%s)T\\n" "-1").tmpfile"
+    TMPFILE="$(command -v mktemp 1> /dev/null && mktemp -u)" || TMPFILE="$(pwd)/$(printf "%(%s)T\\n" "-1").tmpfile"
     export TMPFILE
 
     _setup_arguments "${@}"

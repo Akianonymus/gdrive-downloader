@@ -146,10 +146,10 @@ _fetch() {
 # use bash or zsh or stty or tput
 ###################################################
 _get_columns_size() {
-    { command -v bash 2> /dev/null 1>&2 && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
-        zsh -c 'printf "%s\n" "${COLUMNS}" 2>&1' 2> /dev/null ||
-        { _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }" 2> /dev/null; } ||
-        tput cols 2> /dev/null ||
+    { command -v bash 1>| /dev/null && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
+        { command -v zsh 1>| /dev/null && zsh -c 'printf "%s\n" "${COLUMNS}"'; } ||
+        { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
+        { command -v tput 1>| /dev/null && tput cols; } ||
         return 1
 }
 
@@ -166,8 +166,8 @@ _get_columns_size() {
 # Result: print extracted value
 ###################################################
 _json_value() {
-    { [ "${2}" -gt 0 ] && no_of_lines_json_value="${2}"; } 2> /dev/null 1>&2 || :
-    { [ "${3}" -gt 0 ] && num_json_value="${3}"; } 2> /dev/null 1>&2 || { ! [ "${3}" = all ] && num_json_value=1; }
+    { [ "${2}" -gt 0 ] 2> /dev/null && no_of_lines_json_value="${2}"; } || :
+    { [ "${3}" -gt 0 ] 2> /dev/null && num_json_value="${3}"; } || { ! [ "${3}" = all ] && num_json_value=1; }
     # shellcheck disable=SC2086
     _tmp="$(grep -o "\"${1}\"\:.*" ${no_of_lines_json_value:+-m} ${no_of_lines_json_value})" || return 1
     printf "%s\n" "${_tmp}" | sed -e "s/.*\"""${1}""\"://" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num_json_value}"p || :

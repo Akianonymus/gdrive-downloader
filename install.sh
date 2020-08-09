@@ -42,8 +42,8 @@ _cat() {
 # Globals: None
 # Arguments: None
 # Result: If
-#   SUCEESS: Status 0
-#   ERROR: print message and exit 1
+#   SUCEESS: return 0
+#   ERROR: return 1
 ###################################################
 _check_bash_version() {
     { command -v bash && [ "$(bash --version | grep -oE '[0-9]+\.[0-9]' | grep -o '^[0-9]')" -ge 4 ] && return 0; } 2> /dev/null 1>&2 || return 1
@@ -146,21 +146,6 @@ _clear_line() {
 }
 
 ###################################################
-# print current date in epoch seconds
-# Use printf if bash, else date
-# Globals: None
-# Arguments: None
-# Result: Read description
-###################################################
-_date() {
-    if [ "${INSTALLATION}" = bash ]; then
-        bash -c 'printf "%(%s)T\\n" "-1"'
-    else
-        date +'%s'
-    fi
-}
-
-###################################################
 # Detect profile rc file for zsh and bash.
 # Detects for login shell of the user.
 # Globals: 2 Variables
@@ -202,10 +187,10 @@ _dirname() {
 # use bash or zsh or stty or tput
 ###################################################
 _get_columns_size() {
-    { command -v bash 2> /dev/null 1>&2 && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
-        zsh -c 'printf "%s\n" "${COLUMNS}" 2>&1' 2> /dev/null ||
-        { _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }" 2> /dev/null; } ||
-        tput cols 2> /dev/null ||
+    { command -v bash 1>| /dev/null && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
+        { command -v zsh 1>| /dev/null && zsh -c 'printf "%s\n" "${COLUMNS}"'; } ||
+        { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
+        { command -v tput 1>| /dev/null && tput cols; } ||
         return 1
 }
 
@@ -404,6 +389,7 @@ _variables() {
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
+    # If bash installation, then use bash printf else date
     LAST_UPDATE_TIME="$(if [ "${INSTALLATION}" = bash ]; then
         bash -c 'printf "%(%s)T\\n" "-1"'
     else
@@ -623,7 +609,7 @@ _setup_arguments() {
 }
 
 main() {
-    { _check_bash_version && INSTALLATION="bash"; } 2> /dev/null 1>&2
+    _check_bash_version && INSTALLATION="bash"
     _check_dependencies "${?}" && INSTALLATION="${INSTALLATION:-sh}"
 
     set -o errexit -o noclobber

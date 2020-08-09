@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-if ! command -v shfmt 2> /dev/null 1>&2; then
+if ! command -v shfmt 1> /dev/null; then
     printf 'Install shfmt to format script\n\n'
     printf 'Check https://github.com/mvdan/sh/releases\n'
     exit 1
