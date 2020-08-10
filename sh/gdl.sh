@@ -40,12 +40,12 @@ _short_help() {
 ###################################################
 _auto_update() {
     (
-        [ -w "${INFO_FILE}" ] && . "${INFO_FILE}" && command -v "${COMMAND_NAME}" 2> /dev/null 1>&2 && {
+        [ -w "${INFO_FILE}" ] && . "${INFO_FILE}" && command -v "${COMMAND_NAME}" 2>| /dev/null 1>&2 && {
             [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] &&
                 _update 2>&1 1>| "${INFO_PATH}/update.log" &&
                 _update_config LAST_UPDATE_TIME "$(date +'%s')" "${INFO_FILE}"
         }
-    ) 2> /dev/null 1>&2 &
+    ) 2>| /dev/null 1>&2 &
     return 0
 }
 
@@ -103,7 +103,7 @@ _check_id() {
     "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
     id_check_id="${1}" json_check_id=""
     if json_check_id="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id_check_id}?alt=json&fields=name,size,mimeType&key=${API_KEY}")"; then
-        if ! printf "%s\n" "${json_check_id}" | _json_value code 1 1 2> /dev/null 1>&2; then
+        if ! printf "%s\n" "${json_check_id}" | _json_value code 1 1 2>| /dev/null 1>&2; then
             NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1 || :)"
             mime_check_id="$(printf "%s\n" "${json_check_id}" | _json_value mimeType 1 1 || :)"
             _clear_line 1
@@ -177,7 +177,7 @@ _setup_arguments() {
                 ;;
             -p | --parallel)
                 _check_longoptions "${1}" "${2}"
-                if [ "${2}" -gt 0 ] 2> /dev/null 1>&2; then
+                if [ "${2}" -gt 0 ] 2>| /dev/null 1>&2; then
                     NO_OF_PARALLEL_JOBS="${2}"
                 else
                     printf "\nError: -p/--parallel value ranges between 1 to 10.\n"
@@ -197,7 +197,7 @@ _setup_arguments() {
                 ;;
             -R | --retry)
                 _check_longoptions "${1}" "${2}"
-                if [ "$((2))" -gt 0 ] 2> /dev/null 1>&2; then
+                if [ "$((2))" -gt 0 ] 2>| /dev/null 1>&2; then
                     RETRY="${2}" && shift
                 else
                     printf "Error: -R/--retry only takes positive integers as arguments, min = 1, max = infinity.\n"
@@ -241,7 +241,7 @@ _process_arguments() {
         COLUMNS CURL_SPEED TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SOURCE_UTILS
 
     ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
-    cd "${FOLDERNAME:-.}" 2> /dev/null 1>&2 || exit 1
+    cd "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
 
     unset Aseen && while read -r id <&4 && { [ -n "${id}" ] || continue; } &&
         case "${Aseen}" in
@@ -283,7 +283,7 @@ main() {
             else
                 _auto_update
             fi
-        } 2> /dev/null || :
+        } 2>| /dev/null || :
         return 0
     }
 

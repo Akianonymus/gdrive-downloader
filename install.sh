@@ -46,7 +46,7 @@ _cat() {
 #   ERROR: return 1
 ###################################################
 _check_bash_version() {
-    { command -v bash && [ "$(bash --version | grep -oE '[0-9]+\.[0-9]' | grep -o '^[0-9]')" -ge 4 ] && return 0; } 2> /dev/null 1>&2 || return 1
+    { command -v bash && [ "$(bash --version | grep -oE '[0-9]+\.[0-9]' | grep -o '^[0-9]')" -ge 4 ] && return 0; } 2>| /dev/null 1>&2 || return 1
 }
 
 ###################################################
@@ -73,7 +73,7 @@ _check_debug() {
                 xterm* | rxvt* | urxvt* | linux* | vt*) ansi_escapes="true" ;;
             esac
             if [ -t 2 ] && [ -n "${ansi_escapes}" ]; then
-                ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2> /dev/null &&
+                ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2>| /dev/null &&
                     _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
             else
                 _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
@@ -97,12 +97,12 @@ _check_dependencies() {
     posix_check_dependencies="${1:-0}" error_list=""
 
     for program in curl find xargs mkdir rm grep sed sleep; do
-        command -v "${program}" 2> /dev/null 1>&2 || error_list="${error_list}\n${program}"
+        command -v "${program}" 2>| /dev/null 1>&2 || error_list="${error_list}\n${program}"
     done
 
     [ "${posix_check_dependencies}" != 0 ] &&
         for program in cat date; do
-            command -v "${program}" 2> /dev/null 1>&2 || error_list="${error_list}\n${program}"
+            command -v "${program}" 2>| /dev/null 1>&2 || error_list="${error_list}\n${program}"
         done
 
     [ -n "${error_list}" ] && [ -z "${UNINSTALL}" ] && {
@@ -352,7 +352,7 @@ _timeout() {
             kill -9 "${child}"
         } &
         wait "${child}"
-    } 2> /dev/null 1>&2
+    } 2>| /dev/null 1>&2
 }
 
 ###################################################
@@ -410,7 +410,7 @@ _download_files() {
     files_with_commits="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "${INSTALLATION}" | grep -E "gdl.${INSTALLATION}|utils.${INSTALLATION}")"
     repo="${REPO}"
 
-    cd "${INSTALL_PATH}" 2> /dev/null 1>&2 || exit 1
+    cd "${INSTALL_PATH}" 2>| /dev/null 1>&2 || exit 1
 
     while read -r line <&4; do
         file="${line%%__.__*}" && sha="${line##*__.__}"
@@ -431,7 +431,7 @@ _download_files() {
 $(printf "%s\n" "${files_with_commits}")
 EOF
 
-    cd - 2> /dev/null 1>&2 || exit 1
+    cd - 2>| /dev/null 1>&2 || exit 1
     return 0
 }
 
@@ -488,7 +488,7 @@ _start() {
         done
         _update_config LATEST_INSTALLED_SHA "${LATEST_CURRENT_SHA}" "${INFO_PATH}"/gdrive-downloader.info
         _update_config PATH "${INSTALL_PATH}:"\$\{PATH\} "${INFO_PATH}"/gdrive-downloader.binpath
-        ! grep -qE "(.|source) ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" 2> /dev/null &&
+        ! grep -qE "(.|source) ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" 2>| /dev/null &&
             printf "\n%s\n" ". ${INFO_PATH}/gdrive-downloader.binpath" >> "${SHELL_RC}"
 
         for _ in 1 2; do _clear_line 1; done
@@ -581,7 +581,7 @@ _setup_arguments() {
                 ;;
             -t | --time)
                 _check_longoptions "${1}" "${2}"
-                if [ "${2}" -gt 0 ] 2> /dev/null; then
+                if [ "${2}" -gt 0 ] 2>| /dev/null; then
                     AUTO_UPDATE_INTERVAL="$((2 * 86400))" && shift
                 else
                     printf "\nError: -t/--time value can only be a positive integer.\n"
@@ -617,8 +617,8 @@ main() {
     _variables && _setup_arguments "${@}"
 
     _check_existing_command() {
-        if command -v "${COMMAND_NAME}" 2> /dev/null 1>&2; then
-            if grep -q COMMAND_NAME "${INFO_PATH}"/gdrive-downloader.info 2> /dev/null 1>&2; then
+        if command -v "${COMMAND_NAME}" 2>| /dev/null 1>&2; then
+            if grep -q COMMAND_NAME "${INFO_PATH}"/gdrive-downloader.info 2>| /dev/null 1>&2; then
                 return 0
             else
                 printf "%s\n" "Error: Cannot validate existing installation, make sure no other program is installed as ${COMMAND_NAME}."

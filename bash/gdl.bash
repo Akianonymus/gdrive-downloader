@@ -39,12 +39,12 @@ _short_help() {
 ###################################################
 _auto_update() {
     (
-        [[ -w ${INFO_FILE} ]] && . "${INFO_FILE}" && command -v "${COMMAND_NAME}" 2> /dev/null 1>&2 && {
+        [[ -w ${INFO_FILE} ]] && . "${INFO_FILE}" && command -v "${COMMAND_NAME}" 2>| /dev/null 1>&2 && {
             [[ $((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL)) -lt $(printf "%(%s)T\\n" "-1") ]] &&
                 _update 2>&1 1>| "${INFO_PATH}/update.log" &&
                 _update_config LAST_UPDATE_TIME "$(printf "%(%s)T\\n" "-1")" "${INFO_FILE}"
         }
-    ) 2> /dev/null 1>&2 &
+    ) 2>| /dev/null 1>&2 &
     return 0
 }
 
@@ -101,7 +101,7 @@ _check_id() {
     "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
     declare id="${1}" json && unset NAME SIZE
     if json="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id}?alt=json&fields=name,size,mimeType&key=${API_KEY}")"; then
-        if ! _json_value code 1 1 <<< "${json}" 2> /dev/null 1>&2; then
+        if ! _json_value code 1 1 <<< "${json}" 2>| /dev/null 1>&2; then
             NAME="$(_json_value name 1 1 <<< "${json}" || :)"
             mime="$(_json_value mimeType 1 1 <<< "${json}" || :)"
             _clear_line 1
@@ -237,7 +237,7 @@ _process_arguments() {
         _download_file _download_file_main _download_folder _log_in_file
 
     ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
-    cd "${FOLDERNAME:-.}" 2> /dev/null 1>&2 || exit 1
+    cd "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
 
     unset Aseen && declare -A Aseen
     for id in "${ID_INPUT_ARRAY[@]}"; do
@@ -275,7 +275,7 @@ main() {
             else
                 _auto_update
             fi
-        } 2> /dev/null || :
+        } 2>| /dev/null || :
         return 0
     }
 

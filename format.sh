@@ -12,7 +12,7 @@ TEMPFILE="${CURRENT_DIR}/$(date +%s)"
 trap 'rm -f "${TEMPFILE}".failedlog "${TEMPFILE}".passedlog' INT TERM EXIT
 
 for k in . sh bash; do
-    cd "${k}" 2> /dev/null 1>&2 || exit 1
+    cd "${k}" 2>| /dev/null 1>&2 || exit 1
     for i in *.*sh; do
         if ! shfmt -w "${i}"; then
             printf "%s\n\n" "${k}/${i}: ERROR" >> "${TEMPFILE}".failedlog
@@ -20,7 +20,7 @@ for k in . sh bash; do
             printf "%s\n" "${k}/${i}: SUCCESS" >> "${TEMPFILE}".passedlog
         fi
     done
-    cd - 2> /dev/null 1>&2 || exit 1
+    cd - 2>| /dev/null 1>&2 || exit 1
 done
 
 if [ -f "${TEMPFILE}.failedlog" ]; then
