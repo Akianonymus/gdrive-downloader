@@ -34,15 +34,15 @@ _download_file() {
     confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_tmp##*$(printf '\t')}")" || :
     # shellcheck disable=SC2086
     curl -L -s ${CONTINUE} ${CURL_SPEED} -b "${TMPFILE}"COOKIE -o "${name_download_file}" \
-        "https://drive.google.com/uc?export=download&id=${file_id_download_file}${confirm_string:+&confirm=${confirm_string}}" 2> /dev/null 1>&2 &
+        "https://drive.google.com/uc?export=download&id=${file_id_download_file}${confirm_string:+&confirm=${confirm_string}}" 2>| /dev/null 1>&2 &
     pid="${!}"
 
     if [ -n "${parallel_download_file}" ]; then
-        wait "${pid}" 2> /dev/null 1>&2
+        wait "${pid}" 2>| /dev/null 1>&2
     else
         until [ -f "${name_download_file}" ] && [ -n "${pid}" ]; do sleep 0.5; done
 
-        until ! kill -0 "${pid}" 2> /dev/null 1>&2; do
+        until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded_download_file="$(wc -c < "${name_download_file}")"
             status_download_file="$(_bytes_to_human "${downloaded_download_file}")"
             left_download_file="$(_bytes_to_human "$((server_size_download_file - downloaded_download_file))")"
@@ -80,7 +80,7 @@ _download_file_main() {
 
     unset RETURN_STATUS && until [ "${retry_download_file_main}" -le 0 ] && [ -n "${RETURN_STATUS}" ]; do
         if [ -n "${parallel_download_file_main}" ]; then
-            _download_file "${fileid_download_file_main:-${2}}" "${name_download_file_main:-${3}}" "${size_download_file_main:-${4}}" true 2> /dev/null 1>&2 && RETURN_STATUS=1 && break
+            _download_file "${fileid_download_file_main:-${2}}" "${name_download_file_main:-${3}}" "${size_download_file_main:-${4}}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
         else
             _download_file "${fileid_download_file_main:-${2}}" "${name_download_file_main:-${3}}" "${size_download_file_main:-${4}}" && RETURN_STATUS=1 && break
         fi
@@ -180,7 +180,7 @@ EOF
             until [ -f "${TMPFILE}"SUCCESS ] || [ -f "${TMPFILE}"ERROR ]; do sleep 0.5; done
 
             _clear_line 1
-            until ! kill -0 "${pid}" 2> /dev/null 1>&2; do
+            until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
                 success_status_download_folder="$(($(wc -l < "${TMPFILE}"SUCCESS)))"
                 error_status_download_folder="$(($(wc -l < "${TMPFILE}"ERROR)))"
                 sleep 1

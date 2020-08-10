@@ -251,5 +251,5 @@ _timeout() {
             kill "${child}"
         } &
         wait "${child}"
-    } 2> /dev/null 1>&2
+    } 2>| /dev/null 1>&2
 }

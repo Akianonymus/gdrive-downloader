@@ -33,15 +33,15 @@ _download_file() {
     for _ in 1 2; do _clear_line 1; done
     confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_//*$'\t'/}")" || :
     # shellcheck disable=SC2086
-    curl -L -s ${CONTINUE} ${CURL_SPEED} -b "${TMPFILE}"COOKIE -o "${name}" "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" 2> /dev/null 1>&2 &
+    curl -L -s ${CONTINUE} ${CURL_SPEED} -b "${TMPFILE}"COOKIE -o "${name}" "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" 2>| /dev/null 1>&2 &
     pid="${!}"
 
     if [[ -n ${parallel} ]]; then
-        wait "${pid}" 2> /dev/null 1>&2
+        wait "${pid}" 2>| /dev/null 1>&2
     else
         until [[ -f ${name} && -n ${pid} ]]; do sleep 0.5; done
 
-        until ! kill -0 "${pid}" 2> /dev/null 1>&2; do
+        until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded="$(wc -c < "${name}")"
             status="$(_bytes_to_human "${downloaded}")"
             left="$(_bytes_to_human "$((server_size - downloaded))")"
@@ -79,7 +79,7 @@ _download_file_main() {
 
     unset RETURN_STATUS && until [[ ${retry} -le 0 && -n ${RETURN_STATUS} ]]; do
         if [[ -n ${parallel} ]]; then
-            _download_file "${fileid:-${2}}" "${name:-${3}}" "${size:-${4}}" true 2> /dev/null 1>&2 && RETURN_STATUS=1 && break
+            _download_file "${fileid:-${2}}" "${name:-${3}}" "${size:-${4}}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
         else
             _download_file "${fileid:-${2}}" "${name:-${3}}" "${size:-${4}}" && RETURN_STATUS=1 && break
         fi
@@ -157,7 +157,7 @@ _download_folder() {
             until [[ -f "${TMPFILE}"SUCCESS || -f "${TMPFILE}"ERROR ]]; do sleep 0.5; done
 
             _clear_line 1
-            until ! kill -0 "${pid}" 2> /dev/null 1>&2; do
+            until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
                 success_status="$(_count < "${TMPFILE}"SUCCESS)"
                 error_status="$(_count < "${TMPFILE}"ERROR)"
                 sleep 1
