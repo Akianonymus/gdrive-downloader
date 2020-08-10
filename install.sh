@@ -20,7 +20,7 @@ Options:\n
   -q | --quiet - Only show critical error/sucess logs.\n
   -U | --uninstall - Uninstall the script and remove related files.\n
   -D | --debug - Display script command trace.\n
-  -h | --help - Display usage instructions.\n" "${0##*/}" "${HOME}" "${HOME}"
+  -h | --help - Display usage instructions.\n" "${0##*/}" "${HOME}"
     exit 0
 }
 
@@ -488,21 +488,33 @@ _start() {
         done
         _update_config LATEST_INSTALLED_SHA "${LATEST_CURRENT_SHA}" "${INFO_PATH}"/gdrive-downloader.info
         _update_config PATH "${INSTALL_PATH}:"\$\{PATH\} "${INFO_PATH}"/gdrive-downloader.binpath
-        ! grep -qE "(.|source) ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" 2>| /dev/null &&
-            printf "\n%s\n" ". ${INFO_PATH}/gdrive-downloader.binpath" >> "${SHELL_RC}"
+        ! grep -qE "(.|source) ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" 2>| /dev/null && {
+            (printf "\n%s\n" ". ${INFO_PATH}/gdrive-downloader.binpath" >> "${SHELL_RC}") 2>| /dev/null || {
+                shell_rc_write="error"
+                _shell_rc_err_msg() {
+                    "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
+                    "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
+                    "${QUIET:-_print_center}" "normal" " Add below line to your shell rc manually " "-" && printf "\n"
+                    "${QUIET:-_print_center}" "normal" ". ${INFO_PATH}/gdrive-downloader.binpath" " " && printf "\n"
+                }
+            }
+        }
 
         for _ in 1 2; do _clear_line 1; done
 
         if [ "${job}" = install ]; then
-            "${QUIET:-_print_center}" "justify" "Installed Successfully" "="
-            "${QUIET:-_print_center}" "normal" "[ Command name: ${COMMAND_NAME} ]" "="
+            { [ -n "${shell_rc_write}" ] && _shell_rc_err_msg; } || {
+                "${QUIET:-_print_center}" "justify" "Installed Successfully" "="
+                "${QUIET:-_print_center}" "normal" "[ Command name: ${COMMAND_NAME} ]" "="
+            }
             _print_center "justify" "To use the command, do" "-"
             _newline "\n" && _print_center "normal" ". ${SHELL_RC}" " "
             _print_center "normal" "or" " "
             _print_center "normal" "restart your terminal." " "
             _newline "\n" && _print_center "normal" "To update the script in future, just run ${COMMAND_NAME} -u/--update." " "
         else
-            "${QUIET:-_print_center}" "justify" 'Successfully Updated.' "="
+            { [ -n "${shell_rc_write}" ] && _shell_rc_err_msg; } ||
+                "${QUIET:-_print_center}" "justify" 'Successfully Updated.' "="
         fi
     else
         _clear_line 1
@@ -524,15 +536,19 @@ _start() {
 _uninstall() {
     _print_center "justify" "Uninstalling.." "-"
     __bak="${INFO_PATH}/gdrive-downloader.binpath"
-    if _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; then
-        rm -f "${INSTALL_PATH}"/"${COMMAND_NAME}" "${INSTALL_PATH}"/*utils."${INSTALLATION}" \
-            "${INFO_PATH}"/gdrive-downloader.info "${INFO_PATH}"/gdrive-downloader.binpath \
-            "${INFO_PATH}"/update.log
-        [ -z "$(find "${INFO_PATH}" -type f)" ] && rm -rf "${INFO_PATH}"
-        _clear_line 1
+    rm -f "${INSTALL_PATH}"/"${COMMAND_NAME}" "${INSTALL_PATH}"/*utils."${INSTALLATION}" \
+        "${INFO_PATH}"/gdrive-downloader.info "${INFO_PATH}"/gdrive-downloader.binpath \
+        "${INFO_PATH}"/update.log
+    [ -z "$(find "${INFO_PATH}" -type f)" ] && rm -rf "${INFO_PATH}"
+    _clear_line 1
+    if [ -w "${SHELL_RC}" ] && _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; then
         _print_center "justify" "Uninstall complete." "="
     else
-        _print_center "justify" 'Error: Uninstall failed.' "="
+        "${QUIET:-_print_center}" "justify" 'Error: Uninstall failed.' "="
+        "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
+        "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
+        "${QUIET:-_print_center}" "normal" " Remove below line from your shell rc manually " "-" && printf "\n"
+        "${QUIET:-_print_center}" "normal" ". ${INFO_PATH}/gdrive-downloader.binpath" " " && printf "\n"
     fi
     return 0
 }
