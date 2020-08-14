@@ -31,29 +31,23 @@ _short_help() {
 
 ###################################################
 # Automatic updater, only update if script is installed system wide.
-# Globals: 4 variables, 2 functions
-#   Variables - INFO_FILE, COMMAND_NAME, LAST_UPDATE_TIME, AUTO_UPDATE_INTERVAL
-#   Functions - _update, _update_config
 # Arguments: None
 # Result: On
 #   Update if AUTO_UPDATE_INTERVAL + LAST_UPDATE_TIME less than printf "%(%s)T\\n" "-1"
 ###################################################
 _auto_update() {
+    export REPO
     (
-        [ -w "${INFO_FILE}" ] && . "${INFO_FILE}" && command -v "${COMMAND_NAME}" 2>| /dev/null 1>&2 && {
+        command -v "${COMMAND_NAME}" 1> /dev/null &&
+            [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ] &&
             [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] &&
-                _update 2>&1 1>| "${INFO_PATH}/update.log" &&
-                _update_config LAST_UPDATE_TIME "$(date +'%s')" "${INFO_FILE}"
-        }
+            _update 2>| /dev/null 1>&2
     ) 2>| /dev/null 1>&2 &
     return 0
 }
 
 ###################################################
 # Install/Update/uninstall the script.
-# Globals: 3 variables,2 functions
-#   Variables - HOME, REPO, TYPE_VALUE
-#   Functions - _clear_line, _print_center
 # Arguments: 1
 #   ${1}" = uninstall or update
 # Result: On
@@ -62,10 +56,10 @@ _auto_update() {
 ###################################################
 _update() {
     job_update="${1:-update}"
+    [ "${GLOBAL_INSTALL}" = true ] && ! [ "$(id -u)" = 0 ] && printf "%s\n" "Error: Need root access to update." && return 0
     [ "${job_update}" = uninstall ] && job_string_update="--uninstall"
     _print_center "justify" "Fetching ${job_update} script.." "-"
-    [ -w "${INFO_FILE}" ] && . "${INFO_FILE}"
-    repo_update="${REPO:-labbots/google-drive-upload}" type_value_update="${TYPE_VALUE:-master}"
+    repo_update="${REPO:-labbots/gdrive-downloader}" type_value_update="${TYPE_VALUE:-master}"
     if script_update="$(curl --compressed -Ls "https://raw.githubusercontent.com/${repo_update}/${type_value_update}/install.sh")"; then
         _clear_line 1
         printf "%s\n" "${script_update}" | sh -s -- ${job_string_update:-} --skip-internet-check
@@ -78,18 +72,15 @@ _update() {
 }
 
 ###################################################
-# Print the contents of info file if scipt is installed system wide.
-# Path is INFO_FILE="${HOME}/.google-drive-upload/google-drive-upload.info"
-# Globals: 1 variable
-#   INFO_FILE
-# Arguments: None
-# Result: read description
+# Print info if installed
 ###################################################
 _info() {
-    if [ -r "${INFO_FILE}" ]; then
-        cat "${INFO_FILE}"
+    if command -v "${COMMAND_NAME}" 1> /dev/null && [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+        for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA; do
+            printf "%s\n" "${i}=\"$(eval printf "%s" \"\$"${i}"\")\""
+        done
     else
-        printf "%s\n" "google-drive-upload is not installed system wide."
+        printf "%s\n" "gdrive-downloader is not installed system wide."
     fi
     exit 0
 }
@@ -141,8 +132,6 @@ _setup_arguments() {
     unset LOG_FILE_ID FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
     unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY
-    INFO_PATH="${HOME}/.gdrive-downloader"
-    INFO_FILE="${INFO_PATH}/gdrive-downloader.info"
     CURL_PROGRESS="-s" EXTRA_LOG=":"
 
     # API
@@ -237,7 +226,7 @@ _setup_arguments() {
 ###################################################
 _process_arguments() {
     export LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION \
-        INFO_PATH FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK \
+        FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK \
         COLUMNS CURL_SPEED TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SOURCE_UTILS
 
     ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
@@ -263,8 +252,12 @@ EOF
 main() {
     [ $# = 0 ] && _short_help
 
-    UTILS_FOLDER="${UTILS_FOLDER:-$(pwd)}" && SOURCE_UTILS=". '${UTILS_FOLDER}/common-utils.sh' && . '${UTILS_FOLDER}/download-utils.sh'"
-    eval "${SOURCE_UTILS}" || { printf "Error: Unable to source util files.\n" && exit 1; }
+    if [ -z "${SELF_SOURCE}" ]; then
+        UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}" && SOURCE_UTILS=". '${UTILS_FOLDER}/common-utils.sh' && . '${UTILS_FOLDER}/download-utils.sh'"
+        eval "${SOURCE_UTILS}" || { printf "Error: Unable to source util files.\n" && exit 1; }
+    else
+        SOURCE_UTILS="SOURCED=true . \"$(cd "${0%\/*}" && pwd)/${0##*\/}\"" && eval "${SOURCE_UTILS}"
+    fi
 
     set -o errexit -o noclobber
 
@@ -299,4 +292,4 @@ main() {
     "${QUIET:-_print_center}" "normal" " Time Elapsed: ""$((DIFF / 60))"" minute(s) and ""$((DIFF % 60))"" seconds. " "="
 }
 
-main "${@}"
+{ [ -z "${SOURCED}" ] && main "${@}"; } || :

@@ -22,7 +22,9 @@
 - Parallel downloading
 - Pretty logging
 - Easy to install and update
-  - Auto update
+  - Self update
+  - [Auto update](#updation)
+  - Can be per-user and invoked per-shell, hence no root access required or global install.
 
 ## Table of Contents
 
@@ -100,7 +102,6 @@ This repo contains two types of scripts, posix compatible and bash compatible.
 | Program             | Role In Script                             |
 | ------------------- | ------------------------------------------ |
 | date                | For installation, update and Miscellaneous |
-| cat                 | Miscellaneous                              |
 | stty or zsh or tput | To determine column size ( optional )      |
 
 ### Installation
@@ -128,10 +129,10 @@ For custom command name, repo, shell file, etc, see advanced installation method
 To install gdrive-downloader in your system, you can run the below command:
 
 ```shell
-curl -Ls --compressed drivedl.cf | sh -s
+curl -Ls --compressed https://drivedl.cf | sh -s
 ```
 
-alternatively, you can use the original github url instead of drivedl.cf
+alternatively, you can use the original github url instead of https://drivedl.cf
 
 ```shell
 curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s
@@ -152,6 +153,8 @@ These are the flags that are available in the install.sh script:
 -   <strong>-p | --path <dir_name></strong>
 
     Custom path where you want to install the script.
+
+    Note: For global installs, give path outside of the home dir like /usr/bin and it must be in the executable path already.
 
     ---
 
@@ -205,6 +208,12 @@ These are the flags that are available in the install.sh script:
 
     ---
 
+-   <strong>-U | --uninstall</strong>
+
+    Uninstall the script and remove related files.\n
+
+    ---
+
 -   <strong>-D | --debug</strong>
 
     Display script command trace.
@@ -222,25 +231,21 @@ Now, run the script and use flags according to your usecase.
 E.g:
 
 ```shell
-curl -Ls --compressed drivedl.cf | sh -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
+curl -Ls --compressed https://drivedl.cf | sh -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
 ```
 </details>
-
-#### Migrate from old version
-
-If you have old gdrive-downloader installed in your system, then run below command and then do the installation command
-
-```shell
-rm -rf "${HOME}/.gdrive-downloader"
-```
-
-Remove any previously set alias to the gdl command.
 
 ### Updation
 
 If you have followed the automatic method to install the script, then you can automatically update the script.
 
 There are three methods:
+
+1.  Automatic updates
+
+    By default, script checks for update after 3 days. Use -t / --time flag of install.sh to modify the interval.
+
+    An update log is saved in "${HOME}/.gdrive-downloader/update.log".
 
 1.  Use the script itself to update the script.
 
@@ -255,12 +260,6 @@ There are three methods:
 1.  Run the installation script again.
 
     Yes, just run the installation script again as we did in install section, and voila, it's done.
-
-1.  Automatic updates
-
-    By default, script checks for update after 3 days. Use -t / --time flag of install.sh to modify the interval.
-
-    An update log is saved in "${HOME}/.gdrive-downloader/update.log".
 
 **Note: Above methods always obey the values set by user in advanced installation,**
 **e.g if you have installed the script with different repo, say `myrepo/gdrive-downloader`, then the update will be also fetched from the same repo.**
@@ -400,7 +399,7 @@ There are two methods:
 1.  Run the installation script again with -U/--uninstall flag
 
     ```shell
-    curl -Ls --compressed drivedl.cf | sh -s -- --uninstall
+    curl -Ls --compressed https://drivedl.cf | sh -s -- --uninstall
     ```
 
     Yes, just run the installation script again with the flag and voila, it's done.
@@ -463,7 +462,9 @@ Use the [GitHub issue tracker](https://github.com/Akianonymus/gdrive-downloader/
 | Pull Requests | [![GitHub pull-requests](https://img.shields.io/github/issues-pr/Akianonymus/gdrive-downloader.svg?label=&style=for-the-badge&color=orange)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Apr+is%3Aopen) | [![GitHub pull-requests closed](https://img.shields.io/github/issues-pr-closed/Akianonymus/gdrive-downloader.svg?label=&color=success&style=for-the-badge)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Apr+is%3Aclosed) |
 | :-----------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 
-Submit patches to code or documentation as GitHub pull requests. Make sure to run format.sh before making a new pull request.
+Submit patches to code or documentation as GitHub pull requests. Make sure to run merge.sh and format.sh before making a new pull request.
+
+If using a code editor, then use shfmt plugin instead of format.sh
 
 ## License
 

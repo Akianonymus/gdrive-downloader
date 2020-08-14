@@ -34,17 +34,24 @@ jobs:
       run: |
           set -e
           sh install.sh
-              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              PATH="${HOME}/.gdrive-downloader:${PATH}"
               gdl --info
           sh install.sh -U && sh install.sh --posix
-              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
               gdl --info
           sh install.sh -U  && sh install.sh -c custom_gdl
-              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
               custom_gdl --info
-    - name: 'Download'
+    - name: 'Format, Merge and Download test'
       if: steps.filter.outputs.download == 'true'
       run: |
           set -e
-          brew reinstall bash 2> /dev/null 1>&2 || :
+          { { command -v apt-get && apt-get install snapd -yqq && snap install shfmt ;} ||
+            { command -v brew && brew install shfmt ;} ;} 2>| /dev/null 1>&2
+
+          # merge test
+          sh merge.sh
+          { [ -n "$(git diff)" ] && printf "%s\n" "Error: Run merge.sh before pushing the commits" && git diff && exit 1 ;} || :
+
+          # update bash for macos
+          command -v brew && brew reinstall bash
+          # download tests
           sh test.sh

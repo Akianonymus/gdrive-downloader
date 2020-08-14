@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Functions that will used in core script
 
 ###################################################
 # Convert bytes to human readable form
-# Globals: None
 # Required Arguments: 1
 #   ${1} = Positive integer ( bytes )
 # Result: Print human readable form.
@@ -22,8 +20,6 @@ _bytes_to_human() {
 
 ###################################################
 # Check for bash version >= 4.x
-# Globals: 1 Variable
-#   BASH_VERSINFO
 # Required Arguments: None
 # Result: If
 #   SUCEESS: Status 0
@@ -35,9 +31,6 @@ _check_bash_version() {
 
 ###################################################
 # Check if debug is enabled and enable command trace
-# Globals: 2 variables, 1 function
-#   Varibles - DEBUG, QUIET
-#   Function - _is_terminal
 # Arguments: None
 # Result: If DEBUG
 #   Present - Enable command trace and change print functions to avoid spamming.
@@ -77,8 +70,6 @@ _check_debug() {
 ###################################################
 # Check internet connection.
 # Probably the fastest way, takes about 1 - 2 KB of data, don't check for more than 10 secs.
-# Globals: 3 functions
-#   _print_center, _clear_line, _timeout
 # Arguments: None
 # Result: On
 #   Success - Nothing
@@ -96,7 +87,6 @@ _check_internet() {
 
 ###################################################
 # Move cursor to nth no. of line and clear it to the begining.
-# Globals: None
 # Arguments: 1
 #   ${1} = Positive integer ( line number )
 # Result: Read description
@@ -107,7 +97,6 @@ _clear_line() {
 
 ###################################################
 # Alternative to wc -l command
-# Globals: None
 # Arguments: 1  or pipe
 #   ${1} = file, _count < file
 #          variable, _count <<< variable
@@ -123,7 +112,6 @@ _count() {
 
 ###################################################
 # Extract ID from a googledrive folder/file url.
-# Globals: None
 # Arguments: 1
 #   ${1} = googledrive folder/file url.
 # Result: print extracted ID
@@ -149,7 +137,6 @@ _fetch() {
 
 ###################################################
 # Method to extract specified field data from json
-# Globals: None
 # Arguments: 2
 #   ${1} - value of field to fetch from json
 #   ${2} - Optional, no of lines to parse for the given field in 1st arg
@@ -172,8 +159,6 @@ _json_value() {
 ###################################################
 # Print a text to center interactively and fill the rest of the line with text specified.
 # This function is fine-tuned to this script functionality, so may appear unusual.
-# Globals: 1 variable
-#   COLUMNS
 # Arguments: 4
 #   If ${1} = normal
 #      ${2} = text to print
@@ -232,7 +217,6 @@ _print_center() {
 
 ###################################################
 # Alternative to timeout command
-# Globals: None
 # Arguments: 1 and rest
 #   ${1} = amount of time to sleep
 #   rest = command to execute
