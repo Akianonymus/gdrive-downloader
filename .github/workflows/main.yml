@@ -34,13 +34,13 @@ jobs:
       run: |
           set -e
           sh install.sh
-              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              PATH="${HOME}/.gdrive-downloader:${PATH}"
               gdl --info
           sh install.sh -U && sh install.sh --posix
-              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              PATH="${HOME}/.gdrive-downloader:${PATH}"
               gdl --info
           sh install.sh -U  && sh install.sh -c custom_gdl
-              . "${HOME}/.gdrive-downloader/gdrive-downloader.binpath"
+              PATH="${HOME}/.gdrive-downloader:${PATH}"
               custom_gdl --info
     - name: 'Download'
       if: steps.filter.outputs.download == 'true'
