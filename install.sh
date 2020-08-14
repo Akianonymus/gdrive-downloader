@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 # Install, Update or Uninstall gdrive-downloader
+# shellcheck source=/dev/null
 
 _usage() {
     printf "
@@ -7,7 +8,6 @@ The script can be used to install gdrive-downloader script in your system.\n
 Usage: %s [options.. ]\n
 All flags are optional.\n
 Options:\n
-  -i | --interactive - Install script interactively, will ask for all the varibles one by one.\nNote: This will disregard all arguments given with below flags.\n
   -p | --path <dir_name> - Custom path where you want to install script.\nDefault Path: %s/.gdrive-downloader \n
   -c | --cmd <command_name> - Custom command name, after installation script will be available as the input argument.
       Default command: gdl\n
@@ -30,30 +30,7 @@ _short_help() {
 }
 
 ###################################################
-# Wrapper for cat
-###################################################
-_cat() {
-    file_cat="${1}" && export file_cat
-    { [ "${INSTALLATION}" = bash ] && bash -c 'printf "%s\n" "$(< "${file_cat}")"'; } || cat "${file_cat}"
-}
-
-###################################################
-# Check for bash version >= 4.x
-# Globals: None
-# Arguments: None
-# Result: If
-#   SUCEESS: return 0
-#   ERROR: return 1
-###################################################
-_check_bash_version() {
-    { command -v bash && [ "$(bash --version | grep -oE '[0-9]+\.[0-9]' | grep -o '^[0-9]')" -ge 4 ] && return 0; } 2>| /dev/null 1>&2 || return 1
-}
-
-###################################################
 # Check if debug is enabled and enable command trace
-# Globals: 2 variables, 1 function
-#   Varibles - DEBUG, QUIET
-#   Function - _is_terminal
 # Arguments: None
 # Result: If DEBUG
 #   Present - Enable command trace and change print functions to avoid spamming.
@@ -100,10 +77,7 @@ _check_dependencies() {
         command -v "${program}" 2>| /dev/null 1>&2 || error_list="${error_list}\n${program}"
     done
 
-    [ "${posix_check_dependencies}" != 0 ] &&
-        for program in cat date; do
-            command -v "${program}" 2>| /dev/null 1>&2 || error_list="${error_list}\n${program}"
-        done
+    [ "${posix_check_dependencies}" != 0 ] && { command -v date 1>| /dev/null || error_list="${error_list}\n${program}"; }
 
     [ -n "${error_list}" ] && [ -z "${UNINSTALL}" ] && {
         printf "Error: "
@@ -117,8 +91,6 @@ _check_dependencies() {
 ###################################################
 # Check internet connection.
 # Probably the fastest way, takes about 1 - 2 KB of data, don't check for more than 10 secs.
-# Globals: 2 functions
-#   _print_center, _clear_line
 # Arguments: None
 # Result: On
 #   Success - Nothing
@@ -126,17 +98,16 @@ _check_dependencies() {
 ###################################################
 _check_internet() {
     _print_center "justify" "Checking Internet Connection.." "-"
-    ! _timeout 10 curl -Is google.com && {
+    if ! _timeout 10 curl -Is google.com --compressed; then
         _clear_line 1
-        "${QUIET:-_print_center}" "Error: Internet connection not available.\n"
+        "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
         exit 1
-    }
+    fi
     _clear_line 1
 }
 
 ###################################################
 # Move cursor to nth no. of line and clear it to the begining.
-# Globals: None
 # Arguments: 1
 #   ${1} = Positive integer ( line number )
 # Result: Read description
@@ -148,8 +119,6 @@ _clear_line() {
 ###################################################
 # Detect profile rc file for zsh and bash.
 # Detects for login shell of the user.
-# Globals: 2 Variables
-#   HOME, SHELL
 # Arguments: None
 # Result: On
 #   Success - print profile file
@@ -168,7 +137,6 @@ _detect_profile() {
 
 ###################################################
 # Alternative to dirname command
-# Globals: None
 # Arguments: 1
 #   ${1} = path of file or folder
 # Result: read description
@@ -197,7 +165,6 @@ _get_columns_size() {
 ###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
-# Globals: None
 # Arguments: 3
 #   ${1} = repo name
 #   ${2} = sha sum or branch name or tag name
@@ -241,7 +208,6 @@ EOF
 ###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
-# Globals: None
 # Arguments: 3
 #   ${1} = "branch" or "release"
 #   ${2} = branch name or release name
@@ -270,8 +236,6 @@ _get_latest_sha() {
 ###################################################
 # Print a text to center interactively and fill the rest of the line with text specified.
 # This function is fine-tuned to this script functionality, so may appear unusual.
-# Globals: 1 variable
-#   COLUMNS
 # Arguments: 4
 #   If ${1} = normal
 #      ${2} = text to print
@@ -333,7 +297,6 @@ _print_center() {
 
 ###################################################
 # Alternative to timeout command
-# Globals: None
 # Arguments: 1 and rest
 #   ${1} = amount of time to sleep
 #   rest = command to execute
@@ -356,28 +319,7 @@ _timeout() {
 }
 
 ###################################################
-# Config updater
-# Incase of old value, update, for new value add.
-# Globals: None
-# Arguments: 3
-#   ${1} = value name
-#   ${2} = value
-#   ${3} = config path
-# Result: read description
-###################################################
-_update_config() {
-    [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
-    value_name_update_config="${1}" value_update_config="${2}" config_path_update_config="${3}"
-    ! [ -f "${config_path_update_config}" ] && : >| "${config_path_update_config}" # If config file doesn't exist.
-    printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name_update_config}=" "${config_path_update_config}" || :)" \
-        "${value_name_update_config}=\"${value_update_config}\"" >| "${config_path_update_config}"
-}
-
-###################################################
 # Initialize default variables
-# Globals: 1 variable, 1 function
-#   Variable - HOME
-#   Function - _detect_profile
 # Arguments: None
 # Result: read description
 ###################################################
@@ -385,7 +327,7 @@ _variables() {
     REPO="Akianonymus/gdrive-downloader"
     COMMAND_NAME="gdl"
     INFO_PATH="${HOME}/.gdrive-downloader"
-    INSTALL_PATH="${HOME}/.gdrive-downloader/bin"
+    INSTALL_PATH="${HOME}/.gdrive-downloader"
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
@@ -395,69 +337,55 @@ _variables() {
     else
         date +'%s'
     fi)" && export LAST_UPDATE_TIME
+    GLOBAL_INSTALL="false"
 
-    # shellcheck source=/dev/null
-    [ -r "${INFO_PATH}/gdrive-downloader.info" ] && . "${INFO_PATH}"/gdrive-downloader.info
+    VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GDL_SCRIPT_SHA GLOBAL_INSTALL"
 
-    __VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL"
+    VALUES_REGEX="" && for i in VALUES_LIST ${VALUES_LIST}; do
+        VALUES_REGEX="${VALUES_REGEX:+${VALUES_REGEX}|}^${i}=\".*\".* # added values"
+    done
+
     return 0
 }
 
 ###################################################
 # Download scripts
 ###################################################
-_download_files() {
-    files_with_commits="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "${INSTALLATION}" | grep -E "gdl.${INSTALLATION}|utils.${INSTALLATION}")"
-    repo="${REPO}"
+_download_file() {
+    gdl_release="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "${INSTALLATION}/release")"
+    file="${gdl_release%%__.__*}" && sha="${gdl_release##*__.__}"
 
-    cd "${INSTALL_PATH}" 2>| /dev/null 1>&2 || exit 1
-
-    while read -r line <&4; do
-        file="${line%%__.__*}" && sha="${line##*__.__}"
-
-        case "${file##${INSTALLATION}\/}" in
-            gdl.*) local_file="${COMMAND_NAME}" ;;
-            *) local_file="${file##${INSTALLATION}\/}" ;;
-        esac
-
-        [ -f "${local_file}" ] && [ "$(sed -n -e '$p' "${local_file}")" = "#${sha}" ] && continue
-        _print_center "justify" "${local_file}" "-"
+    [ "${GDL_SCRIPT_SHA}" = "${sha}" ] || {
+        cd "${INSTALL_PATH}" 2>| /dev/null 1>&2 || exit 1
+        GDL_SCRIPT_SHA="${sha}"
+        [ -f "${INSTALL_PATH}/${COMMAND_NAME}" ] && chmod +w "${INSTALL_PATH}/${COMMAND_NAME}"
+        _print_center "justify" "${COMMAND_NAME}" "-"
         # shellcheck disable=SC2086
-        ! curl -s --compressed "https://raw.githubusercontent.com/${repo}/${sha}/${file}" -o "${local_file}" && return 1
+        ! curl -s --compressed "https://raw.githubusercontent.com/${REPO}/${sha}/${file}" -o "${COMMAND_NAME}" && return 1
         _clear_line 1
-
-        printf "\n#%s\n" "${sha}" >> "${local_file}"
-    done 4<< EOF
-$(printf "%s\n" "${files_with_commits}")
-EOF
-
-    cd - 2>| /dev/null 1>&2 || exit 1
+        cd - 2>| /dev/null 1>&2 || exit 1
+    }
     return 0
 }
 
 ###################################################
-# Inject utils folder realpath to gdl
+# Inject installation values to gdl script
 ###################################################
-_inject_utils_path() {
-    unset script_inject_utils_path
-
-    ! grep -q "UTILS_FOLDER=\"${INSTALL_PATH}\"" "${INSTALL_PATH}/${COMMAND_NAME}" &&
-        script_inject_utils_path="$(
-            read -r line < "${INSTALL_PATH}/${COMMAND_NAME}" && printf "%s\n" "${line}" &&
-                printf "%s\n" "UTILS_FOLDER=\"${INSTALL_PATH}\"" &&
-                _cat "${INSTALL_PATH}/${COMMAND_NAME}" | sed 1d
-        )" &&
-        printf "%s\n" "${script_inject_utils_path}" >| "${INSTALL_PATH}/${COMMAND_NAME}"
-    return 0
+_inject_values() {
+    shebang="$(sed -n 1p "${INSTALL_PATH}/${COMMAND_NAME}")"
+    script_without_values_and_shebang="$(grep -vE "${VALUES_REGEX}" "${INSTALL_PATH}/${COMMAND_NAME}" | sed 1d)"
+    {
+        printf "%s\n" "${shebang}"
+        for i in VALUES_LIST ${VALUES_LIST}; do
+            printf "%s\n" "${i}=\"$(eval printf "%s" \"\$"${i}"\")\" # added values"
+        done
+        printf "%s\n" "LATEST_INSTALLED_SHA=\"${LATEST_CURRENT_SHA}\" # added values"
+        printf "%s\n" "${script_without_values_and_shebang}"
+    } 1>| "${INSTALL_PATH}/${COMMAND_NAME}"
 }
 
 ###################################################
 # Install/Update the download script
-# Globals: 10 variables, 6 functions
-#   Variables - INSTALL_PATH, INFO_PATH, UTILS_FILE, COMMAND_NAME, SHELL_RC,
-#               TYPE, TYPE_VALUE, REPO, __VALUES_LIST
-#   Functions - _print_center, _newline, _clear_line
-#               _get_latest_sha, _update_config
 # Arguments: None
 # Result: read description
 #   If cannot download, then print message and exit
@@ -465,7 +393,10 @@ _inject_utils_path() {
 _start() {
     job="${1:-install}"
 
-    [ "${job}" = install ] && mkdir -p "${INSTALL_PATH}" && _print_center "justify" 'Installing gdrive-downloader..' "-"
+    [ "${job}" = install ] && {
+        mkdir -p "${INSTALL_PATH}"
+        _print_center "justify" 'Installing gdrive-downloader..' "-"
+    }
 
     _print_center "justify" "Fetching latest version info.." "-"
     LATEST_CURRENT_SHA="$(_get_latest_sha "${TYPE}" "${TYPE_VALUE}" "${REPO}")"
@@ -478,24 +409,21 @@ _start() {
     }
 
     _print_center "justify" "Downloading scripts.." "-"
-    if _download_files; then
-        _inject_utils_path || { "${QUIET:-_print_center}" "justify" "Cannot edit installed files" ", check if create a issue on github with proper log." "=" && exit 1; }
-        chmod +x "${INSTALL_PATH}"/*
+    if _download_file; then
+        _inject_values
+        chmod "${GLOBAL_PERMS:-u+x+r-w}" "${INSTALL_PATH}/${COMMAND_NAME}"
 
-        # Add/Update config and inject shell rc
-        for i in ${__VALUES_LIST}; do
-            _update_config "${i}" "$(eval printf "%s" \"\$"${i}"\")" "${INFO_PATH}"/gdrive-downloader.info
-        done
-        _update_config LATEST_INSTALLED_SHA "${LATEST_CURRENT_SHA}" "${INFO_PATH}"/gdrive-downloader.info
-        _update_config PATH "${INSTALL_PATH}:"\$\{PATH\} "${INFO_PATH}"/gdrive-downloader.binpath
-        ! grep -qE "(.|source) ${INFO_PATH}/gdrive-downloader.binpath" "${SHELL_RC}" 2>| /dev/null && {
-            (printf "\n%s\n" ". ${INFO_PATH}/gdrive-downloader.binpath" >> "${SHELL_RC}") 2>| /dev/null || {
-                shell_rc_write="error"
-                _shell_rc_err_msg() {
-                    "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
-                    "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
-                    "${QUIET:-_print_center}" "normal" " Add below line to your shell rc manually " "-" && printf "\n"
-                    "${QUIET:-_print_center}" "normal" ". ${INFO_PATH}/gdrive-downloader.binpath" " " && printf "\n"
+        [ "${GLOBAL_INSTALL}" = false ] && {
+            _PATH="PATH=\"${INSTALL_PATH}:\${PATH}\""
+            grep -q "${_PATH}" "${SHELL_RC}" 2>| /dev/null || {
+                (printf "\n%s\n" "${_PATH}" >> "${SHELL_RC}") 2>| /dev/null || {
+                    shell_rc_write="error"
+                    _shell_rc_err_msg() {
+                        "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
+                        "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
+                        "${QUIET:-_print_center}" "normal" " Add below line to your shell rc manually " "-" && printf "\n"
+                        "${QUIET:-_print_center}" "normal" "${_PATH}" " " && printf "\n"
+                    }
                 }
             }
         }
@@ -516,6 +444,23 @@ _start() {
             { [ -n "${shell_rc_write}" ] && _shell_rc_err_msg; } ||
                 "${QUIET:-_print_center}" "justify" 'Successfully Updated.' "="
         fi
+
+        [ -n "${OLD_INSTALLATION_PRESENT}" ] && {
+            rm -f "${INFO_PATH}/bin/common-utils.${INSTALLATION}" \
+                "${INFO_PATH}/bin/download-utils.${INSTALLATION}" \
+                "${INFO_PATH}/google-drive-upload.info" \
+                "${INFO_PATH}/google-drive-upload.binpath"
+            __bak="${INFO_PATH}/google-drive-upload.binpath"
+            { grep -qE "(.|source) ${INFO_PATH}" "${SHELL_RC}" 2>| /dev/null &&
+                ! { [ -w "${SHELL_RC}" ] &&
+                    _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; } &&
+                {
+                    "${QUIET:-_print_center}" "normal" " Successfully updated but manually need to remove below from ${SHELL_RC} " "=" && printf "\n"
+                    "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
+                    "${QUIET:-_print_center}" "normal" ". ${INFO_PATH}" " " && printf "\n"
+                }; } || :
+        }
+
     else
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Cannot download the scripts." "="
@@ -526,38 +471,55 @@ _start() {
 
 ###################################################
 # Uninstall the script
-# Globals: 5 variables, 2 functions
-#   Variables - INSTALL_PATH, INFO_PATH, UTILS_FILE, COMMAND_NAME, SHELL_RC
-#   Functions - _print_center, _clear_line
 # Arguments: None
 # Result: read description
-#   If cannot edit the SHELL_RC, then print message and exit
+#   If cannot edit the SHELL_RC if required, then print message and exit
 ###################################################
 _uninstall() {
     _print_center "justify" "Uninstalling.." "-"
-    __bak="${INFO_PATH}/gdrive-downloader.binpath"
-    rm -f "${INSTALL_PATH}"/"${COMMAND_NAME}" "${INSTALL_PATH}"/*utils."${INSTALLATION}" \
-        "${INFO_PATH}"/gdrive-downloader.info "${INFO_PATH}"/gdrive-downloader.binpath \
-        "${INFO_PATH}"/update.log
-    [ -z "$(find "${INFO_PATH}" -type f)" ] && rm -rf "${INFO_PATH}"
-    _clear_line 1
-    if [ -w "${SHELL_RC}" ] && _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; then
-        _print_center "justify" "Uninstall complete." "="
-    else
+
+    _PATH="PATH=\"${INSTALL_PATH}:\${PATH}\""
+
+    _error_message() {
         "${QUIET:-_print_center}" "justify" 'Error: Uninstall failed.' "="
         "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
         "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
         "${QUIET:-_print_center}" "normal" " Remove below line from your shell rc manually " "-" && printf "\n"
-        "${QUIET:-_print_center}" "normal" ". ${INFO_PATH}/gdrive-downloader.binpath" " " && printf "\n"
-    fi
+        "${QUIET:-_print_center}" "normal" " ${_PATH}" " " && printf "\n"
+        return 1
+    }
+
+    grep -q "${_PATH}" "${SHELL_RC}" 2>| /dev/null &&
+        ! { [ -w "${SHELL_RC}" ] &&
+            _new_rc="$(sed -e "s|${_PATH}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; } &&
+        _error_message
+
+    # just in case old method was present
+    [ -n "${OLD_INSTALLATION_PRESENT}" ] && {
+        rm -f "${INFO_PATH}/bin/common-utils.${INSTALLATION}" \
+            "${INFO_PATH}/bin/drive-utils.${INSTALLATION}" \
+            "${INFO_PATH}/google-drive-upload.info" \
+            "${INFO_PATH}/google-drive-upload.binpath"
+        __bak="${INFO_PATH}/google-drive-upload.binpath"
+        { grep -qE "(.|source) ${INFO_PATH}" "${SHELL_RC}" 2>| /dev/null &&
+            ! { [ -w "${SHELL_RC}" ] &&
+                _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; } &&
+            _error_message ". ${INFO_PATH}"; } || :
+    }
+
+    chmod -f u+w "${INSTALL_PATH}/${COMMAND_NAME}"
+    rm -f "${INSTALL_PATH:?}/${COMMAND_NAME:?}"
+
+    [ "${GLOBAL_INSTALL}" = false ] && [ -z "$(find "${INSTALL_PATH}" -type f)" ] && rm -rf "${INSTALL_PATH:?}"
+    [ -z "$(find "${INFO_PATH}" -type f)" ] && rm -rf "${INFO_PATH:?}"
+
+    _clear_line 1
+    _print_center "justify" "Uninstall complete." "="
     return 0
 }
 
 ###################################################
 # Process all arguments given to the script
-# Globals: 1 variable, 1 function
-#   Variable - SHELL_RC
-#   Functions - _is_terminal
 # Arguments: Many
 #   ${@} = Flags with arguments
 # Result: read description
@@ -576,7 +538,7 @@ _setup_arguments() {
             -h | --help) _usage ;;
             -p | --path)
                 _check_longoptions "${1}" "${2}"
-                INSTALL_PATH="${2}" && shift
+                _INSTALL_PATH="${2}" && shift
                 ;;
             -r | --repo)
                 _check_longoptions "${1}" "${2}"
@@ -614,18 +576,29 @@ _setup_arguments() {
         shift
     done
 
+    _check_debug
+
     # 86400 secs = 1 day
     AUTO_UPDATE_INTERVAL="${AUTO_UPDATE_INTERVAL:-432000}"
 
     [ -z "${SHELL_RC}" ] && printf "No default shell file found, use -s/--shell-rc to use custom rc file\n" && exit 1
 
-    _check_debug
+    INSTALL_PATH="${INSTALL_PATH:-${_INSTALL_PATH:-${HOME}/.gdrive-downloader}}"
+    INSTALL_PATH="$(cd "${INSTALL_PATH%\/*}" && pwd)/${INSTALL_PATH##*\/}" || exit 1
+    { printf "%s\n" "${PATH}" | grep -q -e "${INSTALL_PATH}:" -e "${INSTALL_PATH}/:" && IN_PATH="true"; } || :
+
+    # check if install path outside home dir and running as root
+    [ -n "${INSTALL_PATH##${HOME}*}" ] && GLOBAL_PERMS="a+r+x-w" && GLOBAL_INSTALL="true" && ! [ "$(id -u)" = 0 ] &&
+        printf "%s\n" "Error: Need root access to run the script for given install path ( ${INSTALL_PATH} )." && exit 1
+    # global dir must be in executable path
+    [ "${GLOBAL_INSTALL}" = true ] && [ -z "${IN_PATH}" ] &&
+        printf "%s\n" "Error: Install path ( ${INSTALL_PATH} ) must be in executable path if it's outside user home directory." && exit 1
 
     return 0
 }
 
 main() {
-    _check_bash_version && INSTALLATION="bash"
+    { command -v bash && [ "$(bash -c 'printf "%s\n" ${BASH_VERSINFO:-0}')" -ge 4 ] && INSTALLATION="bash"; } 1>| /dev/null
     _check_dependencies "${?}" && INSTALLATION="${INSTALLATION:-sh}"
 
     set -o errexit -o noclobber
@@ -633,13 +606,17 @@ main() {
     _variables && _setup_arguments "${@}"
 
     _check_existing_command() {
-        if command -v "${COMMAND_NAME}" 2>| /dev/null 1>&2; then
-            if grep -q COMMAND_NAME "${INFO_PATH}"/gdrive-downloader.info 2>| /dev/null 1>&2; then
+        if COMMAND_PATH="$(command -v "${COMMAND_NAME}")"; then
+            if [ -f "${INFO_PATH}/google-drive-upload.info" ] && [ -f "${INFO_PATH}/google-drive-upload.binpath" ]; then
+                OLD_INSTALLATION_PRESENT="true" && . "${INFO_PATH}/google-drive-upload.info"
+                return 0
+            elif SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" "${COMMAND_PATH}" || :)" &&
+                eval "${SCRIPT_VALUES}" 2> /dev/null && [ -n "${LATEST_INSTALLED_SHA:+${SELF_SOURCE}}" ]; then
                 return 0
             else
                 printf "%s\n" "Error: Cannot validate existing installation, make sure no other program is installed as ${COMMAND_NAME}."
-                printf "%s\n" "You can use -c / --cmd flag to specify custom command name."
-                printf "%s\n" "Otherwise uninstall the ${COMMAND_NAME} command manually and run this script again."
+                printf "%s\n\n" "You can use -c / --cmd flag to specify custom command name."
+                printf "%s\n\n" "Create a issue on github with proper log if above mentioned suggestion doesn't work."
                 exit 1
             fi
         else
@@ -649,13 +626,13 @@ main() {
 
     if [ -n "${UNINSTALL}" ]; then
         { _check_existing_command && _uninstall; } || {
-            "${QUIET:-_print_center}" "justify" "gdrive-downloader is not installed." "="
+            _uninstall minimal 2>| /dev/null 1>&2 || :
+            [ -z "${FORCE_UNINSTALL}" ] && "${QUIET:-_print_center}" "justify" "gdrive-downloader is not installed." "="
             exit 0
         }
     else
         "${SKIP_INTERNET_CHECK:-_check_internet}"
-        { _check_existing_command && INSTALL_PATH="$(_dirname "$(command -v "${COMMAND_NAME}")")" &&
-            _start update; } || {
+        { _check_existing_command && _start update; } || {
             _start install
         }
     fi
