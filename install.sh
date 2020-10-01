@@ -510,8 +510,8 @@ _uninstall() {
     chmod -f u+w "${INSTALL_PATH}/${COMMAND_NAME}"
     rm -f "${INSTALL_PATH:?}/${COMMAND_NAME:?}"
 
-    [ "${GLOBAL_INSTALL}" = false ] && [ -z "$(find "${INSTALL_PATH}" -type f)" ] && rm -rf "${INSTALL_PATH:?}"
-    [ -z "$(find "${INFO_PATH}" -type f)" ] && rm -rf "${INFO_PATH:?}"
+    [ "${GLOBAL_INSTALL}" = false ] && [ -z "$(find "${INSTALL_PATH}" -type f 2>| /dev/null)" ] && rm -rf "${INSTALL_PATH:?}"
+    [ -z "$(find "${INFO_PATH}" -type f 2>| /dev/null)" ] && rm -rf "${INFO_PATH:?}"
 
     _clear_line 1
     _print_center "justify" "Uninstall complete." "="
