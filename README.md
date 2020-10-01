@@ -132,7 +132,7 @@ To install gdrive-downloader in your system, you can run the below command:
 curl -Ls --compressed https://drivedl.cf | sh -s
 ```
 
-alternatively, you can use the original github url instead of https://drivedl.cf
+alternatively, you can use the original github url instead of `https://drivedl.cf`
 
 ```shell
 curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s
