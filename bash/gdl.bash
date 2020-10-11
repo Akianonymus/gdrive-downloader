@@ -93,7 +93,7 @@ _check_id() {
     [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
     "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
     declare id="${1}" json && unset NAME SIZE
-    if json="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id}?alt=json&fields=name,size,mimeType&key=${API_KEY}")"; then
+    if json="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id}?alt=json&fields=name,size,mimeType&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true")"; then
         if ! _json_value code 1 1 <<< "${json}" 2>| /dev/null 1>&2; then
             NAME="$(_json_value name 1 1 <<< "${json}" || :)"
             mime="$(_json_value mimeType 1 1 <<< "${json}" || :)"
