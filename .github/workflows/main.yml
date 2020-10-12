@@ -21,16 +21,7 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v1
-    - uses: dorny/paths-filter@v2.2.0
-      id: filter
-      with:
-        filters: |
-          download:
-            - '+(sh|bash)'
-          install:
-            - 'install.sh'
     - name: 'Install'
-      if: steps.filter.outputs.install == 'true'
       run: |
           set -e
           sh install.sh
@@ -41,7 +32,6 @@ jobs:
           sh install.sh -U  && sh install.sh -c custom_gdl
               custom_gdl --info
     - name: 'Format, Merge and Download test'
-      if: steps.filter.outputs.download == 'true'
       run: |
           set -e
           { { command -v apt-get && apt-get install snapd -yqq && snap install shfmt ;} ||
