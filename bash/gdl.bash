@@ -59,10 +59,10 @@ _update() {
     [[ ${GLOBAL_INSTALL} = true ]] && ! [[ $(id -u) = 0 ]] && printf "%s\n" "Error: Need root access to update." && return 0
     [[ ${job} = uninstall ]] && job_string="--uninstall"
     _print_center "justify" "Fetching ${job} script.." "-"
-    declare repo="${REPO:-akianonymus/gdrive-downloader}" type_value="${TYPE_VALUE:-master}"
-    if script="$(curl --compressed -Ls "https://raw.githubusercontent.com/${repo}/${type_value}/install.sh")"; then
+    declare repo="${REPO:-akianonymus/gdrive-downloader}" type_value="${TYPE_VALUE:-master}" cmd="${COMMAND_NAME:-gdl}" path="${INSTALL_PATH:-${HOME}/.gdrive-downloader}"
+    if script="$(curl --compressed -Ls "https://github.com/${repo}/raw/${type_value}/install.sh")"; then
         _clear_line 1
-        printf "%s\n" "${script}" | bash -s -- ${job_string:-} --skip-internet-check
+        printf "%s\n" "${script}" | bash -s -- ${job_string:-} --skip-internet-check --cmd "${cmd}" --path "${path}"
     else
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Cannot download ${job} script." "=" 1>&2
