@@ -15,7 +15,7 @@
 > It can be used to to download files or folders from google gdrive.
 
 - Minimal
-- No authentication required
+- Authentication support ( not required for public files/folders ).
 - Download gdrive files and folders
   - Download subfolders
 - Resume Interrupted downloads
@@ -42,6 +42,9 @@
   - [Updation](#updation)
 - [Usage](#usage)
   - [Download Script Custom Flags](#download-script-custom-flags)
+  - [Enable Drive API](#enable-drive-api)
+  - [Oauth Authentication](#oauth-authentication)
+  - [Retrieve Api key](#retrieve-api-key)
   - [Multiple Inputs](#multiple-inputs)
   - [Resuming Interrupted Downloads](#resuming-interrupted-downloads)
 - [Uninstall](#Uninstall)
@@ -96,6 +99,7 @@ This repo contains two types of scripts, posix compatible and bash compatible.
 | sed              | Miscellaneous                                          |
 | mktemp           | To generate temporary files ( optional )               |
 | sleep            | Self explanatory                                       |
+| ps               | To manage different processes                          |
 
 <strong>If BASH is not available or BASH is available but version is less tham 4.x, then below programs are also required:</strong>
 
@@ -266,7 +270,17 @@ There are three methods:
 
 ## Usage
 
-After installation, no more configuration is needed.
+After installation, no more configuration is needed for public files/folders.
+
+But sometimes, downloading files from shared drive ( team drives ) errors. To tackle this, use `--key` flag and bypass that error. In case it still errors out, give your own api key as argument.
+
+To get your own api key, go to [Retrieve API key](#retrive-api-key) section.
+
+Note: Even after specifying api key, don't recklessly download a file over and over, it will lead to 24 hr ip ban.
+
+To handle the issue ( more of a abuse ) in above note, use oauth authentication.
+
+Other scenario where oauth authentication is needed would be for downloading private files/folders. Go to [Oauth Authentication](#oauth-authentication) section for more info.
 
 `gdl gdrive_id/gdrive_url`
 
@@ -277,6 +291,34 @@ Now, we have covered the basics, move on to the next section for extra features 
 ### Download Script Custom Flags
 
 These are the custom flags that are currently implemented:
+
+-   <strong>-o | --oauth</strong>
+
+    Use this flag to trigger oauth authentication.
+
+    Note: If both --oauth and --key flag is used, --oauth flag is preferred.
+
+    ---
+
+-   <strong>-k | --key 'custom api key' ( optional argument )</strong>
+
+    To download with api key. If api key is not specified, then the predefined api key will be used.
+
+    Note: In-script api key surely works, but have less qouta to use, so it is recommended to use your own private key.
+
+    To save your api key in config file, use `gdl --key default="your api key"`. API key will be saved in `${HOME}/.gdl.conf` and will be used from now on.
+
+    Note: If both --key and --oauth flag is used, --oauth flag is preferred.
+
+    ---
+
+-   <strong>-c | --config 'config file path'</strong>
+
+    Override default config file with custom config file.
+
+    Default: ${HOME}/.gdl.conf
+
+    ---
 
 -   <strong>-d | --directory 'foldername'</strong>
 
@@ -368,13 +410,112 @@ These are the custom flags that are currently implemented:
 
     ---
 
+### Enable Drive API
+
+You can skip this section if you are not using oauth authentication or trying to retrieve an api key.
+
+- Log into google developer console at [google console](https://console.developers.google.com/).
+- Click select project at the right side of "Google Cloud Platform" of upper left of window.
+
+If you cannot see the project, please try to access to [https://console.cloud.google.com/cloud-resource-manager](https://console.cloud.google.com/cloud-resource-manager).
+
+You can also create new project at there. When you create a new project there, please click the left of "Google Cloud Platform". You can see it like 3 horizontal lines.
+
+By this, a side bar is opened. At there, select "API & Services" -> "Library". After this, follow the below steps:
+
+- Click "NEW PROJECT" and input the "Project Name".
+- Click "CREATE" and open the created project.
+- Click "Enable APIs and get credentials like keys".
+- Go to "Library"
+- Input "Drive API" in "Search for APIs & Services".
+- Click "Google Drive API" and click "ENABLE".
+
+### Oauth Authentication
+
+First, we need to obtain our Oauth credentials, here's how to do it:
+
+#### Generating Oauth Credentials
+
+- Follow [Enable Drive API](#enable-drive-api) section.
+- Open [google console](https://console.developers.google.com/).
+- Click on "Credentials".
+- Click "Create credentials" and select oauth client id.
+- Select Application type "Desktop app" or "other".
+- Provide name for the new credentials. ( anything )
+- This would provide a new Client ID and Client Secret.
+- Download your credentials.json by clicking on the download button.
+
+Now, we have obtained our credentials, move to next section to use those credentials to setup:
+
+#### First Run
+
+On first run, the script asks for all the required credentials, which we have obtained in the previous section.
+
+Execute the script: `gdl gdrive_url/gdrive_id -o`
+
+Note: `-o/ --oauth` flag is needed if file should be downloaded with authentication.
+
+Now, it will ask for following credentials:
+
+**Client ID:** Copy and paste from credentials.json
+
+**Client Secret:** Copy and paste from credentials.json
+
+**Refresh Token:** If you have previously generated a refresh token authenticated to your account, then enter it, otherwise leave blank.
+If you don't have refresh token, script outputs a URL on the terminal script, open that url in a web browser and tap on allow. Copy the code and paste in the terminal.
+
+If everything went fine, all the required credentials have been set.
+
+#### Config
+
+After first run, the credentials are saved in config file. The config file is `${HOME}/.gdl.conf`.
+
+To use a different one temporarily, see `-c / --config` custom in [Download Script Custom Flags](#download-script-custom-flags).
+
+This is the format of a config file:
+
+```shell
+CLIENT_ID="client id"
+CLIENT_SECRET="client secret"
+REFRESH_TOKEN="refresh token"
+ACCESS_TOKEN="access token"
+ACCESS_TOKEN_EXPIRY="access token expiry"
+```
+
+You can use a config file in multiple machines, the values that are explicitly required are `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN`.
+
+`ACCESS_TOKEN` and `ACCESS_TOKEN_EXPIRY` are automatically generated using `REFRESH_TOKEN`.
+
+A pre-generated config file can be also used where interactive terminal access is not possible, like Continuous Integration, docker, jenkins, etc
+
+Just have to print values to `"${HOME}/.gdl.conf"`, e.g:
+
+```shell
+printf "%s\n" "CLIENT_ID=\"client id\"
+CLIENT_SECRET=\"client secret\"
+REFRESH_TOKEN=\"refresh token\"
+" >| "${HOME}/.gdl.conf"
+```
+
+Note: Don't skip those backslashes before the double qoutes, it's necessary to handle spacing.
+
+### Retrieve API key
+
+In order to use a custom api key, follow the below steps:
+
+- Follow [Enable Drive API](#enable-drive-api) section.
+- Open [google console](https://console.developers.google.com/).
+- Click on "Credentials".
+- Click "Create credentials" and select API key.
+- Copy the API key. You can use this API key.
+
 ### Multiple Inputs
 
 You can use multiple inputs without any extra hassle.
 
 Pass arguments normally, e.g: `gdl url1 url2 id2 id2`
 
-where usr1 and usr2 is drive urls and rest two are gdrive ids.
+where url1 and url2 are drive urls and rest two are gdrive ids.
 
 ### Resuming Interrupted Downloads
 

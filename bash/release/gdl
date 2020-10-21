@@ -112,6 +112,15 @@ kill "$child"
 wait "$child"
 } 2>|/dev/null 1>&2
 }
+_update_config(){
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
+declare value_name="$1" value="$2" config_path="$3"
+! [ -f "$config_path" ]&&: >|"$config_path"
+chmod u+w "$config_path"
+printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name=" "$config_path"||:)" \
+"$value_name=\"$value\"" >|"$config_path"
+chmod u-w+r "$config_path"
+}
 _download_file(){
 [[ $# -lt 3 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
 declare file_id="$1" name="$2" server_size="$3" parallel="$4"
@@ -131,16 +140,34 @@ fi
 else
 _print_center "justify" "Downloading file.." "-"
 fi
+if [[ -n $OAUTH_ENABLED ]];then
+. "${TMPFILE}_ACCESS_TOKEN"
+curl -Ls $CONTINUE $CURL_SPEED \
+-H "Authorization: Bearer $ACCESS_TOKEN" \
+-o "$name" \
+"$API_URL/drive/$API_VERSION/files/$file_id?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true" 2>|/dev/null 1>&2&
+pid="$!"
+elif [[ -n $API_KEY_DOWNLOAD ]];then
+curl -Ls $CONTINUE $CURL_SPEED \
+-e "https://drive.google.com" \
+-o "$name" \
+"$API_URL/drive/$API_VERSION/files/$file_id?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=$API_KEY" 2>|/dev/null 1>&2&
+pid="$!"
+else
 "$EXTRA_LOG" "justify" "Fetching" " cookies.." "-"
 curl -c "$TMPFILE"COOKIE -I $CURL_PROGRESS -o /dev/null "https://drive.google.com/uc?export=download&id=$file_id"||:
 for _ in 1 2;do _clear_line 1;done
 confirm_string="$(: "$(grep -F 'download_warning' "$TMPFILE"COOKIE)"&&printf "%s\n" "${_//*$'\t'/}")"||:
-curl -L -s $CONTINUE $CURL_SPEED -b "$TMPFILE"COOKIE -o "$name" "https://drive.google.com/uc?export=download&id=$file_id${confirm_string:+&confirm=$confirm_string}" 2>|/dev/null 1>&2&
+curl -Ls $CONTINUE $CURL_SPEED \
+-b "$TMPFILE"COOKIE \
+-o "$name" \
+"https://drive.google.com/uc?export=download&id=$file_id${confirm_string:+&confirm=$confirm_string}" 2>|/dev/null 1>&2&
 pid="$!"
+fi
 if [[ -n $parallel ]];then
 wait "$pid" 2>|/dev/null 1>&2
 else
-until [[ -f $name && -n $pid ]];do sleep 0.5;done
+until [[ -f $name ]];do sleep 0.5;done
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
 downloaded="$(wc -c <"$name")"
 status="$(_bytes_to_human "$downloaded")"
@@ -188,7 +215,7 @@ files_size files_name files_list num_of_files folders_list num_of_folders
 _newline "\n"
 "$EXTRA_LOG" "justify" "$name" "="
 "$EXTRA_LOG" "justify" "Fetching folder" " details.." "-"
-if ! info="$(_api_request "files?q=%27$folder_id%27+in+parents&fields=files(name,size,id,mimeType)")";then
+if ! info="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=files(name,size,id,mimeType)")";then
 "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
 printf "%s\n" "$info"&&return 1
 fi&&_clear_line 1
@@ -275,11 +302,18 @@ curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
 "$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
 }
+_api_request_oauth(){
+. "${TMPFILE}_ACCESS_TOKEN"
+curl --compressed $CURL_PROGRESS \
+-H "Authorization: Bearer $ACCESS_TOKEN" \
+"$API_URL/drive/$API_VERSION/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
+_clear_line 1 1>&2
+}
 _check_id(){
 [[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
 "$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
 declare id="$1" json&&unset NAME SIZE
-if json="$(_api_request "files/$id?alt=json&fields=name,size,mimeType")";then
+if json="$("$API_REQUEST_FUNCTION" "files/$id?alt=json&fields=name,size,mimeType")";then
 if ! _json_value code 1 1 <<<"$json" 2>|/dev/null 1>&2;then
 NAME="$(_json_value name 1 1 <<<"$json"||:)"
 mime="$(_json_value mimeType 1 1 <<<"$json"||:)"
@@ -292,6 +326,7 @@ SIZE="$(_json_value size 1 1 <<<"$json"||:)"
 FILE_ID="$id"
 _print_center "justify" "File Detected" "="&&_newline "\n"
 fi
+export NAME SIZE FILE_ID FOLDER_ID
 else
 _clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="&&_newline "\n"
 return 1
@@ -314,11 +349,33 @@ case "$ID" in
 esac
 printf "%b" "${ID:+$ID\n}"
 }
+_get_access_token_and_update(){
+RESPONSE="${1:-$(curl --compressed -s -X POST --data "client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&refresh_token=$REFRESH_TOKEN&grant_type=refresh_token" "$TOKEN_URL")}"||:
+if ACCESS_TOKEN="$(_json_value access_token 1 1 <<<"$RESPONSE")";then
+ACCESS_TOKEN_EXPIRY="$(($(printf '%(%s)T\n' "-1")+$(_json_value expires_in 1 1 <<<"$RESPONSE")-1))"
+[[ -z $NO_UPDATE_TOKEN ]]&&{
+_update_config ACCESS_TOKEN "$ACCESS_TOKEN" "$CONFIG"
+_update_config ACCESS_TOKEN_EXPIRY "$ACCESS_TOKEN_EXPIRY" "$CONFIG"
+}
+else
+"${QUIET:-_print_center}" "justify" "Error: Something went wrong" ", printing error." 1>&2
+printf "%s\n" "$RESPONSE" 1>&2
+return 1
+fi
+return 0
+}
 _usage(){
 printf "%b" "
 The script can be used to download file/directory from google drive.\n
 Usage:\n ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>\n
 Options:\n
+  -o | --oauth - Use this flag to trigger oauth authentication.\n
+      Note: If both --oauth and --key flag is used, --oauth flag is preferred.\n
+  -k | --key 'API KEY' ( optional arg ) - To download with api key. If api key is not specified, then the predefined api key will be used.\n
+      To save your api key in config file, use 'gdl --key default=your api key'.
+      API key will be saved in '$HOME/.gdl.conf' and will be used from now on.\n
+      Note: If both --key and --key oauth is used, --oauth flag is preferred.\n
+  -c | --config 'config file path' - Override default config file with custom config file. Default: $HOME/.gdl.conf\n
   -d | --directory 'foldername' - option to _download given input in custom directory.\n
   -s | --skip-subdirs - Skip downloading of sub folders present in case of folders.\n
   -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel.\n
@@ -374,13 +431,17 @@ exit 0
 }
 _setup_arguments(){
 [[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
-unset LOG_FILE_ID FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
+unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD CONFIG FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
 unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY
 unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY
 CURL_PROGRESS="-s" EXTRA_LOG=":"
+CONFIG="$HOME/.gdl.conf"
 API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
 API_URL="https://www.googleapis.com"
 API_VERSION="v3"
+SCOPE="$API_URL/auth/drive"
+REDIRECT_URI="urn:ietf:wg:oauth:2.0:oob"
+TOKEN_URL="https://accounts.google.com/o/oauth2/token"
 _check_longoptions(){
 [[ -z $2 ]]&&printf '%s: %s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "$1" "${0##*/}"&&exit 1
 return 0
@@ -394,6 +455,17 @@ case "$1" in
 --info)_info;;
 -l|--log)_check_longoptions "$1" "$2"
 LOG_FILE_ID="$2"&&shift
+;;
+-o|--oauth)OAUTH_ENABLED="true";;
+-k|--key)API_KEY_DOWNLOAD="true"
+_API_KEY="${2##default=}"
+if [[ $_API_KEY =~ AIza[0-9A-Za-z_-]{35} ]];then
+API_KEY="$_API_KEY"&&shift
+[[ -z ${2##default=*} ]]&&UPDATE_DEFAULT_API_KEY="_update_config"
+fi
+;;
+-c|--config)_check_longoptions "$1" "$2"
+CONFIG="$2"&&shift
 ;;
 -d|--directory)_check_longoptions "$1" "$2"
 FOLDERNAME="$2"&&shift
@@ -431,25 +503,132 @@ fi
 ;;
 --skip-internet-check)SKIP_INTERNET_CHECK=":"
 ;;
-*)if
-[[ $1 == -* ]]
-then
+''|*)[[ -n $1 ]]&&{
+if [[ $1 == -* ]];then
 printf '%s: %s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "$1" "${0##*/}"&&exit 1
 else
 ID_INPUT_ARRAY+=("$(_extract_id "$1")")
 fi
+}
 esac
 shift
 done
 [[ -z ${ID_INPUT_ARRAY[*]} ]]&&_short_help
+[[ -n $OAUTH_ENABLED ]]&&unset API_KEY_DOWNLOAD
 _check_debug
+return 0
+}
+_check_credentials(){
+NO_UPDATE_TOKEN=""
+[[ -r $CONFIG ]]&&. "$CONFIG"
+if [[ -n $OAUTH_ENABLED ]];then
+! [[ -t 1 ]]&&[[ -z ${CLIENT_ID:+${CLIENT_SECRET:+$REFRESH_TOKEN}} ]]&&{
+printf "%s\n" "Error: Script is not running in a terminal, cannot ask for credentials."
+printf "%s\n" "Add in config manually if terminal is not accessible. CLIENT_ID, CLIENT_SECRET and REFRESH_TOKEN is required."&&return 1
+}
+until [[ -n $CLIENT_ID && -n $CLIENT_ID_VALID ]];do
+[[ -n $CLIENT_ID ]]&&{
+if [[ $CLIENT_ID =~ [0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com ]];then
+[[ -n $client_id ]]&&_update_config CLIENT_ID "$CLIENT_ID" "$CONFIG"
+CLIENT_ID_VALID="true"&&continue
+else
+{ [[ -n $client_id ]]&&message="- Try again";}||message="in config ( $CONFIG )"
+"${QUIET:-_print_center}" "normal" " Invalid Client ID $message " "-"&&unset CLIENT_ID client_id
+fi
+}
+[[ -z $client_id ]]&&printf "\n"&&"${QUIET:-_print_center}" "normal" " Enter Client ID " "-"
+[[ -n $client_id ]]&&_clear_line 1
+printf -- "-> "
+read -r CLIENT_ID&&client_id=1
+done
+until [[ -n $CLIENT_SECRET && -n $CLIENT_SECRET_VALID ]];do
+[[ -n $CLIENT_SECRET ]]&&{
+if [[ $CLIENT_SECRET =~ [0-9A-Za-z_]{20,} ]];then
+[[ -n $client_secret ]]&&_update_config CLIENT_SECRET "$CLIENT_SECRET" "$CONFIG"
+CLIENT_SECRET_VALID="true"&&continue
+else
+{ [[ -n $client_secret ]]&&message="- Try again";}||message="in config ( $CONFIG )"
+"${QUIET:-_print_center}" "normal" " Invalid Client Secret $message " "-"&&unset CLIENT_SECRET client_secret
+fi
+}
+[[ -z $client_secret ]]&&printf "\n"&&"${QUIET:-_print_center}" "normal" " Enter Client Secret " "-"
+[[ -n $client_secret ]]&&_clear_line 1
+printf -- "-> "
+read -r CLIENT_SECRET&&client_secret=1
+done
+[[ -n $REFRESH_TOKEN ]]&&{
+! [[ $REFRESH_TOKEN =~ 1//[0-9][0-9][0-9A-Za-z_]{26}-[0-9A-Za-z_]{50,} ]]&&"${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token in config file, follow below steps.. " "-"&&unset REFRESH_TOKEN
+}
+[[ -z $REFRESH_TOKEN ]]&&{
+printf "\n"&&"${QUIET:-_print_center}" "normal" "If you have a refresh token generated, then type the token, else leave blank and press return key.." " "
+printf "\n"&&"${QUIET:-_print_center}" "normal" " Refresh Token " "-"&&printf -- "-> "
+read -r REFRESH_TOKEN
+if [[ -n $REFRESH_TOKEN ]];then
+"${QUIET:-_print_center}" "normal" " Checking refresh token.. " "-"
+if [[ $REFRESH_TOKEN =~ 1//[0-9][0-9][0-9A-Za-z_]{26}-[0-9A-Za-z_]{50,} ]];then
+{ _get_access_token_and_update&&_update_config REFRESH_TOKEN "$REFRESH_TOKEN" "$CONFIG";}||check_error=true
+else
+check_error=true
+fi
+[[ -n $check_error ]]&&"${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token given, follow below steps to generate.. " "-"&&unset REFRESH_TOKEN
+else
+"${QUIET:-_print_center}" "normal" " No Refresh token given, follow below steps to generate.. " "-"
+fi
+[[ -z $REFRESH_TOKEN ]]&&{
+printf "\n"&&"${QUIET:-_print_center}" "normal" "Visit the below URL, tap on allow and then enter the code obtained" " "
+URL="https://accounts.google.com/o/oauth2/auth?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&scope=$SCOPE&response_type=code&prompt=consent"
+printf "\n%s\n" "$URL"
+until [[ -n $CODE && -n $CODE_VALID ]];do
+[[ -n $CODE ]]&&{
+if [[ $CODE =~ [0-9]/[0-9A-Za-z_-]{50,} ]];then
+CODE_VALID="true"&&continue
+else
+"${QUIET:-_print_center}" "normal" " Invalid CODE given, try again.. " "-"&&unset CODE code
+fi
+}
+{ [[ -z $code ]]&&printf "\n"&&"${QUIET:-_print_center}" "normal" " Enter the authorization code " "-";}||_clear_line 1
+printf -- "-> "
+read -r CODE&&code=1
+done
+RESPONSE="$(curl --compressed "$CURL_PROGRESS" -X POST \
+--data "code=$CODE&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&redirect_uri=$REDIRECT_URI&grant_type=authorization_code" "$TOKEN_URL")"||:
+_clear_line 1 1>&2
+REFRESH_TOKEN="$(_json_value refresh_token 1 1 <<<"$RESPONSE"||:)"
+{ _get_access_token_and_update "$RESPONSE"&&_update_config REFRESH_TOKEN "$REFRESH_TOKEN" "$CONFIG";}||return 1
+}
+printf "\n"
+}
+[[ -z $ACCESS_TOKEN || ! $ACCESS_TOKEN =~ ya29\.[0-9A-Za-z_-]+ || ${ACCESS_TOKEN_EXPIRY:-0} -lt "$(printf '%(%s)T\n' "-1")" ]]&&{ _get_access_token_and_update||return 1;}
+{
+while :;do
+printf "%s\n" "export ACCESS_TOKEN=\"$ACCESS_TOKEN\" ACCESS_TOKEN_EXPIRY=\"$ACCESS_TOKEN_EXPIRY\"" >|"${TMPFILE}_ACCESS_TOKEN"
+CURRENT_TIME="$(printf '%(%s)T\n' "-1")"
+REMAINING_TOKEN_TIME="$((ACCESS_TOKEN_EXPIRY-CURRENT_TIME))"
+if [[ $REMAINING_TOKEN_TIME -le 300 ]];then
+{ export NO_UPDATE_TOKEN=true&&_timeout 30 _get_access_token_and_update;}||:
+else
+TOKEN_PROCESS_TIME_TO_SLEEP="$(if [[ $REMAINING_TOKEN_TIME -le 301 ]];then
+printf "0\n"
+else
+printf "%s\n" "$((REMAINING_TOKEN_TIME-300))"
+fi)"
+sleep "$TOKEN_PROCESS_TIME_TO_SLEEP"
+fi
+sleep 1
+done
+}&
+ACCESS_TOKEN_SERVICE_PID="$!"
+elif [[ -n $API_KEY_DOWNLOAD ]];then
+"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "$API_KEY" "$CONFIG"
+fi
 return 0
 }
 _process_arguments(){
 export DEBUG LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION \
 FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK \
-COLUMNS CURL_SPEED TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET
-export -f _bytes_to_human _count _api_request _json_value _print_center _print_center _newline _clear_line \
+COLUMNS CURL_SPEED TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET \
+OAUTH_ENABLED API_KEY_DOWNLOAD
+export -f _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line \
 _download_file _download_file_main _download_folder _log_in_file
 ${FOLDERNAME:+mkdir -p $FOLDERNAME}
 cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
@@ -478,6 +657,17 @@ _setup_arguments "$@"
 "${SKIP_INTERNET_CHECK:-_check_internet}"
 _cleanup(){
 {
+[[ -n $OAUTH_ENABLED ]]&&{
+[[ $(. "${TMPFILE}_ACCESS_TOKEN"&&printf "%s\n" "$ACCESS_TOKEN") == "$ACCESS_TOKEN" ]]||{
+_update_config ACCESS_TOKEN "$ACCESS_TOKEN" "$CONFIG"
+_update_config ACCESS_TOKEN_EXPIRY "$ACCESS_TOKEN_EXPIRY" "$CONFIG"
+}
+token_service_pids="$(ps --ppid="$ACCESS_TOKEN_SERVICE_PID" -o pid=)"
+kill "$ACCESS_TOKEN_SERVICE_PID"
+for pid in $token_service_pids;do
+kill "$pid"
+done
+}
 rm -f "${TMPFILE:?}"*
 export abnormal_exit&&if [[ -n $abnormal_exit ]];then
 printf "\n\n%s\n" "Script exited manually."
@@ -490,6 +680,14 @@ return 0
 }
 trap 'abnormal_exit="1"; exit' INT TERM
 trap '_cleanup' EXIT
+if [[ -n $OAUTH_ENABLED ]];then
+"$EXTRA_LOG" "justify" "Checking credentials.." "-"
+{ _check_credentials&&for _ in 1 2;do _clear_line 1;done;}||{ "${QUIET:-_print_center}" "normal" "[ Error: Credentials checking failed ]" "="&&exit 1;}
+_print_center "justify" "Required credentials available." "="
+export API_REQUEST_FUNCTION="_api_request_oauth"
+else
+export API_REQUEST_FUNCTION="_api_request"
+fi
 START="$(printf '%(%s)T\n' "-1")"
 _process_arguments
 END="$(printf '%(%s)T\n' "-1")"
