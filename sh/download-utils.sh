@@ -104,7 +104,7 @@ _download_folder() {
     _newline "\n"
     "${EXTRA_LOG}" "justify" "${name_download_folder}" "="
     "${EXTRA_LOG}" "justify" "Fetching folder" " details.." "-"
-    if ! info_download_folder="$(_fetch "${API_URL}/drive/${API_VERSION}/files?q=%27${folder_id_download_folder}%27+in+parents&fields=files(name,size,id,mimeType)&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true")"; then
+    if ! info_download_folder="$(_api_request "files?q=%27${folder_id_download_folder}%27+in+parents&fields=files(name,size,id,mimeType)")"; then
         "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
         printf "%s\n" "${info_download_folder}" && return 1
     fi && _clear_line 1

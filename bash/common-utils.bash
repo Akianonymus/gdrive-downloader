@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 
 ###################################################
+# Default curl command used for gdrive api requests.
+###################################################
+_api_request() {
+    curl -e "https://drive.google.com" --compressed ${CURL_PROGRESS} \
+        "${API_URL}/drive/${API_VERSION}/${1:?}&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
+    _clear_line 1 1>&2
+}
+
+###################################################
 # Convert bytes to human readable form
 # Required Arguments: 1
 #   ${1} = Positive integer ( bytes )
@@ -125,14 +134,6 @@ _extract_id() {
         *'drive.google.com'*'drive'*'folders'*) ID="${ID##*\/folders\/}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
     esac
     printf "%b" "${ID:+${ID}\n}"
-}
-
-###################################################
-# Default curl command used for gdrivr api requests.
-###################################################
-_fetch() {
-    curl -e "https://drive.google.com" --compressed "${@}" ${CURL_PROGRESS} || return 1
-    _clear_line 1 1>&2
 }
 
 ###################################################
