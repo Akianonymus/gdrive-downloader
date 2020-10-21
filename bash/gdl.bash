@@ -265,7 +265,7 @@ main() {
             rm -f "${TMPFILE:?}"*
             export abnormal_exit && if [[ -n ${abnormal_exit} ]]; then
                 printf "\n\n%s\n" "Script exited manually."
-                kill - -$$
+                kill -- -$$ &
             else
                 _auto_update
             fi
