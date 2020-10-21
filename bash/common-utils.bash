@@ -212,3 +212,23 @@ _timeout() {
         wait "${child}"
     } 2>| /dev/null 1>&2
 }
+
+###################################################
+# Config updater
+# Incase of old value, update, for new value add.
+# Globals: None
+# Arguments: 3
+#   ${1} = value name
+#   ${2} = value
+#   ${3} = config path
+# Result: read description
+###################################################
+_update_config() {
+    [[ $# -lt 3 ]] && printf "Missing arguments\n" && return 1
+    declare value_name="${1}" value="${2}" config_path="${3}"
+    ! [ -f "${config_path}" ] && : >| "${config_path}" # If config file doesn't exist.
+    chmod u+w "${config_path}"
+    printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name}=" "${config_path}" || :)" \
+        "${value_name}=\"${value}\"" >| "${config_path}"
+    chmod u-w+r "${config_path}"
+}

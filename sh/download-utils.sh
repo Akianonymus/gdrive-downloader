@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+# shellcheck source=/dev/null
 
 ###################################################
 # Download a gdrive file
@@ -27,20 +28,43 @@ _download_file() {
     else
         _print_center "justify" "Downloading file.." "-"
     fi
-    "${EXTRA_LOG}" "justify" "Fetching" " cookies.." "-"
-    # shellcheck disable=SC2086
-    curl -c "${TMPFILE}"COOKIE -I ${CURL_PROGRESS} -o /dev/null "https://drive.google.com/uc?export=download&id=${file_id_download_file}" || :
-    for _ in 1 2; do _clear_line 1; done
-    confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_tmp##*$(printf '\t')}")" || :
-    # shellcheck disable=SC2086
-    curl -L -s ${CONTINUE} ${CURL_SPEED} -b "${TMPFILE}"COOKIE -o "${name_download_file}" \
-        "https://drive.google.com/uc?export=download&id=${file_id_download_file}${confirm_string:+&confirm=${confirm_string}}" 2>| /dev/null 1>&2 &
-    pid="${!}"
+
+    # download with oauth creds if available
+    if [ -n "${OAUTH_ENABLED}" ]; then
+        . "${TMPFILE}_ACCESS_TOKEN"
+        # shellcheck disable=SC2086
+        curl -Ls ${CONTINUE} ${CURL_SPEED} \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -o "${name_download_file}" \
+            "${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true" 2>| /dev/null 1>&2 &
+        pid="${!}"
+    elif [ -n "${API_KEY_DOWNLOAD}" ]; then
+        # download with api key
+        # shellcheck disable=SC2086
+        curl -Ls ${CONTINUE} ${CURL_SPEED} \
+            -e "https://drive.google.com" \
+            -o "${name_download_file}" \
+            "${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}" 2>| /dev/null 1>&2 &
+        pid="${!}"
+    else
+        # normal downloading
+        "${EXTRA_LOG}" "justify" "Fetching" " cookies.." "-"
+        # shellcheck disable=SC2086
+        curl -c "${TMPFILE}"COOKIE -I ${CURL_PROGRESS} -o /dev/null "https://drive.google.com/uc?export=download&id=${file_id_download_file}" || :
+        for _ in 1 2; do _clear_line 1; done
+        confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_tmp##*$(printf '\t')}")" || :
+        # shellcheck disable=SC2086
+        curl -L -s ${CONTINUE} ${CURL_SPEED} \
+            -b "${TMPFILE}"COOKIE \
+            -o "${name_download_file}" \
+            "https://drive.google.com/uc?export=download&id=${file_id_download_file}${confirm_string:+&confirm=${confirm_string}}" 2>| /dev/null 1>&2 &
+        pid="${!}"
+    fi
 
     if [ -n "${parallel_download_file}" ]; then
         wait "${pid}" 2>| /dev/null 1>&2
     else
-        until [ -f "${name_download_file}" ] && [ -n "${pid}" ]; do sleep 0.5; done
+        until [ -f "${name_download_file}" ]; do sleep 0.5; done
 
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded_download_file="$(wc -c < "${name_download_file}")"
@@ -104,7 +128,7 @@ _download_folder() {
     _newline "\n"
     "${EXTRA_LOG}" "justify" "${name_download_folder}" "="
     "${EXTRA_LOG}" "justify" "Fetching folder" " details.." "-"
-    if ! info_download_folder="$(_api_request "files?q=%27${folder_id_download_folder}%27+in+parents&fields=files(name,size,id,mimeType)")"; then
+    if ! info_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=files(name,size,id,mimeType)")"; then
         "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
         printf "%s\n" "${info_download_folder}" && return 1
     fi && _clear_line 1
