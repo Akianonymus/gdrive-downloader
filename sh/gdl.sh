@@ -94,7 +94,7 @@ _check_id() {
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
     "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
     id_check_id="${1}" json_check_id=""
-    if json_check_id="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id_check_id}?alt=json&fields=name,size,mimeType&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true")"; then
+    if json_check_id="$(_api_request "files/${id_check_id}?alt=json&fields=name,size,mimeType")"; then
         if ! printf "%s\n" "${json_check_id}" | _json_value code 1 1 2>| /dev/null 1>&2; then
             NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1 || :)"
             mime_check_id="$(printf "%s\n" "${json_check_id}" | _json_value mimeType 1 1 || :)"

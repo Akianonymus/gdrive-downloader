@@ -69,8 +69,9 @@ case "$id_extract_id" in
 esac
 printf "%b" "${id_extract_id:+$id_extract_id\n}"
 }
-_fetch(){
-curl -e "https://drive.google.com" --compressed "$@" $CURL_PROGRESS||return 1
+_api_request(){
+curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
+"$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
 }
 _get_columns_size(){
@@ -210,7 +211,7 @@ num_of_files_download_folder num_of_folders_download_folder
 _newline "\n"
 "$EXTRA_LOG" "justify" "$name_download_folder" "="
 "$EXTRA_LOG" "justify" "Fetching folder" " details.." "-"
-if ! info_download_folder="$(_fetch "$API_URL/drive/$API_VERSION/files?q=%27$folder_id_download_folder%27+in+parents&fields=files(name,size,id,mimeType)&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true")";then
+if ! info_download_folder="$(_api_request "files?q=%27$folder_id_download_folder%27+in+parents&fields=files(name,size,id,mimeType)")";then
 "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
 printf "%s\n" "$info_download_folder"&&return 1
 fi&&_clear_line 1
@@ -380,7 +381,7 @@ _check_id(){
 [ $# = 0 ]&&printf "Missing arguments\n"&&return 1
 "$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
 id_check_id="$1" json_check_id=""
-if json_check_id="$(_fetch "$API_URL/drive/$API_VERSION/files/$id_check_id?alt=json&fields=name,size,mimeType&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true")";then
+if json_check_id="$(_api_request "files/$id_check_id?alt=json&fields=name,size,mimeType")";then
 if ! printf "%s\n" "$json_check_id"|_json_value code 1 1 2>|/dev/null 1>&2;then
 NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1||:)"
 mime_check_id="$(printf "%s\n" "$json_check_id"|_json_value mimeType 1 1||:)"

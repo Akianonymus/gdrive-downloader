@@ -94,7 +94,7 @@ _check_id() {
     [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
     "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
     declare id="${1}" json && unset NAME SIZE
-    if json="$(_fetch "${API_URL}/drive/${API_VERSION}/files/${id}?alt=json&fields=name,size,mimeType&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true")"; then
+    if json="$(_api_request "files/${id}?alt=json&fields=name,size,mimeType")"; then
         if ! _json_value code 1 1 <<< "${json}" 2>| /dev/null 1>&2; then
             NAME="$(_json_value name 1 1 <<< "${json}" || :)"
             mime="$(_json_value mimeType 1 1 <<< "${json}" || :)"
@@ -225,7 +225,7 @@ _process_arguments() {
     export DEBUG LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION \
         FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK \
         COLUMNS CURL_SPEED TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET
-    export -f _bytes_to_human _count _fetch _json_value _print_center _print_center _newline _clear_line \
+    export -f _bytes_to_human _count _api_request _json_value _print_center _print_center _newline _clear_line \
         _download_file _download_file_main _download_folder _log_in_file
 
     ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
