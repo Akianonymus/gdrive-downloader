@@ -86,43 +86,6 @@ _info() {
     exit 0
 }
 
-###################################################
-# Check if the file ID exists and determine it's type [ folder | Files ].
-# Todo: write doc
-###################################################
-_check_id() {
-    [ $# = 0 ] && printf "Missing arguments\n" && return 1
-    "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
-    id_check_id="${1}" json_check_id=""
-    if json_check_id="$(_api_request "files/${id_check_id}?alt=json&fields=name,size,mimeType")"; then
-        if ! printf "%s\n" "${json_check_id}" | _json_value code 1 1 2>| /dev/null 1>&2; then
-            NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1 || :)"
-            mime_check_id="$(printf "%s\n" "${json_check_id}" | _json_value mimeType 1 1 || :)"
-            _clear_line 1
-            case "${mime_check_id}" in
-                *folder*)
-                    FOLDER_ID="${id}"
-                    _print_center "justify" "Folder Detected" "=" && _newline "\n"
-                    ;;
-                *)
-                    SIZE="$(printf "%s\n" "${json_check_id}" | _json_value size 1 1 || :)"
-                    FILE_ID="${id}"
-                    _print_center "justify" "File Detected" "=" && _newline "\n"
-                    ;;
-            esac
-        else
-            _clear_line 1 && "${QUIET:-_print_center}" "justify" "Invalid URL/ID" "=" && _newline "\n"
-            return 1
-        fi
-    else
-        _clear_line 1
-        "${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
-        printf "%s\n" "${json_check_id}"
-        return 1
-    fi
-    return 0
-}
-
 ##################################################
 # Process all arguments given to the script
 ###################################################
@@ -254,7 +217,7 @@ main() {
     [ $# = 0 ] && _short_help
 
     if [ -z "${SELF_SOURCE}" ]; then
-        UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}" && SOURCE_UTILS=". '${UTILS_FOLDER}/common-utils.sh' && . '${UTILS_FOLDER}/download-utils.sh'"
+        UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}" && SOURCE_UTILS=". '${UTILS_FOLDER}/common-utils.sh' && . '${UTILS_FOLDER}/download-utils.sh' && . '${UTILS_FOLDER}/drive-utils.sh'"
         eval "${SOURCE_UTILS}" || { printf "Error: Unable to source util files.\n" && exit 1; }
     else
         SOURCE_UTILS="SOURCED=true . \"$(cd "${0%\/*}" && pwd)/${0##*\/}\"" && eval "${SOURCE_UTILS}"

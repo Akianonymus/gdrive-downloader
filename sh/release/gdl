@@ -59,21 +59,6 @@ hr_display_time="$((t_display_time/60/60%24))" min_display_time="$((t_display_ti
 [ "$day_display_time" -gt 0 ]||[ "$hr_display_time" -gt 0 ]||[ "$min_display_time" -gt 0 ]&&printf 'and '
 printf '%d seconds\n' "$sec_display_time"
 }
-_extract_id(){
-[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
-LC_ALL=C id_extract_id="$1"
-case "$id_extract_id" in
-*'drive.google.com'*'id='*)_tmp="${id_extract_id##*id=}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}";;
-*'drive.google.com'*'file/d/'*|'http'*'docs.google.com'*'/d/'*)_tmp="${id_extract_id##*\/d\/}"&&_tmp="${_tmp%%\/*}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}";;
-*'drive.google.com'*'drive'*'folders'*)_tmp="${id_extract_id##*\/folders\/}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}"
-esac
-printf "%b" "${id_extract_id:+$id_extract_id\n}"
-}
-_api_request(){
-curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
-"$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
-_clear_line 1 1>&2
-}
 _get_columns_size(){
 { command -v bash 1>|/dev/null&&bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1';}||{ command -v zsh 1>|/dev/null&&zsh -c 'printf "%s\n" "${COLUMNS}"';}||{ command -v stty 1>|/dev/null&&_tmp="$(stty size)"&&printf "%s\n" "${_tmp##* }";}||{ command -v tput 1>|/dev/null&&tput cols;}||return 1
 }
@@ -319,6 +304,50 @@ printf "%s\n" "Size: $2"
 printf "%s\n\n" "ID: $3"
 } >>"$LOG_FILE_ID"
 }
+_api_request(){
+curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
+"$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
+_clear_line 1 1>&2
+}
+_check_id(){
+[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+"$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
+id_check_id="$1" json_check_id=""
+if json_check_id="$(_api_request "files/$id_check_id?alt=json&fields=name,size,mimeType")";then
+if ! printf "%s\n" "$json_check_id"|_json_value code 1 1 2>|/dev/null 1>&2;then
+NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1||:)"
+mime_check_id="$(printf "%s\n" "$json_check_id"|_json_value mimeType 1 1||:)"
+_clear_line 1
+case "$mime_check_id" in
+*folder*)FOLDER_ID="$id"
+_print_center "justify" "Folder Detected" "="&&_newline "\n"
+;;
+*)SIZE="$(printf "%s\n" "$json_check_id"|_json_value size 1 1||:)"
+FILE_ID="$id"
+_print_center "justify" "File Detected" "="&&_newline "\n"
+esac
+else
+_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="&&_newline "\n"
+return 1
+fi
+else
+_clear_line 1
+"${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
+printf "%s\n" "$json_check_id"
+return 1
+fi
+return 0
+}
+_extract_id(){
+[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+LC_ALL=C id_extract_id="$1"
+case "$id_extract_id" in
+*'drive.google.com'*'id='*)_tmp="${id_extract_id##*id=}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}";;
+*'drive.google.com'*'file/d/'*|'http'*'docs.google.com'*'/d/'*)_tmp="${id_extract_id##*\/d\/}"&&_tmp="${_tmp%%\/*}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}";;
+*'drive.google.com'*'drive'*'folders'*)_tmp="${id_extract_id##*\/folders\/}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}"
+esac
+printf "%b" "${id_extract_id:+$id_extract_id\n}"
+}
 _usage(){
 printf "%b" "
 The script can be used to download file/directory from google drive.\n
@@ -376,35 +405,6 @@ else
 printf "%s\n" "gdrive-downloader is not installed system wide."
 fi
 exit 0
-}
-_check_id(){
-[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
-"$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
-id_check_id="$1" json_check_id=""
-if json_check_id="$(_api_request "files/$id_check_id?alt=json&fields=name,size,mimeType")";then
-if ! printf "%s\n" "$json_check_id"|_json_value code 1 1 2>|/dev/null 1>&2;then
-NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1||:)"
-mime_check_id="$(printf "%s\n" "$json_check_id"|_json_value mimeType 1 1||:)"
-_clear_line 1
-case "$mime_check_id" in
-*folder*)FOLDER_ID="$id"
-_print_center "justify" "Folder Detected" "="&&_newline "\n"
-;;
-*)SIZE="$(printf "%s\n" "$json_check_id"|_json_value size 1 1||:)"
-FILE_ID="$id"
-_print_center "justify" "File Detected" "="&&_newline "\n"
-esac
-else
-_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="&&_newline "\n"
-return 1
-fi
-else
-_clear_line 1
-"${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
-printf "%s\n" "$json_check_id"
-return 1
-fi
-return 0
 }
 _setup_arguments(){
 [ $# = 0 ]&&printf "Missing arguments\n"&&return 1
@@ -504,7 +504,7 @@ return 0
 main(){
 [ $# = 0 ]&&_short_help
 if [ -z "$SELF_SOURCE" ];then
-UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"&&SOURCE_UTILS=". '$UTILS_FOLDER/common-utils.sh' && . '$UTILS_FOLDER/download-utils.sh'"
+UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"&&SOURCE_UTILS=". '$UTILS_FOLDER/common-utils.sh' && . '$UTILS_FOLDER/download-utils.sh' && . '$UTILS_FOLDER/drive-utils.sh'"
 eval "$SOURCE_UTILS"||{ printf "Error: Unable to source util files.\n"&&exit 1;}
 else
 SOURCE_UTILS="SOURCED=true . \"$(cd "${0%\/*}"&&pwd)/${0##*\/}\""&&eval "$SOURCE_UTILS"

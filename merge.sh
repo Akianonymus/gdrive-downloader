@@ -14,6 +14,7 @@ _merge() (
         {
             sed 1d common-utils."${shell}"
             sed 1d download-utils."${shell}"
+            sed 1d drive-utils."${shell}"
             sed 1d gdl."${shell}"
         } | shfmt -mn
     } >| "release/gdl"
