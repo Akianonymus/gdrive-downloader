@@ -55,21 +55,6 @@ _count(){
 mapfile -tn 0 lines
 printf '%s\n' "${#lines[@]}"
 }
-_extract_id(){
-[[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
-declare LC_ALL=C ID="$1"
-case "$ID" in
-*'drive.google.com'*'id='*)ID="${ID##*id=}"&&ID="${ID%%\?*}"&&ID="${ID%%\&*}";;
-*'drive.google.com'*'file/d/'*|'http'*'docs.google.com'*'/d/'*)ID="${ID##*\/d\/}"&&ID="${ID%%\/*}"&&ID="${ID%%\?*}"&&ID="${ID%%\&*}";;
-*'drive.google.com'*'drive'*'folders'*)ID="${ID##*\/folders\/}"&&ID="${ID%%\?*}"&&ID="${ID%%\&*}"
-esac
-printf "%b" "${ID:+$ID\n}"
-}
-_api_request(){
-curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
-"$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
-_clear_line 1 1>&2
-}
 _json_value(){
 declare num _tmp no_of_lines
 { [[ $2 -gt 0 ]]&&no_of_lines="$2";}||:
@@ -285,6 +270,50 @@ printf "%s\n" "Size: $2"
 printf "%s\n\n" "ID: $3"
 } >>"$LOG_FILE_ID"
 }
+_api_request(){
+curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
+"$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
+_clear_line 1 1>&2
+}
+_check_id(){
+[[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
+"$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
+declare id="$1" json&&unset NAME SIZE
+if json="$(_api_request "files/$id?alt=json&fields=name,size,mimeType")";then
+if ! _json_value code 1 1 <<<"$json" 2>|/dev/null 1>&2;then
+NAME="$(_json_value name 1 1 <<<"$json"||:)"
+mime="$(_json_value mimeType 1 1 <<<"$json"||:)"
+_clear_line 1
+if [[ $mime =~ folder ]];then
+FOLDER_ID="$id"
+_print_center "justify" "Folder Detected" "="&&_newline "\n"
+else
+SIZE="$(_json_value size 1 1 <<<"$json"||:)"
+FILE_ID="$id"
+_print_center "justify" "File Detected" "="&&_newline "\n"
+fi
+else
+_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="&&_newline "\n"
+return 1
+fi
+else
+_clear_line 1
+"${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
+printf "%s\n" "$json"
+return 1
+fi
+return 0
+}
+_extract_id(){
+[[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
+declare LC_ALL=C ID="$1"
+case "$ID" in
+*'drive.google.com'*'id='*)ID="${ID##*id=}"&&ID="${ID%%\?*}"&&ID="${ID%%\&*}";;
+*'drive.google.com'*'file/d/'*|'http'*'docs.google.com'*'/d/'*)ID="${ID##*\/d\/}"&&ID="${ID%%\/*}"&&ID="${ID%%\?*}"&&ID="${ID%%\&*}";;
+*'drive.google.com'*'drive'*'folders'*)ID="${ID##*\/folders\/}"&&ID="${ID%%\?*}"&&ID="${ID%%\&*}"
+esac
+printf "%b" "${ID:+$ID\n}"
+}
 _usage(){
 printf "%b" "
 The script can be used to download file/directory from google drive.\n
@@ -342,35 +371,6 @@ else
 printf "%s\n" "gdrive-downloader is not installed system wide."
 fi
 exit 0
-}
-_check_id(){
-[[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
-"$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
-declare id="$1" json&&unset NAME SIZE
-if json="$(_api_request "files/$id?alt=json&fields=name,size,mimeType")";then
-if ! _json_value code 1 1 <<<"$json" 2>|/dev/null 1>&2;then
-NAME="$(_json_value name 1 1 <<<"$json"||:)"
-mime="$(_json_value mimeType 1 1 <<<"$json"||:)"
-_clear_line 1
-if [[ $mime =~ folder ]];then
-FOLDER_ID="$id"
-_print_center "justify" "Folder Detected" "="&&_newline "\n"
-else
-SIZE="$(_json_value size 1 1 <<<"$json"||:)"
-FILE_ID="$id"
-_print_center "justify" "File Detected" "="&&_newline "\n"
-fi
-else
-_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="&&_newline "\n"
-return 1
-fi
-else
-_clear_line 1
-"${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
-printf "%s\n" "$json"
-return 1
-fi
-return 0
 }
 _setup_arguments(){
 [[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
@@ -469,7 +469,7 @@ main(){
 [[ $# == 0 ]]&&_short_help
 [[ -z $SELF_SOURCE ]]&&{
 UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"
-{ . "$UTILS_FOLDER"/common-utils.bash&&. "$UTILS_FOLDER"/download-utils.bash;}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
+{ . "$UTILS_FOLDER"/common-utils.bash&&. "$UTILS_FOLDER"/download-utils.bash&&. "$UTILS_FOLDER"/drive-utils.bash;}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
 }
 _check_bash_version&&set -o errexit -o noclobber -o pipefail
 TMPFILE="$(command -v mktemp 1>|/dev/null&&mktemp -u)"||TMPFILE="$(pwd)/$(printf '%(%s)T\n' "-1").tmpfile"

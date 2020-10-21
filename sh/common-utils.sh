@@ -1,15 +1,6 @@
 #!/usr/bin/env sh
 
 ###################################################
-# Default curl command used for gdrivr api requests.
-###################################################
-_api_request() {
-    curl -e "https://drive.google.com" --compressed ${CURL_PROGRESS} \
-        "${API_URL}/drive/${API_VERSION}/${1:?}&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
-    _clear_line 1 1>&2
-}
-
-###################################################
 # Convert bytes to human readable form
 # Required Arguments: 1
 #   ${1} = Positive integer ( bytes )
@@ -112,23 +103,6 @@ _display_time() {
     [ "${min_display_time}" -gt 0 ] && printf '%d minute(s) ' "${min_display_time}"
     [ "${day_display_time}" -gt 0 ] || [ "${hr_display_time}" -gt 0 ] || [ "${min_display_time}" -gt 0 ] && printf 'and '
     printf '%d seconds\n' "${sec_display_time}"
-}
-
-###################################################
-# Extract ID from a googledrive folder/file url.
-# Arguments: 1
-#   ${1} = googledrive folder/file url.
-# Result: print extracted ID
-###################################################
-_extract_id() {
-    [ $# = 0 ] && printf "Missing arguments\n" && return 1
-    LC_ALL=C id_extract_id="${1}"
-    case "${id_extract_id}" in
-        *'drive.google.com'*'id='*) _tmp="${id_extract_id##*id=}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
-        *'drive.google.com'*'file/d/'* | 'http'*'docs.google.com'*'/d/'*) _tmp="${id_extract_id##*\/d\/}" && _tmp="${_tmp%%\/*}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
-        *'drive.google.com'*'drive'*'folders'*) _tmp="${id_extract_id##*\/folders\/}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
-    esac
-    printf "%b" "${id_extract_id:+${id_extract_id}\n}"
 }
 
 ###################################################

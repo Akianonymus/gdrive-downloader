@@ -86,40 +86,6 @@ _info() {
     exit 0
 }
 
-###################################################
-# Check if the file ID exists and determine it's type [ folder | Files ].
-# Todo: write doc
-###################################################
-_check_id() {
-    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
-    declare id="${1}" json && unset NAME SIZE
-    if json="$(_api_request "files/${id}?alt=json&fields=name,size,mimeType")"; then
-        if ! _json_value code 1 1 <<< "${json}" 2>| /dev/null 1>&2; then
-            NAME="$(_json_value name 1 1 <<< "${json}" || :)"
-            mime="$(_json_value mimeType 1 1 <<< "${json}" || :)"
-            _clear_line 1
-            if [[ ${mime} =~ folder ]]; then
-                FOLDER_ID="${id}"
-                _print_center "justify" "Folder Detected" "=" && _newline "\n"
-            else
-                SIZE="$(_json_value size 1 1 <<< "${json}" || :)"
-                FILE_ID="${id}"
-                _print_center "justify" "File Detected" "=" && _newline "\n"
-            fi
-        else
-            _clear_line 1 && "${QUIET:-_print_center}" "justify" "Invalid URL/ID" "=" && _newline "\n"
-            return 1
-        fi
-    else
-        _clear_line 1
-        "${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
-        printf "%s\n" "${json}"
-        return 1
-    fi
-    return 0
-}
-
 ##################################################
 # Process all arguments given to the script
 ###################################################
@@ -249,7 +215,7 @@ main() {
 
     [[ -z ${SELF_SOURCE} ]] && {
         UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}"
-        { . "${UTILS_FOLDER}"/common-utils.bash && . "${UTILS_FOLDER}"/download-utils.bash; } || { printf "Error: Unable to source util files.\n" && exit 1; }
+        { . "${UTILS_FOLDER}"/common-utils.bash && . "${UTILS_FOLDER}"/download-utils.bash && . "${UTILS_FOLDER}"/drive-utils.bash; } || { printf "Error: Unable to source util files.\n" && exit 1; }
     }
 
     _check_bash_version && set -o errexit -o noclobber -o pipefail

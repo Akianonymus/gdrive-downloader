@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 
 ###################################################
-# Default curl command used for gdrive api requests.
-###################################################
-_api_request() {
-    curl -e "https://drive.google.com" --compressed ${CURL_PROGRESS} \
-        "${API_URL}/drive/${API_VERSION}/${1:?}&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
-    _clear_line 1 1>&2
-}
-
-###################################################
 # Convert bytes to human readable form
 # Required Arguments: 1
 #   ${1} = Positive integer ( bytes )
@@ -117,23 +108,6 @@ _clear_line() {
 _count() {
     mapfile -tn 0 lines
     printf '%s\n' "${#lines[@]}"
-}
-
-###################################################
-# Extract ID from a googledrive folder/file url.
-# Arguments: 1
-#   ${1} = googledrive folder/file url.
-# Result: print extracted ID
-###################################################
-_extract_id() {
-    [[ $# = 0 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
-    declare LC_ALL=C ID="${1}"
-    case "${ID}" in
-        *'drive.google.com'*'id='*) ID="${ID##*id=}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
-        *'drive.google.com'*'file/d/'* | 'http'*'docs.google.com'*'/d/'*) ID="${ID##*\/d\/}" && ID="${ID%%\/*}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
-        *'drive.google.com'*'drive'*'folders'*) ID="${ID##*\/folders\/}" && ID="${ID%%\?*}" && ID="${ID%%\&*}" ;;
-    esac
-    printf "%b" "${ID:+${ID}\n}"
 }
 
 ###################################################
