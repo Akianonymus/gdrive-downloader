@@ -130,7 +130,7 @@ chmod u-w+r "$config_path_update_config"
 _download_file(){
 [ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
 file_id_download_file="$1" name_download_file="$2" server_size_download_file="$3" parallel_download_file="$4"
-unset status_download_file old_status_download_file left_download_file downloaded_download_file
+unset range_download_file status_download_file old_status_download_file left_download_file downloaded_download_file
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file")"
 _print_center "justify" "$name_download_file" " | ${server_size_download_file:+$server_size_readable_download_file}" "="
 if [ -s "$name_download_file" ];then
@@ -141,33 +141,34 @@ _log_in_file
 return 0
 else
 _print_center "justify" "File is partially" " present, resuming.." "-"
-CONTINUE=" -C - "
+range_download_file="Range: bytes=$local_size_download_file-$server_size_download_file"
 fi
 else
+range_download_file="Range: bytes=0-$server_size_download_file"
 _print_center "justify" "Downloading file.." "-"
 fi
 if [ -n "$OAUTH_ENABLED" ];then
 . "${TMPFILE}_ACCESS_TOKEN"
-curl -Ls $CONTINUE $CURL_SPEED \
+curl -Ls $CURL_SPEED \
+-H "$range_download_file" \
 -H "Authorization: Bearer $ACCESS_TOKEN" \
--o "$name_download_file" \
-"$API_URL/drive/$API_VERSION/files/$file_id_download_file?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true" 2>|/dev/null 1>&2&
+"$API_URL/drive/$API_VERSION/files/$file_id_download_file?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true" >>"$name_download_file"&
 pid="$!"
 elif [ -n "$API_KEY_DOWNLOAD" ];then
-curl -Ls $CONTINUE $CURL_SPEED \
+curl -Ls $CURL_SPEED \
+-H "$range_download_file" \
 -e "https://drive.google.com" \
--o "$name_download_file" \
-"$API_URL/drive/$API_VERSION/files/$file_id_download_file?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=$API_KEY" 2>|/dev/null 1>&2&
+"$API_URL/drive/$API_VERSION/files/$file_id_download_file?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=$API_KEY" >>"$name_download_file"&
 pid="$!"
 else
 "$EXTRA_LOG" "justify" "Fetching" " cookies.." "-"
 curl -c "$TMPFILE"COOKIE -I $CURL_PROGRESS -o /dev/null "https://drive.google.com/uc?export=download&id=$file_id_download_file"||:
 for _ in 1 2;do _clear_line 1;done
 confirm_string="$(_tmp="$(grep -F 'download_warning' "$TMPFILE"COOKIE)"&&printf "%s\n" "${_tmp##*$(printf '\t')}")"||:
-curl -L -s $CONTINUE $CURL_SPEED \
+curl -L -s $CURL_SPEED \
+-H "$range_download_file" \
 -b "$TMPFILE"COOKIE \
--o "$name_download_file" \
-"https://drive.google.com/uc?export=download&id=$file_id_download_file${confirm_string:+&confirm=$confirm_string}" 2>|/dev/null 1>&2&
+"https://drive.google.com/uc?export=download&id=$file_id_download_file${confirm_string:+&confirm=$confirm_string}" >>"$name_download_file"&
 pid="$!"
 fi
 if [ -n "$parallel_download_file" ];then

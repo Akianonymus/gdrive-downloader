@@ -8,7 +8,7 @@
 _download_file() {
     [[ $# -lt 3 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
     declare file_id="${1}" name="${2}" server_size="${3}" parallel="${4}"
-    declare status old_status left downloaded
+    declare range status old_status left downloaded
     server_size_readable="$(_bytes_to_human "${server_size}")"
     _print_center "justify" "${name}" " | ${server_size:+${server_size_readable}}" "="
 
@@ -21,9 +21,10 @@ _download_file() {
             return 0
         else
             _print_center "justify" "File is partially" " present, resuming.." "-"
-            CONTINUE=" -C - "
+            range="Range: bytes=${local_size}-${server_size}"
         fi
     else
+        range="Range: bytes=0-${server_size}"
         _print_center "justify" "Downloading file.." "-"
     fi
 
@@ -31,18 +32,18 @@ _download_file() {
     if [[ -n ${OAUTH_ENABLED} ]]; then
         . "${TMPFILE}_ACCESS_TOKEN"
         # shellcheck disable=SC2086
-        curl -Ls ${CONTINUE} ${CURL_SPEED} \
+        curl -Ls ${CURL_SPEED} \
+            -H "${range}" \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -o "${name}" \
-            "${API_URL}/drive/${API_VERSION}/files/${file_id}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true" 2>| /dev/null 1>&2 &
+            "${API_URL}/drive/${API_VERSION}/files/${file_id}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true" >> "${name}" &
         pid="${!}"
     elif [[ -n ${API_KEY_DOWNLOAD} ]]; then
         # download with api key
         # shellcheck disable=SC2086
-        curl -Ls ${CONTINUE} ${CURL_SPEED} \
+        curl -Ls ${CURL_SPEED} \
+            -H "${range}" \
             -e "https://drive.google.com" \
-            -o "${name}" \
-            "${API_URL}/drive/${API_VERSION}/files/${file_id}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}" 2>| /dev/null 1>&2 &
+            "${API_URL}/drive/${API_VERSION}/files/${file_id}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}" >> "${name}" &
         pid="${!}"
     else
         # normal downloading
@@ -52,10 +53,10 @@ _download_file() {
         for _ in 1 2; do _clear_line 1; done
         confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}"COOKIE)" && printf "%s\n" "${_//*$'\t'/}")" || :
         # shellcheck disable=SC2086
-        curl -Ls ${CONTINUE} ${CURL_SPEED} \
+        curl -Ls ${CURL_SPEED} \
+            -H "${range}" \
             -b "${TMPFILE}"COOKIE \
-            -o "${name}" \
-            "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" 2>| /dev/null 1>&2 &
+            "https://drive.google.com/uc?export=download&id=${file_id}${confirm_string:+&confirm=${confirm_string}}" >> "${name}" &
         pid="${!}"
     fi
 
