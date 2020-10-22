@@ -210,26 +210,36 @@ return 0
 _download_folder(){
 [[ $# -lt 2 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
 declare folder_id="$1" name="$2" parallel="$3"
-declare info error_status success_status files=() folders=() \
+declare json_search json_search_fragment next_page_token \
+error_status success_status files=() folders=() \
 files_size files_name files_list num_of_files folders_list num_of_folders
 _newline "\n"
 "$EXTRA_LOG" "justify" "$name" "="
 "$EXTRA_LOG" "justify" "Fetching folder" " details.." "-"
-if ! info="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=files(name,size,id,mimeType)")";then
+_search_error_message(){
 "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
-printf "%s\n" "$info"&&return 1
+printf "%s\n" "${1:?}"&&return 1
+}
+if json_search="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000")";then
+until ! next_page_token="$(_json_value nextPageToken 1 1 <<<"${json_search_fragment:-$json_search}")";do
+json_search_fragment="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&pageToken=$next_page_token")"||_search_error_message "$json_search_fragment"
+json_search="$json_search
+$json_search_fragment"
+done
+else
+_search_error_message "$json_search"
 fi&&_clear_line 1
 "$EXTRA_LOG" "justify" "Preparing files list.." "="
-mapfile -t files <<<"$(printf "%s\n" "$info"|grep '"size":' -B3|_json_value id all all)"||:
-files_size="$(_json_value size all all <<<"$info")"||:
-files_name="$(printf "%s\n" "$info"|grep size -B2|_json_value name all all)"||:
+mapfile -t files <<<"$(printf "%s\n" "$json_search"|grep '"size":' -B3|_json_value id all all)"||:
+files_size="$(_json_value size all all <<<"$json_search")"||:
+files_name="$(printf "%s\n" "$json_search"|grep size -B2|_json_value name all all)"||:
 files_list="$(while read -r -u 4 _id&&read -r -u 5 _size&&read -r -u 6 _name;do
 printf "%s\n" "$_id|:_//_:|$_size|:_//_:|$_name"
 done 4<<<"$(printf "%s\n" "${files[@]}")" 5<<<"$files_size" 6<<<"$files_name")"
 _clear_line 1
 "$EXTRA_LOG" "justify" "Preparing sub folders list.." "="
-mapfile -t folders <<<"$(printf "%s\n" "$info"|grep '"mimeType":.*folder.*' -B2|_json_value id all all)"||:
-folders_name="$(printf "%s\n" "$info"|grep '"mimeType":.*folder.*' -B1|_json_value name all all)"||:
+mapfile -t folders <<<"$(printf "%s\n" "$json_search"|grep '"mimeType":.*folder.*' -B2|_json_value id all all)"||:
+folders_name="$(printf "%s\n" "$json_search"|grep '"mimeType":.*folder.*' -B1|_json_value name all all)"||:
 folders_list="$(while read -r -u 4 _id&&read -r -u 5 _name;do
 printf "%s\n" "$_id|:_//_:|$_name"
 done 4<<<"$(printf "%s\n" "${folders[@]}")" 5<<<"$folders_name")"
