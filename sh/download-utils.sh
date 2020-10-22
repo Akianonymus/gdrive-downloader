@@ -195,7 +195,7 @@ EOF
             [ -f "${TMPFILE}"ERROR ] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (printf "%s\n" "${files_download_folder}" | xargs -n1 -P"${NO_OF_PARALLEL_JOBS_FINAL}" -i sh -c '
+            (printf "%s\n" "${files_list_download_folder}" | xargs -n1 -P"${NO_OF_PARALLEL_JOBS_FINAL}" -i sh -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
                 ' 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
