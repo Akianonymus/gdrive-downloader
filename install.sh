@@ -136,21 +136,6 @@ _detect_profile() {
 }
 
 ###################################################
-# Alternative to dirname command
-# Arguments: 1
-#   ${1} = path of file or folder
-# Result: read description
-# Reference:
-#   https://github.com/dylanaraps/pure-sh-bible#file-paths
-###################################################
-_dirname() {
-    dir_dirname="${1:-.}"
-    dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}" && [ "${dir_dirname##*/*}" ] && dir_dirname=.
-    dir_dirname="${dir_dirname%/*}" && dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}"
-    printf '%s\n' "${dir_dirname:-/}"
-}
-
-###################################################
 # print column size
 # use bash or zsh or stty or tput
 ###################################################
@@ -626,8 +611,8 @@ main() {
 
     if [ -n "${UNINSTALL}" ]; then
         { _check_existing_command && _uninstall; } || {
-            _uninstall minimal 2>| /dev/null 1>&2 || :
-            [ -z "${FORCE_UNINSTALL}" ] && "${QUIET:-_print_center}" "justify" "gdrive-downloader is not installed." "="
+            _uninstall 2>| /dev/null 1>&2 || :
+            "${QUIET:-_print_center}" "justify" "gdrive-downloader is not installed." "="
             exit 0
         }
     else
