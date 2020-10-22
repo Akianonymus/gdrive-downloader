@@ -122,22 +122,39 @@ _download_file_main() {
 _download_folder() {
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
     folder_id_download_folder="${1}" name_download_folder="${2}" parallel_download_folder="${3}"
-    unset info_download_folder error_status_download_folder success_status_download_folder \
+    unset json_search_download_folder json_search_fragment_download_folder next_page_token \
+        error_status_download_folder success_status_download_folder \
         files_download_folder folders_download_folder files_size_download_folder files_name_download_folder folders_name_download_folder \
         num_of_files_download_folder num_of_folders_download_folder
     _newline "\n"
     "${EXTRA_LOG}" "justify" "${name_download_folder}" "="
     "${EXTRA_LOG}" "justify" "Fetching folder" " details.." "-"
-    if ! info_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=files(name,size,id,mimeType)")"; then
+    _search_error_message_download_folder() {
         "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
-        printf "%s\n" "${info_download_folder}" && return 1
+        printf "%s\n" "${1:?}" && return 1
+    }
+
+    # do the first request with pagesize 1000, and fetch nextPageToken
+    if json_search_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000")"; then
+        # fetch next page jsons till nextPageToken is available
+        until ! next_page_token="$(printf "%s\n" "${json_search_fragment_download_folder:-${json_search_download_folder}}" | _json_value nextPageToken 1 1)"; do
+            json_search_fragment_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&pageToken=${next_page_token}")" ||
+                _search_error_message_download_folder "${json_search_fragment_download_folder}"
+
+            # append the new fetched json to initial json
+            json_search_download_folder="${json_search_download_folder}
+${json_search_fragment_download_folder}"
+        done
+    else
+        # error message in case some thing goes wrong
+        _search_error_message_download_folder "${json_search_download_folder}"
     fi && _clear_line 1
 
     # parse the fetched json and make a list containing files size, name and id
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    files_download_folder="$(printf "%s\n" "${info_download_folder}" | grep '"size":' -B3 | _json_value id all all)" || :
-    files_size_download_folder="$(printf "%s\n" "${info_download_folder}" | _json_value size all all)" || :
-    files_name_download_folder="$(printf "%s\n" "${info_download_folder}" | grep size -B2 | _json_value name all all)" || :
+    files_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"size":' -B3 | _json_value id all all)" || :
+    files_size_download_folder="$(printf "%s\n" "${json_search_download_folder}" | _json_value size all all)" || :
+    files_name_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep size -B2 | _json_value name all all)" || :
     exec 5<< EOF
 $(printf "%s\n" "${files_download_folder}")
 EOF
@@ -155,8 +172,8 @@ EOF
 
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
-    folders_download_folder="$(printf "%s\n" "${info_download_folder}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
-    folders_name_download_folder="$(printf "%s\n" "${info_download_folder}" | grep '"mimeType":.*folder.*' -B1 | _json_value name all all)" || :
+    folders_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
+    folders_name_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"mimeType":.*folder.*' -B1 | _json_value name all all)" || :
     exec 5<< EOF
 $(printf "%s\n" "${folders_download_folder}")
 EOF
