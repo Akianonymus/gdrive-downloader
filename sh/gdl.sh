@@ -390,7 +390,7 @@ main() {
         UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}" && SOURCE_UTILS=". '${UTILS_FOLDER}/common-utils.sh' && . '${UTILS_FOLDER}/download-utils.sh' && . '${UTILS_FOLDER}/drive-utils.sh'"
         eval "${SOURCE_UTILS}" || { printf "Error: Unable to source util files.\n" && exit 1; }
     else
-        SOURCE_UTILS="SOURCED=true . \"$(cd "${0%\/*}" && pwd)/${0##*\/}\"" && eval "${SOURCE_UTILS}"
+        SOURCE_UTILS="SOURCED_GDL=true . \"$({ cd "${0%\/*}" 2>| /dev/null || :; } && pwd)/${0##*\/}\"" && eval "${SOURCE_UTILS}"
     fi
 
     set -o errexit -o noclobber
@@ -455,4 +455,4 @@ main() {
     "${QUIET:-_print_center}" "normal" " Time Elapsed: ""$((DIFF / 60))"" minute(s) and ""$((DIFF % 60))"" seconds. " "="
 }
 
-{ [ -z "${SOURCED}" ] && main "${@}"; } || :
+{ [ -z "${SOURCED_GDL}" ] && main "${@}"; } || :

@@ -276,7 +276,7 @@ if [ -n "$parallel_download_folder" ];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
 [ -f "$TMPFILE"SUCCESS ]&&rm "$TMPFILE"SUCCESS
 [ -f "$TMPFILE"ERROR ]&&rm "$TMPFILE"ERROR
-(printf "%s\n" "$files_download_folder"|xargs -n1 -P"$NO_OF_PARALLEL_JOBS_FINAL" -i sh -c '
+(printf "%s\n" "$files_list_download_folder"|xargs -n1 -P"$NO_OF_PARALLEL_JOBS_FINAL" -i sh -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
                 ' 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&
@@ -685,7 +685,7 @@ if [ -z "$SELF_SOURCE" ];then
 UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"&&SOURCE_UTILS=". '$UTILS_FOLDER/common-utils.sh' && . '$UTILS_FOLDER/download-utils.sh' && . '$UTILS_FOLDER/drive-utils.sh'"
 eval "$SOURCE_UTILS"||{ printf "Error: Unable to source util files.\n"&&exit 1;}
 else
-SOURCE_UTILS="SOURCED=true . \"$(cd "${0%\/*}"&&pwd)/${0##*\/}\""&&eval "$SOURCE_UTILS"
+SOURCE_UTILS="SOURCED_GDL=true . \"$({ cd "${0%\/*}" 2>|/dev/null||:;}&&pwd)/${0##*\/}\""&&eval "$SOURCE_UTILS"
 fi
 set -o errexit -o noclobber
 TMPFILE="$(command -v mktemp 1>|/dev/null&&mktemp -u)"||TMPFILE="$(pwd)/$(date +'%s').tmpfile"
@@ -731,4 +731,4 @@ END="$(date +'%s')"
 DIFF="$((END-START))"
 "${QUIET:-_print_center}" "normal" " Time Elapsed: ""$((DIFF/60))"" minute(s) and ""$((DIFF%60))"" seconds. " "="
 }
-{ [ -z "$SOURCED" ]&&main "$@";}||:
+{ [ -z "$SOURCED_GDL" ]&&main "$@";}||:
