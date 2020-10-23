@@ -13,7 +13,7 @@ _test() (
 
     cd "${shell}/release" || exit 1
     ### Folder ###
-    ./gdl "https://drive.google.com/folderview?id=${FOLDER_ID}&usp=sharing" -d Test "${use_key:-}"
+    ./gdl "https://drive.google.com/folderview?id=${FOLDER_ID}&usp=sharing" -d Test "${use_key:-}" -aria
 
     ./gdl "https://drive.google.com/drive/u/0/mobile/folders/${FOLDER_ID}" -d Test -p 2 "${use_key:-}"
 
@@ -22,7 +22,7 @@ _test() (
     rm -rf Test/
 
     ### File ###
-    ./gdl "https://drive.google.com/file/d/${FILE_ID}/view?usp=drivesdk" -d Test "${use_key:-}"
+    ./gdl "https://drive.google.com/file/d/${FILE_ID}/view?usp=drivesdk" -d Test "${use_key:-}" -aria
 
     #./gdl "https://drive.google.com/uc?id=${FILE_ID}&export=download" -d Test "${use_key:-}"
     #rm -rf Test/

@@ -7,6 +7,11 @@ _usage() {
 The script can be used to download file/directory from google drive.\n
 Usage:\n ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>\n
 Options:\n
+  -aria | --aria-flags 'flags' - Use aria2c to download. '-aria' does not take arguments.\n
+      To give custom flags as argument, use long flag, --aria-flags. e.g: --aria-flags '-s 10 -x 10'\n
+      Note 1: aria2c can only resume google drive downloads if '-k/--key' or '-o/--oauth' option is used, otherwise, it will use curl.\n
+      Note 2: aria split downloading won't work in normal mode ( without '-k' or '-o' flag ) because it cannot get the remote server size. Same for any other feature which uses remote server size.\n
+      Note 3: By above notes, conclusion is, aria is basically same as curl in normal mode, so it is recommended to be used only with '--key' and '--oauth' flag.\n
   -o | --oauth - Use this flag to trigger oauth authentication.\n
       Note: If both --oauth and --key flag is used, --oauth flag is preferred.\n
   -k | --key 'API KEY' ( optional arg ) - To download with api key. If api key is not specified, then the predefined api key will be used.\n
@@ -17,7 +22,7 @@ Options:\n
   -d | --directory 'foldername' - option to _download given input in custom directory.\n
   -s | --skip-subdirs - Skip downloading of sub folders present in case of folders.\n
   -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel.\n
-  --speed 'speed' - Limit the download speed, supported formats: 1K, 1M and 1G.\n
+  --speed 'speed' - Limit the download speed, supported formats: 1K, and 1M.\n
   -R | --retry 'num of retries' - Retry the file upload if it fails, postive integer as argument. Currently only for file uploads.\n
   -l | --log 'file_to_save_info' - Save downloaded files info to the given filename.\n
   -q | --quiet - Supress the normal output, only show success/error upload messages for files, and one extra line at the beginning for folder showing no. of files and sub folders.\n
@@ -101,9 +106,11 @@ _setup_arguments() {
     # Internal variables
     # De-initialize if any variables set already.
     unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD CONFIG FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
-    unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY
+    unset DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
+    unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY SPEED_LIMIT
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY
-    CURL_PROGRESS="-s" EXTRA_LOG=":"
+    CURL_PROGRESS="-s" CURL_SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls"
+    EXTRA_LOG=":"
     CONFIG="${HOME}/.gdl.conf"
 
     # API
@@ -131,6 +138,13 @@ _setup_arguments() {
             -l | --log)
                 _check_longoptions "${1}" "${2}"
                 LOG_FILE_ID="${2}" && shift
+                ;;
+            -aria | --aria-flags)
+                DOWNLOAD_WITH_ARIA="true"
+                [ "${1}" = "--aria-flags" ] && {
+                    _check_longoptions "${1}" "${2}"
+                    ARIA_EXTRA_FLAGS=" ${ARIA_EXTRA_FLAGS} ${2} " && shift
+                }
                 ;;
             -o | --oauth) OAUTH_ENABLED="true" ;;
             -k | --key)
@@ -165,11 +179,11 @@ _setup_arguments() {
                 ;;
             --speed)
                 _check_longoptions "${1}" "${2}"
-                regex='^([0-9]+)([k,K]|[m,M]|[g,G])+$'
+                regex='^([0-9]+)([k,K]|[m,M])+$'
                 if printf "%s\n" "${2}" | grep -qE "${regex}"; then
-                    CURL_SPEED="--limit-rate ${2}" && shift
+                    SPEED_LIMIT="${2}" && shift
                 else
-                    printf "Error: Wrong speed limit format, supported formats: 1K , 1M and 1G\n" 1>&2
+                    printf "Error: Wrong speed limit format, supported formats: 1K and 1M.\n" 1>&2
                     exit 1
                 fi
                 ;;
@@ -208,6 +222,12 @@ _setup_arguments() {
     [ -z "${ID_INPUT_ARRAY}" ] && _short_help
 
     [ -n "${OAUTH_ENABLED}" ] && unset API_KEY_DOWNLOAD
+
+    [ -n "${DOWNLOAD_WITH_ARIA}" ] && {
+        command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
+        ARIA_SPEED_LIMIT_FLAG="--max-download-limit"
+        ARIA_EXTRA_FLAGS="${ARIA_EXTRA_FLAGS} -q --file-allocation=none --auto-file-renaming=false --continue"
+    }
 
     _check_debug
 
@@ -358,9 +378,10 @@ _check_credentials() {
 # Process all the values in "${ID_INPUT_ARRAY}"
 ###################################################
 _process_arguments() {
-    export LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION \
+    export DEBUG LOG_FILE_ID VERBOSE API_KEY API_URL API_VERSION \
         FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK \
-        COLUMNS CURL_SPEED TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SOURCE_UTILS \
+        COLUMNS TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SPEED_LIMIT SOURCE_UTILS \
+        DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
         OAUTH_ENABLED API_KEY_DOWNLOAD
 
     ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
