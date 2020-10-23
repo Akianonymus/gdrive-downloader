@@ -292,6 +292,20 @@ Now, we have covered the basics, move on to the next section for extra features 
 
 These are the custom flags that are currently implemented:
 
+-   <strong>-aria | --aria-flags 'flags'</strong>
+
+    Use aria2c to download. "-aria" doesn't take arguments.
+
+    To give custom flags as argument, use long flag, --aria-flags. e.g: --aria-flags '-s 10 -x 10'
+
+    Note 1: aria2c can only resume google drive downloads if `-k/--key` or `-o/--oauth` option is used, otherwise, it will use curl.
+
+    Note 2: aria split downloading won't work in normal mode ( without `-k` or `-o` flag ) because it cannot get the remote server size. Same for any other feature which uses remote server size.
+
+    Note 3: By above notes, conclusion is, aria is basically same as curl in normal mode, so it is recommended to be used only with `--key` and `--oauth` flag.
+
+    ---
+
 -   <strong>-o | --oauth</strong>
 
     Use this flag to trigger oauth authentication.
@@ -346,7 +360,7 @@ These are the custom flags that are currently implemented:
 
 -   <strong>--speed 'speed'</strong>
 
-    Limit the download speed, supported formats: 1K, 1M and 1G.
+    Limit the download speed, supported formats: 1K and 1M.
 
     ---
 
@@ -524,6 +538,10 @@ Downloads interrupted either due to bad internet connection or manual interrupti
 You can interrupt many times you want, it will resume ( hopefully ).
 
 It will not download again if file is already present, thus avoiding bandwidth waste.
+
+In normal mode of downloading, when aria is used, if interrupted, then it will be resumed by curl because aria cannot detect the remote file size.
+
+But when `--key` or `--oauth` is used, it will resume successfully with aria too.
 
 ## Uninstall
 

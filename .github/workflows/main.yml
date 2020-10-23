@@ -34,8 +34,8 @@ jobs:
     - name: 'Format, Merge and Download test'
       run: |
           set -e
-          { { command -v apt-get && apt-get install snapd -yqq && snap install shfmt ;} ||
-            { command -v brew && brew install shfmt ;} ;} 2>| /dev/null 1>&2
+          { { command -v apt-get && apt-get install aria2 snapd -yqq && snap install shfmt ;} ||
+            { command -v brew && brew install shfmt aria2;} ;} 2>| /dev/null 1>&2
 
           # merge test
           sh merge.sh
