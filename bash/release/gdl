@@ -17,7 +17,7 @@ _print_center_quiet(){ { [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" 
 if [[ -n $DEBUG ]];then
 set -x&&PS4='-> '
 _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";};}
-_clear_line(){ :;}&&_newline(){ :;}
+_clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
 else
 if [[ -z $QUIET ]];then
 if [[ -t 2 && -n $TERM && $TERM =~ (xterm|rxvt|urxvt|linux|vt) ]];then
@@ -30,11 +30,11 @@ fi
 EXTRA_LOG="_print_center" CURL_PROGRESS="-#"&&export CURL_PROGRESS EXTRA_LOG
 else
 _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
-_clear_line(){ :;}
+_clear_line(){ :;}&&_move_cursor(){ :;}
 fi
 _newline(){ printf "%b" "$1";}
 else
-_print_center(){ :;}&&_clear_line(){ :;}&&_newline(){ :;}
+_print_center(){ :;}&&_clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
 fi
 set +x
 fi
@@ -61,6 +61,9 @@ declare num _tmp no_of_lines
 { [[ $3 -gt 0 ]]&&num="$3";}||{ [[ $3 != all ]]&&num=1;}
 _tmp="$(grep -o "\"$1\"\:.*" ${no_of_lines:+-m} $no_of_lines)"||return 1
 printf "%s\n" "$_tmp"|sed -e 's/.*"'"$1""\"://" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "$num"p||:
+}
+_move_cursor(){
+printf "\033[%sA" "${1:?Error: Num of line}"
 }
 _print_center(){
 [[ $# -lt 3 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
@@ -124,8 +127,8 @@ chmod u-w+r "$config_path"
 _download_file(){
 [[ $# -lt 3 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
 declare file_id="$1" name="$2" server_size="$3" parallel="$4" \
-range status old_status left downloaded use_aria="$DOWNLOAD_WITH_ARIA" \
-flag flag_value url cookies
+range downloaded old_downloaded \
+use_aria="$DOWNLOAD_WITH_ARIA" flag flag_value url cookies
 server_size_readable="$(_bytes_to_human "$server_size")"
 _print_center "justify" "$name" " | ${server_size:+$server_size_readable}" "="
 if [[ -s $name ]];then
@@ -179,15 +182,14 @@ if [[ -n $parallel ]];then
 wait "$pid" 2>|/dev/null 1>&2
 else
 until [[ -f $name ]];do sleep 0.5;done
+_newline "\n\n"
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
 downloaded="$(wc -c <"$name")"
-status="$(_bytes_to_human "$downloaded")"
-left="$(_bytes_to_human "$((server_size-downloaded))")"
 sleep 0.5
-if [[ $status != "$old_status" ]];then
-printf '%s\r' "$(_print_center "justify" "Downloaded: $status" " | Left: $left" "=")"
-fi
-old_status="$status"
+_move_cursor 2
+_print_center "justify" "Downloaded: $(_bytes_to_human "$downloaded") " "| Left: $(_bytes_to_human "$((server_size-downloaded))")" "="
+_print_center "justify" "Speed: $(_bytes_to_human "$((downloaded-old_downloaded))")/s" "-"
+old_downloaded="$downloaded"
 done
 _newline "\n"
 fi
@@ -669,7 +671,7 @@ FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHEC
 COLUMNS TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SPEED_LIMIT \
 DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
 OAUTH_ENABLED API_KEY_DOWNLOAD
-export -f _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line \
+export -f _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
 _download_file _download_file_main _download_folder _log_in_file
 ${FOLDERNAME:+mkdir -p $FOLDERNAME}
 cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1

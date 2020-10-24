@@ -9,7 +9,7 @@ _download_file() {
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
     file_id_download_file="${1}" name_download_file="${2}" server_size_download_file="${3}" parallel_download_file="${4}" \
         use_aria_download_file="${DOWNLOAD_WITH_ARIA}"
-    unset range_download_file status_download_file old_status_download_file left_download_file downloaded_download_file \
+    unset range_download_file downloaded_download_file old_downloaded_download_file \
         flag_download_file flag_value_download_file url_download_file cookies_download_file
 
     server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}")"
@@ -84,15 +84,16 @@ _download_file() {
     else
         until [ -f "${name_download_file}" ]; do sleep 0.5; done
 
+        _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded_download_file="$(wc -c < "${name_download_file}")"
-            status_download_file="$(_bytes_to_human "${downloaded_download_file}")"
-            left_download_file="$(_bytes_to_human "$((server_size_download_file - downloaded_download_file))")"
             sleep 0.5
-            if [ "${status_download_file}" != "${old_status_download_file}" ]; then
-                printf '%s\r' "$(_print_center "justify" "Downloaded: ${status_download_file}" " | Left: ${left_download_file}" "=")"
-            fi
-            old_status_download_file="${status_download_file}"
+            _move_cursor 2
+            ##################################################### Amount Downloaded ####################### Amount left to download ##################
+            _print_center "justify" "Downloaded: $(_bytes_to_human "${downloaded_download_file}") " "| Left: $(_bytes_to_human "$((server_size_download_file - downloaded_download_file))")" "="
+            ########################################### Speed of download ##############################
+            _print_center "justify" "Speed: $(_bytes_to_human "$((downloaded_download_file - old_downloaded_download_file))")/s" "-"
+            old_downloaded_download_file="${downloaded_download_file}"
         done
         _newline "\n"
     fi

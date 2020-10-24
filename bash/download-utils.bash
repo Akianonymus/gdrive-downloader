@@ -8,8 +8,8 @@
 _download_file() {
     [[ $# -lt 3 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
     declare file_id="${1}" name="${2}" server_size="${3}" parallel="${4}" \
-        range status old_status left downloaded use_aria="${DOWNLOAD_WITH_ARIA}" \
-        flag flag_value url cookies
+        range downloaded old_downloaded \
+        use_aria="${DOWNLOAD_WITH_ARIA}" flag flag_value url cookies
 
     server_size_readable="$(_bytes_to_human "${server_size}")"
     _print_center "justify" "${name}" " | ${server_size:+${server_size_readable}}" "="
@@ -81,15 +81,16 @@ _download_file() {
     else
         until [[ -f ${name} ]]; do sleep 0.5; done
 
+        _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded="$(wc -c < "${name}")"
-            status="$(_bytes_to_human "${downloaded}")"
-            left="$(_bytes_to_human "$((server_size - downloaded))")"
             sleep 0.5
-            if [[ ${status} != "${old_status}" ]]; then
-                printf '%s\r' "$(_print_center "justify" "Downloaded: ${status}" " | Left: ${left}" "=")"
-            fi
-            old_status="${status}"
+            _move_cursor 2
+            ##################################################### Amount Downloaded ####################### Amount left to download ##################
+            _print_center "justify" "Downloaded: $(_bytes_to_human "${downloaded}") " "| Left: $(_bytes_to_human "$((server_size - downloaded))")" "="
+            ########################################### Speed of download ##############################
+            _print_center "justify" "Speed: $(_bytes_to_human "$((downloaded - old_downloaded))")/s" "-"
+            old_downloaded="${downloaded}"
         done
         _newline "\n"
     fi

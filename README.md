@@ -45,6 +45,7 @@
   - [Enable Drive API](#enable-drive-api)
   - [Oauth Authentication](#oauth-authentication)
   - [Retrieve Api key](#retrieve-api-key)
+  - [Progress Bar](#progress-bar)
   - [Multiple Inputs](#multiple-inputs)
   - [Resuming Interrupted Downloads](#resuming-interrupted-downloads)
 - [Uninstall](#Uninstall)
@@ -522,6 +523,15 @@ In order to use a custom api key, follow the below steps:
 - Click on "Credentials".
 - Click "Create credentials" and select API key.
 - Copy the API key. You can use this API key.
+
+### Progress Bar
+
+When downloading a file, or a folder ( except parallel downloading ), script shows progress bar for ongoing download.
+
+```shell
+================[ Downloaded: 4.6 GB | Left: 44.7 GB ]=================
+-------------------------[ Speed: 48.0 MB/s ]--------------------------
+```
 
 ### Multiple Inputs
 
