@@ -42,7 +42,7 @@ _check_debug() {
     if [[ -n ${DEBUG} ]]; then
         set -x && PS4='-> '
         _print_center() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
-        _clear_line() { :; } && _newline() { :; }
+        _clear_line() { :; } && _move_cursor() { :; } && _newline() { :; }
     else
         if [[ -z ${QUIET} ]]; then
             # check if running in terminal and support ansi escape sequences
@@ -57,11 +57,11 @@ _check_debug() {
                 EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG
             else
                 _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
-                _clear_line() { :; }
+                _clear_line() { :; } && _move_cursor() { :; }
             fi
             _newline() { printf "%b" "${1}"; }
         else
-            _print_center() { :; } && _clear_line() { :; } && _newline() { :; }
+            _print_center() { :; } && _clear_line() { :; } && _move_cursor() { :; } && _newline() { :; }
         fi
         set +x
     fi
@@ -129,6 +129,16 @@ _json_value() {
     # shellcheck disable=SC2086
     _tmp="$(grep -o "\"${1}\"\:.*" ${no_of_lines:+-m} ${no_of_lines})" || return 1
     printf "%s\n" "${_tmp}" | sed -e "s/.*\"""${1}""\"://" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num}"p || :
+}
+
+###################################################
+# Move cursor to nth no. of line ( above )
+# Arguments: 1
+#   ${1} = Positive integer ( line number )
+# Result: Read description
+###################################################
+_move_cursor() {
+    printf "\033[%sA" "${1:?Error: Num of line}"
 }
 
 ###################################################
