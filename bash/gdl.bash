@@ -38,8 +38,9 @@ _short_help() {
 _auto_update() {
     export REPO
     (
+        _REPO="${REPO}"
         command -v "${COMMAND_NAME}" 1> /dev/null &&
-            [[ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]] &&
+            [[ -n "${_REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]] &&
             [[ $((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL)) -lt $(printf "%(%s)T\\n" "-1") ]] &&
             _update 2>| /dev/null 1>&2
     ) 2>| /dev/null 1>&2 &
