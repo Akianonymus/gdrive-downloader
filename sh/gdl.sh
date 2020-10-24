@@ -416,8 +416,7 @@ main() {
 
     set -o errexit -o noclobber
 
-    TMPFILE="$(command -v mktemp 1>| /dev/null && mktemp -u)" || TMPFILE="$(pwd)/$(date +'%s').tmpfile"
-    export TMPFILE
+    TMPFILE="$(command -v mktemp 1>| /dev/null && mktemp -u)" || TMPFILE="$(pwd)/.$(_t="$(date +"%s")" && printf "%s\n" "$((_t * _t))").tmpfile"
 
     _setup_arguments "${@}"
     "${SKIP_INTERNET_CHECK:-_check_internet}"

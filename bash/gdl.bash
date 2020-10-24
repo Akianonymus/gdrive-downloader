@@ -407,8 +407,7 @@ main() {
 
     _check_bash_version && set -o errexit -o noclobber -o pipefail
 
-    TMPFILE="$(command -v mktemp 1>| /dev/null && mktemp -u)" || TMPFILE="$(pwd)/$(printf "%(%s)T\\n" "-1").tmpfile"
-    export TMPFILE
+    TMPFILE="$(command -v mktemp 1>| /dev/null && mktemp -u)" || TMPFILE="$(pwd)/.$(_t="$(printf "%(%s)T\\n" "-1")" && printf "%s\n" "$((_t * _t))").tmpfile"
 
     _setup_arguments "${@}"
     "${SKIP_INTERNET_CHECK:-_check_internet}"
