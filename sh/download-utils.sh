@@ -9,7 +9,7 @@ _download_file() {
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
     file_id_download_file="${1}" name_download_file="${2}" server_size_download_file="${3}" parallel_download_file="${4}" \
         use_aria_download_file="${DOWNLOAD_WITH_ARIA}"
-    unset range_download_file downloaded_download_file old_downloaded_download_file \
+    unset range_download_file downloaded_download_file old_downloaded_download_file left_download_file speed_download_file eta_download_file \
         flag_download_file flag_value_download_file url_download_file cookies_download_file
 
     server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}")"
@@ -87,19 +87,21 @@ _download_file() {
         _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded_download_file="$(_actual_size_in_bytes "${name_download_file}")"
+            left_download_file="$((server_size_download_file - downloaded_download_file))"
+            speed_download_file="$((downloaded_download_file - old_downloaded_download_file))"
+            { [ "${speed_download_file}" -gt 0 ] && eta_download_file="$(_display_time "$((left_download_file / speed_download_file))")"; } || eta_download_file=""
             sleep 0.5
             _move_cursor 2
             ##################################################### Amount Downloaded ####################### Amount left to download ##################
-            _print_center "justify" "Downloaded: $(_bytes_to_human "${downloaded_download_file}") " "| Left: $(_bytes_to_human "$((server_size_download_file - downloaded_download_file))")" "="
-            ########################################### Speed of download ##############################
-            _print_center "justify" "Speed: $(_bytes_to_human "$((downloaded_download_file - old_downloaded_download_file))")/s" "-"
+            _print_center "justify" "Downloaded: $(_bytes_to_human "${downloaded_download_file}") " "| Left: $(_bytes_to_human "${left_download_file}")" "="
+            ########################################### Speed of download ############### ETA ######################
+            _print_center "justify" "Speed: $(_bytes_to_human "${speed_download_file}")/s " "| ETA: ${eta_download_file:-Unknown}" "-"
             old_downloaded_download_file="${downloaded_download_file}"
         done
-        _newline "\n"
     fi
 
     if [ "$(_actual_size_in_bytes "${name_download_file}")" -ge "${server_size_download_file}" ]; then
-        for _ in 1 2; do _clear_line 1; done
+        for _ in 1 2 3; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f "${name}.aria2"
     else

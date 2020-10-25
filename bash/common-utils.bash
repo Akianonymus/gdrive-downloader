@@ -124,6 +124,24 @@ _count() {
 }
 
 ###################################################
+# Convert given time in seconds to readable form
+# 110 to 1m50s
+# Arguments: 1
+#   ${1} = Positive Integer ( time in seconds )
+# Result: read description
+# Reference:
+#   https://stackoverflow.com/a/32164707
+###################################################
+_display_time() {
+    declare T="${1}"
+    declare DAY="$((T / 60 / 60 / 24))" HR="$((T / 60 / 60 % 24))" MIN="$((T / 60 % 60))" SEC="$((T % 60))"
+    [[ ${DAY} -gt 0 ]] && printf '%dd' "${DAY}"
+    [[ ${HR} -gt 0 ]] && printf '%dh' "${HR}"
+    [[ ${MIN} -gt 0 ]] && printf '%dm' "${MIN}"
+    printf '%ds\n' "${SEC}"
+}
+
+###################################################
 # Method to extract specified field data from json
 # Arguments: 2
 #   ${1} - value of field to fetch from json

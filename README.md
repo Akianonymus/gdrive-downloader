@@ -531,7 +531,7 @@ When downloading a file, or a folder ( except parallel downloading ), script sho
 
 ```shell
 ================[ Downloaded: 4.6 GB | Left: 44.7 GB ]=================
--------------------------[ Speed: 48.0 MB/s ]--------------------------
+------------------[ Speed: 48.0 MB/s | ETA: 15m10s ]-------------------
 ```
 
 ### Multiple Inputs

@@ -101,7 +101,7 @@ _clear_line() {
 
 ###################################################
 # Convert given time in seconds to readable form
-# 110 to 1 minute(s) and 50 seconds
+# 110 to 1m50s
 # Arguments: 1
 #   ${1} = Positive Integer ( time in seconds )
 # Result: read description
@@ -111,11 +111,10 @@ _clear_line() {
 _display_time() {
     t_display_time="${1}" day_display_time="$((t_display_time / 60 / 60 / 24))"
     hr_display_time="$((t_display_time / 60 / 60 % 24))" min_display_time="$((t_display_time / 60 % 60))" sec_display_time="$((t_display_time % 60))"
-    [ "${day_display_time}" -gt 0 ] && printf '%d days ' "${day_display_time}"
-    [ "${hr_display_time}" -gt 0 ] && printf '%d hrs ' "${hr_display_time}"
-    [ "${min_display_time}" -gt 0 ] && printf '%d minute(s) ' "${min_display_time}"
-    [ "${day_display_time}" -gt 0 ] || [ "${hr_display_time}" -gt 0 ] || [ "${min_display_time}" -gt 0 ] && printf 'and '
-    printf '%d seconds\n' "${sec_display_time}"
+    [ "${day_display_time}" -gt 0 ] && printf '%dd' "${day_display_time}"
+    [ "${hr_display_time}" -gt 0 ] && printf '%dh' "${hr_display_time}"
+    [ "${min_display_time}" -gt 0 ] && printf '%dm' "${min_display_time}"
+    printf '%ds\n' "${sec_display_time}"
 }
 
 ###################################################

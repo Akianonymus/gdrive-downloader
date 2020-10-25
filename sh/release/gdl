@@ -57,11 +57,10 @@ printf "\033[%sA\033[2K" "$1"
 _display_time(){
 t_display_time="$1" day_display_time="$((t_display_time/60/60/24))"
 hr_display_time="$((t_display_time/60/60%24))" min_display_time="$((t_display_time/60%60))" sec_display_time="$((t_display_time%60))"
-[ "$day_display_time" -gt 0 ]&&printf '%d days ' "$day_display_time"
-[ "$hr_display_time" -gt 0 ]&&printf '%d hrs ' "$hr_display_time"
-[ "$min_display_time" -gt 0 ]&&printf '%d minute(s) ' "$min_display_time"
-[ "$day_display_time" -gt 0 ]||[ "$hr_display_time" -gt 0 ]||[ "$min_display_time" -gt 0 ]&&printf 'and '
-printf '%d seconds\n' "$sec_display_time"
+[ "$day_display_time" -gt 0 ]&&printf '%dd' "$day_display_time"
+[ "$hr_display_time" -gt 0 ]&&printf '%dh' "$hr_display_time"
+[ "$min_display_time" -gt 0 ]&&printf '%dm' "$min_display_time"
+printf '%ds\n' "$sec_display_time"
 }
 _get_columns_size(){
 { command -v bash 1>|/dev/null&&bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1';}||{ command -v zsh 1>|/dev/null&&zsh -c 'printf "%s\n" "${COLUMNS}"';}||{ command -v stty 1>|/dev/null&&_tmp="$(stty size)"&&printf "%s\n" "${_tmp##* }";}||{ command -v tput 1>|/dev/null&&tput cols;}||return 1
@@ -138,7 +137,7 @@ _download_file(){
 [ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
 file_id_download_file="$1" name_download_file="$2" server_size_download_file="$3" parallel_download_file="$4" \
 use_aria_download_file="$DOWNLOAD_WITH_ARIA"
-unset range_download_file downloaded_download_file old_downloaded_download_file \
+unset range_download_file downloaded_download_file old_downloaded_download_file left_download_file speed_download_file eta_download_file \
 flag_download_file flag_value_download_file url_download_file cookies_download_file
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file")"
 _print_center "justify" "$name_download_file" " | ${server_size_download_file:+$server_size_readable_download_file}" "="
@@ -196,16 +195,18 @@ until [ -f "$name_download_file" ];do sleep 0.5;done
 _newline "\n\n"
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
 downloaded_download_file="$(_actual_size_in_bytes "$name_download_file")"
+left_download_file="$((server_size_download_file-downloaded_download_file))"
+speed_download_file="$((downloaded_download_file-old_downloaded_download_file))"
+{ [ "$speed_download_file" -gt 0 ]&&eta_download_file="$(_display_time "$((left_download_file/speed_download_file))")";}||eta_download_file=""
 sleep 0.5
 _move_cursor 2
-_print_center "justify" "Downloaded: $(_bytes_to_human "$downloaded_download_file") " "| Left: $(_bytes_to_human "$((server_size_download_file-downloaded_download_file))")" "="
-_print_center "justify" "Speed: $(_bytes_to_human "$((downloaded_download_file-old_downloaded_download_file))")/s" "-"
+_print_center "justify" "Downloaded: $(_bytes_to_human "$downloaded_download_file") " "| Left: $(_bytes_to_human "$left_download_file")" "="
+_print_center "justify" "Speed: $(_bytes_to_human "$speed_download_file")/s " "| ETA: ${eta_download_file:-Unknown}" "-"
 old_downloaded_download_file="$downloaded_download_file"
 done
-_newline "\n"
 fi
 if [ "$(_actual_size_in_bytes "$name_download_file")" -ge "$server_size_download_file" ];then
-for _ in 1 2;do _clear_line 1;done
+for _ in 1 2 3;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f "$name.aria2"
 else
