@@ -8,7 +8,7 @@
 _download_file() {
     [[ $# -lt 3 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" && return 1
     declare file_id="${1}" name="${2}" server_size="${3}" parallel="${4}" \
-        range downloaded old_downloaded \
+        range downloaded old_downloaded left speed eta \
         use_aria="${DOWNLOAD_WITH_ARIA}" flag flag_value url cookies
 
     server_size_readable="$(_bytes_to_human "${server_size}")"
@@ -84,19 +84,21 @@ _download_file() {
         _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
             downloaded="$(_actual_size_in_bytes "${name}")"
+            left="$((server_size - downloaded))"
+            speed="$((downloaded - old_downloaded))"
+            { [[ ${speed} -gt 0 ]] && eta="$(_display_time "$((left / speed))")"; } || eta=""
             sleep 0.5
             _move_cursor 2
             ##################################################### Amount Downloaded ####################### Amount left to download ##################
-            _print_center "justify" "Downloaded: $(_bytes_to_human "${downloaded}") " "| Left: $(_bytes_to_human "$((server_size - downloaded))")" "="
-            ########################################### Speed of download ##############################
-            _print_center "justify" "Speed: $(_bytes_to_human "$((downloaded - old_downloaded))")/s" "-"
+            _print_center "justify" "Downloaded: $(_bytes_to_human "${downloaded}") " "| Left: $(_bytes_to_human "${left}")" "="
+            ########################################### Speed of download ############### ETA ######################
+            _print_center "justify" "Speed: $(_bytes_to_human "${speed}")/s " "| ETA: ${eta:-Unknown}" "-"
             old_downloaded="${downloaded}"
         done
-        _newline "\n"
     fi
 
     if [[ $(_actual_size_in_bytes "${name}") -ge "${server_size}" ]]; then
-        for _ in 1 2; do _clear_line 1; done
+        for _ in 1 2 3; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f "${name}.aria2"
     else
