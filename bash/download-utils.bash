@@ -15,7 +15,7 @@ _download_file() {
     _print_center "justify" "${name}" " | ${server_size:+${server_size_readable}}" "="
 
     if [[ -s ${name} ]]; then
-        declare local_size && local_size="$(wc -c < "${name}")"
+        declare local_size && local_size="$(_actual_size_in_bytes "${name}")"
 
         if [[ ${local_size} -ge "${server_size}" ]]; then
             "${QUIET:-_print_center}" "justify" "File already present" "=" && _newline "\n"
@@ -83,7 +83,7 @@ _download_file() {
 
         _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
-            downloaded="$(wc -c < "${name}")"
+            downloaded="$(_actual_size_in_bytes "${name}")"
             sleep 0.5
             _move_cursor 2
             ##################################################### Amount Downloaded ####################### Amount left to download ##################
@@ -95,7 +95,7 @@ _download_file() {
         _newline "\n"
     fi
 
-    if [[ $(wc -c < "${name}") -ge "${server_size}" ]]; then
+    if [[ $(_actual_size_in_bytes "${name}") -ge "${server_size}" ]]; then
         for _ in 1 2; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f "${name}.aria2"

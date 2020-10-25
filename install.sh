@@ -73,7 +73,7 @@ _check_debug() {
 _check_dependencies() {
     posix_check_dependencies="${1:-0}" error_list=""
 
-    for program in curl find xargs mkdir rm grep sed sleep ps; do
+    for program in curl find xargs mkdir rm grep sed sleep ps du; do
         command -v "${program}" 2>| /dev/null 1>&2 || error_list="${error_list}\n${program}"
     done
 
