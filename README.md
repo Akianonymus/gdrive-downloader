@@ -631,9 +631,11 @@ Use the [GitHub issue tracker](https://github.com/Akianonymus/gdrive-downloader/
 | Pull Requests | [![GitHub pull-requests](https://img.shields.io/github/issues-pr/Akianonymus/gdrive-downloader.svg?label=&style=for-the-badge&color=orange)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Apr+is%3Aopen) | [![GitHub pull-requests closed](https://img.shields.io/github/issues-pr-closed/Akianonymus/gdrive-downloader.svg?label=&color=success&style=for-the-badge)](https://GitHub.com/Akianonymus/gdrive-downloader/issues?q=is%3Apr+is%3Aclosed) |
 | :-----------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 
-Submit patches to code or documentation as GitHub pull requests. Make sure to run merge.sh and format.sh before making a new pull request.
+Submit patches to code or documentation as GitHub pull requests.
 
-If using a code editor, then use shfmt plugin instead of format.sh
+Make sure to run format_and_lint.sh and release.sh before making a new pull request.
+
+If using a code editor, then use shfmt and shellcheck plugin instead of format_and_lint.sh
 
 ## License
 
