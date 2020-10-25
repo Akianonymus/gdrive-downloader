@@ -1,8 +1,6 @@
 #!/usr/bin/env sh
 set -e
 
-./merge.sh
-
 # gdrive IDs
 FILE_ID="1qzA3yqlcOctz_ZDcDaPqsvd7DWozsSHB"
 FOLDER_ID="1DbfjPfqDegvNMZBqI3cQvOTEi2KiSBaY"

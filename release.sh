@@ -2,7 +2,9 @@
 
 set -e
 
-command -v shfmt 1>| /dev/null && ./format.sh && printf "\n"
+./format_and_lint.sh
+
+printf "Merging Scripts and minifying...\n"
 
 _merge() (
     shell="${1:?Error: give folder name.}"
@@ -12,15 +14,15 @@ _merge() (
         sed -n 1p gdl."${shell}"
         printf "%s\n" "SELF_SOURCE=\"true\""
         {
-            sed 1d common-utils."${shell}"
-            sed 1d download-utils."${shell}"
-            sed 1d drive-utils."${shell}"
-            sed 1d gdl."${shell}"
+            sed 1d common-utils."${shell}" \
+                download-utils."${shell}" \
+                drive-utils."${shell}" \
+                gdl."${shell}"
         } | shfmt -mn
     } >| "release/gdl"
     chmod +x "release/gdl"
 
-    printf "%s\n" "${shell} done."
+    printf "%s\n" "${shell}/release/gdl done."
 )
 
 _merge sh
