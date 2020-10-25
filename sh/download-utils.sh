@@ -18,7 +18,7 @@ _download_file() {
     # URL="${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}?alt=media&key=${API_KEY}" ( downloading with api )
 
     if [ -s "${name_download_file}" ]; then
-        local_size_download_file="$(wc -c < "${name_download_file}")"
+        local_size_download_file="$(_actual_size_in_bytes "${name_download_file}")"
 
         if [ "${local_size_download_file}" -ge "${server_size_download_file}" ]; then
             "${QUIET:-_print_center}" "justify" "File already present" "=" && _newline "\n"
@@ -86,7 +86,7 @@ _download_file() {
 
         _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
-            downloaded_download_file="$(wc -c < "${name_download_file}")"
+            downloaded_download_file="$(_actual_size_in_bytes "${name_download_file}")"
             sleep 0.5
             _move_cursor 2
             ##################################################### Amount Downloaded ####################### Amount left to download ##################
@@ -98,7 +98,7 @@ _download_file() {
         _newline "\n"
     fi
 
-    if [ "$(wc -c < "${name_download_file}")" -ge "${server_size_download_file}" ]; then
+    if [ "$(_actual_size_in_bytes "${name_download_file}")" -ge "${server_size_download_file}" ]; then
         for _ in 1 2; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f "${name}.aria2"

@@ -101,6 +101,7 @@ This repo contains two types of scripts, posix compatible and bash compatible.
 | mktemp           | To generate temporary files ( optional )               |
 | sleep            | Self explanatory                                       |
 | ps               | To manage different processes                          |
+| du               | To get actual file sizes                               |
 
 <strong>If BASH is not available or BASH is available but version is less tham 4.x, then below programs are also required:</strong>
 

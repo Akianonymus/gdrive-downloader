@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 SELF_SOURCE="true"
+_actual_size_in_bytes(){
+declare file="${1:?Error: give filename}"
+{ : "$(du --block-size=1 "$file")"&&printf "%s\n" "${_%%$'\t'*}";}||return 1
+}
 _bytes_to_human(){
 declare b="${1:-0}" d='' s=0 S=(Bytes {K,M,G,T,P,E,Y,Z}B)
 b="$(printf "%.0f\n" "$b")"
@@ -132,7 +136,7 @@ use_aria="$DOWNLOAD_WITH_ARIA" flag flag_value url cookies
 server_size_readable="$(_bytes_to_human "$server_size")"
 _print_center "justify" "$name" " | ${server_size:+$server_size_readable}" "="
 if [[ -s $name ]];then
-declare local_size&&local_size="$(wc -c <"$name")"
+declare local_size&&local_size="$(_actual_size_in_bytes "$name")"
 if [[ $local_size -ge $server_size ]];then
 "${QUIET:-_print_center}" "justify" "File already present" "="&&_newline "\n"
 _log_in_file
@@ -184,7 +188,7 @@ else
 until [[ -f $name ]];do sleep 0.5;done
 _newline "\n\n"
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
-downloaded="$(wc -c <"$name")"
+downloaded="$(_actual_size_in_bytes "$name")"
 sleep 0.5
 _move_cursor 2
 _print_center "justify" "Downloaded: $(_bytes_to_human "$downloaded") " "| Left: $(_bytes_to_human "$((server_size-downloaded))")" "="
@@ -193,7 +197,7 @@ old_downloaded="$downloaded"
 done
 _newline "\n"
 fi
-if [[ $(wc -c <"$name") -ge $server_size ]];then
+if [[ $(_actual_size_in_bytes "$name") -ge $server_size ]];then
 for _ in 1 2;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f "$name.aria2"
@@ -671,7 +675,7 @@ FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHEC
 COLUMNS TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SPEED_LIMIT \
 DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
 OAUTH_ENABLED API_KEY_DOWNLOAD
-export -f _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
+export -f _actual_size_in_bytes _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
 _download_file _download_file_main _download_folder _log_in_file
 ${FOLDERNAME:+mkdir -p $FOLDERNAME}
 cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1

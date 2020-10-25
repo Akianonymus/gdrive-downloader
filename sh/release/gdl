@@ -1,5 +1,9 @@
 #!/usr/bin/env sh
 SELF_SOURCE="true"
+_actual_size_in_bytes(){
+file_actual_size_in_bytes="${1:?Error: give filename}"
+{ _tmp="$(du --block-size=1 "$file_actual_size_in_bytes")"&&printf "%s\n" "${_tmp%%$(printf '\t')*}";}||return 1
+}
 _bytes_to_human(){
 b_bytes_to_human="$(printf "%.0f\n" "${1:-0}")" s_bytes_to_human=0
 d_bytes_to_human='' type_bytes_to_human=''
@@ -139,7 +143,7 @@ flag_download_file flag_value_download_file url_download_file cookies_download_f
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file")"
 _print_center "justify" "$name_download_file" " | ${server_size_download_file:+$server_size_readable_download_file}" "="
 if [ -s "$name_download_file" ];then
-local_size_download_file="$(wc -c <"$name_download_file")"
+local_size_download_file="$(_actual_size_in_bytes "$name_download_file")"
 if [ "$local_size_download_file" -ge "$server_size_download_file" ];then
 "${QUIET:-_print_center}" "justify" "File already present" "="&&_newline "\n"
 _log_in_file
@@ -191,7 +195,7 @@ else
 until [ -f "$name_download_file" ];do sleep 0.5;done
 _newline "\n\n"
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
-downloaded_download_file="$(wc -c <"$name_download_file")"
+downloaded_download_file="$(_actual_size_in_bytes "$name_download_file")"
 sleep 0.5
 _move_cursor 2
 _print_center "justify" "Downloaded: $(_bytes_to_human "$downloaded_download_file") " "| Left: $(_bytes_to_human "$((server_size_download_file-downloaded_download_file))")" "="
@@ -200,7 +204,7 @@ old_downloaded_download_file="$downloaded_download_file"
 done
 _newline "\n"
 fi
-if [ "$(wc -c <"$name_download_file")" -ge "$server_size_download_file" ];then
+if [ "$(_actual_size_in_bytes "$name_download_file")" -ge "$server_size_download_file" ];then
 for _ in 1 2;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f "$name.aria2"

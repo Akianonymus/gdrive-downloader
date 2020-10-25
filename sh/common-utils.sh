@@ -1,6 +1,19 @@
 #!/usr/bin/env sh
 
 ###################################################
+# Print actual size of a file ( apparant size )
+# du normally prints the exact size that file is using.
+# Required Arguments: 1
+#   ${1} = filename
+# Result: Print actual size of file in bytes
+###################################################
+_actual_size_in_bytes() {
+    file_actual_size_in_bytes="${1:?Error: give filename}"
+    { _tmp="$(du --block-size=1 "${file_actual_size_in_bytes}")" &&
+        printf "%s\n" "${_tmp%%$(printf '\t')*}"; } || return 1
+}
+
+###################################################
 # Convert bytes to human readable form
 # Required Arguments: 1
 #   ${1} = Positive integer ( bytes )
