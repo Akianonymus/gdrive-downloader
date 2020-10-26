@@ -396,7 +396,7 @@ These are the custom flags that are currently implemented:
 
     ---
 
--   <strong>--info</strong>
+-   <strong>--version | --info</strong>
 
     Show detailed info about script ( if script is installed system wide ).
 

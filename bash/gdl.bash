@@ -29,7 +29,7 @@ Options:\n
   -V | --verbose - Display detailed message (only for non-parallel uploads).\n
   --skip-internet-check - Do not check for internet connection, recommended to use in sync jobs.\n
   -u | --update - Update the installed script in your system.\n
-  --info - Show detailed info, only if script is installed system wide.\n
+  --version | --info - Show detailed info, only if script is installed system wide.\n
   --uninstall - Uninstall script, remove related files.\n
   -D | --debug - Display script command trace.\n
   -h | --help - Display usage instructions.\n"
@@ -107,11 +107,11 @@ _update_value() {
 ###################################################
 # Print info if installed
 ###################################################
-_info() {
+_version_info() {
     if command -v "${COMMAND_NAME}" 1> /dev/null && [[ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]]; then
         for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA; do
             printf "%s\n" "${i}=\"${!i}\""
-        done
+        done | sed -e "s/=/: /g"
     else
         printf "%s\n" "gdrive-downloader is not installed system wide."
     fi
@@ -154,7 +154,7 @@ _setup_arguments() {
             -D | --debug) DEBUG="true" && export DEBUG ;;
             -u | --update) _check_debug && _update ;;
             -U | --uninstall) _check_debug && _update uninstall ;;
-            --info) _info ;;
+            --version | --info) _version_info ;;
             -l | --log)
                 _check_longoptions "${1}" "${2}"
                 LOG_FILE_ID="${2}" && shift
