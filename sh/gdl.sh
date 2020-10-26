@@ -52,9 +52,11 @@ _auto_update() {
     (
         _REPO="${REPO}"
         command -v "${COMMAND_NAME}" 1> /dev/null &&
-            [ -n "${_REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ] &&
-            [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] &&
-            _update 2>| /dev/null 1>&2
+            if [ -n "${_REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+                current_time="$(date +'%s')"
+                [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] && _update
+                _update_value LAST_UPDATE_TIME "${current_time}"
+            fi
     ) 2>| /dev/null 1>&2 &
     return 0
 }
@@ -76,6 +78,8 @@ _update() {
     if script_update="$(curl --compressed -Ls "https://github.com/${repo_update}/raw/${type_value_update}/install.sh")"; then
         _clear_line 1
         printf "%s\n" "${script_update}" | sh -s -- ${job_string_update:-} --skip-internet-check --cmd "${cmd_update}" --path "${path_update}"
+        current_time="$(date +'%s')"
+        [ -z "${job_string_update}" ] && _update_value LAST_UPDATE_TIME "${current_time}"
     else
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Cannot download" " ${job_update} script." "=" 1>&2
@@ -96,6 +100,22 @@ _info() {
         printf "%s\n" "gdrive-downloader is not installed system wide."
     fi
     exit 0
+}
+
+###################################################
+# Update in-script values
+###################################################
+_update_value() {
+    command_path="${INSTALL_PATH:?}/${COMMAND_NAME}"
+    value_name="${1:-}" value="${2:-}"
+    script_without_value_and_shebang="$(grep -v "${value_name}=\".*\".* # added values" "${command_path}" | sed 1d)"
+    new_script="$(
+        sed -n 1p "${command_path}"
+        printf "%s\n" "${value_name}=\"${value}\" # added values"
+        printf "%s\n" "${script_without_value_and_shebang}"
+    )"
+    chmod +w "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod -w "${command_path}"
+    return 0
 }
 
 ##################################################
