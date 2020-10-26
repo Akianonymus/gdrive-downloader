@@ -59,7 +59,7 @@ _check_debug() {
     else
         if [[ -z ${QUIET} ]]; then
             # check if running in terminal and support ansi escape sequences
-            if [[ -t 2 && -n ${TERM} && ${TERM} =~ (xterm|rxvt|urxvt|linux|vt) ]]; then
+            if [[ -t 2 && -n ${TERM} && ${TERM} =~ (xterm|rxvt|urxvt|linux|vt|screen) ]]; then
                 # This refreshes the interactive shell so we can use the ${COLUMNS} variable in the _print_center function.
                 shopt -s checkwinsize && (: && :)
                 if [[ ${COLUMNS} -lt 45 ]]; then
