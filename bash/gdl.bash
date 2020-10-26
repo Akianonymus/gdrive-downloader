@@ -431,6 +431,12 @@ main() {
                 done
             }
 
+            # manually kill all script children pids
+            script_children_pids="$(ps --ppid="$$" -o pid=)"
+            for pid in ${script_children_pids}; do
+                kill "${pid}"
+            done
+
             rm -f "${TMPFILE:?}"*
 
             export abnormal_exit && if [[ -n ${abnormal_exit} ]]; then
