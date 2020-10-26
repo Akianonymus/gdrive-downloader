@@ -442,7 +442,11 @@ exit 0
 _auto_update(){
 export REPO
 (_REPO="$REPO"
-command -v "$COMMAND_NAME" 1>/dev/null&&[[ -n ${_REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+$TYPE_VALUE}}}} ]]&&[[ $((LAST_UPDATE_TIME+AUTO_UPDATE_INTERVAL)) -lt $(printf '%(%s)T\n' "-1") ]]&&_update 2>|/dev/null 1>&2) \
+command -v "$COMMAND_NAME" 1>/dev/null&&if [[ -n ${_REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+$TYPE_VALUE}}}} ]];then
+current_time="$(printf '%(%s)T\n' "-1")"
+[[ $((LAST_UPDATE_TIME+AUTO_UPDATE_INTERVAL)) -lt $current_time ]]&&_update
+_update_value LAST_UPDATE_TIME "$current_time"
+fi) \
 2>|/dev/null 1>&2&
 return 0
 }
@@ -455,12 +459,24 @@ declare repo="${REPO:-akianonymus/gdrive-downloader}" type_value="${TYPE_VALUE:-
 if script="$(curl --compressed -Ls "https://github.com/$repo/raw/$type_value/install.sh")";then
 _clear_line 1
 printf "%s\n" "$script"|bash -s -- ${job_string:-} --skip-internet-check --cmd "$cmd" --path "$path"
+current_time="$(printf '%(%s)T\n' "-1")"
+[[ -z $job_string ]]&&_update_value LAST_UPDATE_TIME "$current_time"&
 else
 _clear_line 1
 "${QUIET:-_print_center}" "justify" "Error: Cannot download $job script." "=" 1>&2
 exit 1
 fi
 exit "$?"
+}
+_update_value(){
+declare command_path="${INSTALL_PATH:?}/$COMMAND_NAME" \
+value_name="${1:-}" value="${2:-}" script_without_value_and_shebang
+script_without_value_and_shebang="$(grep -v "$value_name=\".*\".* # added values" "$command_path"|sed 1d)"
+new_script="$(sed -n 1p "$command_path"
+printf "%s\n" "$value_name=\"$value\" # added values"
+printf "%s\n" "$script_without_value_and_shebang")"
+chmod +w "$command_path"&&printf "%s\n" "$new_script" >|"$command_path"&&chmod -w "$command_path"
+return 0
 }
 _info(){
 if command -v "$COMMAND_NAME" 1>/dev/null&&[[ -n ${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+$TYPE_VALUE}}}} ]];then
