@@ -31,7 +31,8 @@ _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $
 else
 trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
 fi
-EXTRA_LOG="_print_center" CURL_PROGRESS="-#"&&export CURL_PROGRESS EXTRA_LOG
+EXTRA_LOG="_print_center" CURL_PROGRESS="-#"&&export CURL_PROGRESS EXTRA_LOG \
+SUPPORT_ANSI_ESCAPES="true"
 else
 _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
 _clear_line(){ :;}&&_move_cursor(){ :;}
@@ -729,6 +730,7 @@ _setup_arguments "$@"
 "${SKIP_INTERNET_CHECK:-_check_internet}"
 _cleanup(){
 {
+[[ -n $SUPPORT_ANSI_ESCAPES ]]&&printf "\033[?25h"
 [[ -n $OAUTH_ENABLED ]]&&{
 [[ $(. "${TMPFILE}_ACCESS_TOKEN"&&printf "%s\n" "$ACCESS_TOKEN") == "$ACCESS_TOKEN" ]]||{
 _update_config ACCESS_TOKEN "$ACCESS_TOKEN" "$CONFIG"
@@ -765,6 +767,7 @@ else
 export API_REQUEST_FUNCTION="_api_request"
 fi
 START="$(printf '%(%s)T\n' "-1")"
+[[ -n $SUPPORT_ANSI_ESCAPES ]]&&printf "\033[?25l"
 _process_arguments
 END="$(printf '%(%s)T\n' "-1")"
 DIFF="$((END-START))"

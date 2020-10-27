@@ -60,7 +60,8 @@ _check_debug() {
             if [ -t 2 ] && [ -n "${ansi_escapes}" ]; then
                 ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2>| /dev/null &&
                     _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
-                EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG
+                EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG \
+                    SUPPORT_ANSI_ESCAPES="true"
             else
                 _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
                 _clear_line() { :; } && _move_cursor() { :; }

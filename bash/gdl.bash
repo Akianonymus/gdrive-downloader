@@ -434,6 +434,9 @@ main() {
 
     _cleanup() {
         {
+            # unhide the cursor if hidden
+            [[ -n ${SUPPORT_ANSI_ESCAPES} ]] && printf "\033[?25h"
+
             [[ -n ${OAUTH_ENABLED} ]] && {
                 # update the config with latest ACCESS_TOKEN and ACCESS_TOKEN_EXPIRY only if changed
                 [[ $(. "${TMPFILE}_ACCESS_TOKEN" && printf "%s\n" "${ACCESS_TOKEN}") = "${ACCESS_TOKEN}" ]] || {
@@ -484,6 +487,9 @@ main() {
     fi
 
     START="$(printf "%(%s)T\\n" "-1")"
+
+    # hide the cursor if ansi escapes are supported
+    [[ -n ${SUPPORT_ANSI_ESCAPES} ]] && printf "\033[?25l"
 
     _process_arguments
 
