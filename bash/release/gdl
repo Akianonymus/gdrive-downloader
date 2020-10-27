@@ -2,7 +2,7 @@
 SELF_SOURCE="true"
 _actual_size_in_bytes(){
 declare file="${1:?Error: give filename}"
-{ : "$(du --block-size=1 "$file")"&&printf "%s\n" "${_%%$'\t'*}";}||return 1
+{ : "$(BLOCK_SIZE=512 BLOCKSIZE=512 du "$file")"&&: "${_%%$'\t'*}"&&printf "%s\n" "$((_*512))";}||return 1
 }
 _bytes_to_human(){
 declare b="${1:-0}" d='' s=0 S=(Bytes {K,M,G,T,P,E,Y,Z}B)

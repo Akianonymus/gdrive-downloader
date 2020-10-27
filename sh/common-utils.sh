@@ -9,8 +9,10 @@
 ###################################################
 _actual_size_in_bytes() {
     file_actual_size_in_bytes="${1:?Error: give filename}"
-    { _tmp="$(du --block-size=1 "${file_actual_size_in_bytes}")" &&
-        printf "%s\n" "${_tmp%%$(printf '\t')*}"; } || return 1
+    # use block size to 512 because the lowest osx supports is 512
+    # multiply with 512 to convert for 1 block size
+    { _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du "${file_actual_size_in_bytes}")" &&
+        _tmp="${_tmp%%$(printf '\t')*}" && printf "%s\n" "$((_tmp * 512))"; } || return 1
 }
 
 ###################################################
