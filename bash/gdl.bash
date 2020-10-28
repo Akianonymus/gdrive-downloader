@@ -269,9 +269,16 @@ _check_credentials() {
             printf "%s\n" "Add in config manually if terminal is not accessible. CLIENT_ID, CLIENT_SECRET and REFRESH_TOKEN is required." && return 1
         }
 
+        # Following https://developers.google.com/identity/protocols/oauth2#size
+        CLIENT_ID_REGEX='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
+        CLIENT_SECRET_REGEX='[0-9A-Za-z_-]+'
+        REFRESH_TOKEN_REGEX='[0-9]//[0-9A-Za-z_-]+'     # 512 bytes
+        ACCESS_TOKEN_REGEX='ya29\.[0-9A-Za-z_-]+'       # 2048 bytes
+        AUTHORIZATION_CODE_REGEX='[0-9]/[0-9A-Za-z_-]+' # 256 bytes
+
         until [[ -n ${CLIENT_ID} && -n ${CLIENT_ID_VALID} ]]; do
             [[ -n ${CLIENT_ID} ]] && {
-                if [[ ${CLIENT_ID} =~ [0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com ]]; then
+                if [[ ${CLIENT_ID} =~ ${CLIENT_ID_REGEX} ]]; then
                     [[ -n ${client_id} ]] && _update_config CLIENT_ID "${CLIENT_ID}" "${CONFIG}"
                     CLIENT_ID_VALID="true" && continue
                 else
@@ -287,7 +294,7 @@ _check_credentials() {
 
         until [[ -n ${CLIENT_SECRET} && -n ${CLIENT_SECRET_VALID} ]]; do
             [[ -n ${CLIENT_SECRET} ]] && {
-                if [[ ${CLIENT_SECRET} =~ [0-9A-Za-z_]{20,} ]]; then
+                if [[ ${CLIENT_SECRET} =~ ${CLIENT_SECRET_REGEX} ]]; then
                     [[ -n ${client_secret} ]] && _update_config CLIENT_SECRET "${CLIENT_SECRET}" "${CONFIG}"
                     CLIENT_SECRET_VALID="true" && continue
                 else
@@ -301,10 +308,8 @@ _check_credentials() {
             read -r CLIENT_SECRET && client_secret=1
         done
 
-        # Method to obtain refresh_token.
-        # Requirements: client_id, client_secret and authorization code.
         [[ -n ${REFRESH_TOKEN} ]] && {
-            ! [[ ${REFRESH_TOKEN} =~ 1//[0-9][0-9][0-9A-Za-z_]{26}-[0-9A-Za-z_]{50,} ]] &&
+            ! [[ ${REFRESH_TOKEN} =~ ${REFRESH_TOKEN_REGEX} ]] &&
                 "${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token in config file, follow below steps.. " "-" && unset REFRESH_TOKEN
         }
 
@@ -314,7 +319,7 @@ _check_credentials() {
             read -r REFRESH_TOKEN
             if [[ -n ${REFRESH_TOKEN} ]]; then
                 "${QUIET:-_print_center}" "normal" " Checking refresh token.. " "-"
-                if [[ "${REFRESH_TOKEN}" =~ 1//[0-9][0-9][0-9A-Za-z_]{26}-[0-9A-Za-z_]{50,} ]]; then
+                if [[ ${REFRESH_TOKEN} =~ ${REFRESH_TOKEN_REGEX} ]]; then
                     { _get_access_token_and_update && _update_config REFRESH_TOKEN "${REFRESH_TOKEN}" "${CONFIG}"; } || check_error=true
                 else
                     check_error=true
@@ -328,20 +333,20 @@ _check_credentials() {
                 printf "\n" && "${QUIET:-_print_center}" "normal" "Visit the below URL, tap on allow and then enter the code obtained" " "
                 URL="https://accounts.google.com/o/oauth2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=${SCOPE}&response_type=code&prompt=consent"
                 printf "\n%s\n" "${URL}"
-                until [[ -n ${CODE} && -n ${CODE_VALID} ]]; do
-                    [[ -n ${CODE} ]] && {
-                        if [[ ${CODE} =~ [0-9]/[0-9A-Za-z_-]{50,} ]]; then
-                            CODE_VALID="true" && continue
+                until [[ -n ${AUTHORIZATION_CODE} && -n ${AUTHORIZATION_CODE_VALID} ]]; do
+                    [[ -n ${AUTHORIZATION_CODE} ]] && {
+                        if [[ ${AUTHORIZATION_CODE} =~ ${AUTHORIZATION_CODE_REGEX} ]]; then
+                            AUTHORIZATION_CODE_VALID="true" && continue
                         else
-                            "${QUIET:-_print_center}" "normal" " Invalid CODE given, try again.. " "-" && unset CODE code
+                            "${QUIET:-_print_center}" "normal" " Invalid CODE given, try again.. " "-" && unset AUTHORIZATION_CODE authorization_code
                         fi
                     }
-                    { [[ -z ${code} ]] && printf "\n" && "${QUIET:-_print_center}" "normal" " Enter the authorization code " "-"; } || _clear_line 1
+                    { [[ -z ${authorization_code} ]] && printf "\n" && "${QUIET:-_print_center}" "normal" " Enter the authorization code " "-"; } || _clear_line 1
                     printf -- "-> "
-                    read -r CODE && code=1
+                    read -r AUTHORIZATION_CODE && authorization_code=1
                 done
                 RESPONSE="$(curl --compressed "${CURL_PROGRESS}" -X POST \
-                    --data "code=${CODE}&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&redirect_uri=${REDIRECT_URI}&grant_type=authorization_code" "${TOKEN_URL}")" || :
+                    --data "code=${AUTHORIZATION_CODE}&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&redirect_uri=${REDIRECT_URI}&grant_type=authorization_code" "${TOKEN_URL}")" || :
                 _clear_line 1 1>&2
 
                 REFRESH_TOKEN="$(_json_value refresh_token 1 1 <<< "${RESPONSE}" || :)"
@@ -350,7 +355,7 @@ _check_credentials() {
             printf "\n"
         }
 
-        [[ -z ${ACCESS_TOKEN} || ! ${ACCESS_TOKEN} =~ ya29\.[0-9A-Za-z_-]+ || ${ACCESS_TOKEN_EXPIRY:-0} -lt "$(printf "%(%s)T\\n" "-1")" ]] &&
+        [[ -z ${ACCESS_TOKEN} || ${ACCESS_TOKEN_EXPIRY:-0} -lt "$(printf "%(%s)T\\n" "-1")" ]] || ! [[ ${ACCESS_TOKEN} =~ ${ACCESS_TOKEN_REGEX} ]] &&
             { _get_access_token_and_update || return 1; }
         printf "%b\n" "ACCESS_TOKEN=\"${ACCESS_TOKEN}\"\nACCESS_TOKEN_EXPIRY=\"${ACCESS_TOKEN_EXPIRY}\"" >| "${TMPFILE}_ACCESS_TOKEN"
 
@@ -476,7 +481,7 @@ main() {
 
     if [[ -n ${OAUTH_ENABLED} ]]; then
         "${EXTRA_LOG}" "justify" "Checking credentials.." "-"
-        { _check_credentials && for _ in 1 2; do _clear_line 1; done; } ||
+        { _check_credentials && _clear_line 1; } ||
             { "${QUIET:-_print_center}" "normal" "[ Error: Credentials checking failed ]" "=" && exit 1; }
         _print_center "justify" "Required credentials available." "="
 
