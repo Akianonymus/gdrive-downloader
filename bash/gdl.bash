@@ -260,8 +260,6 @@ _setup_arguments() {
 # Result: read description
 ###################################################
 _check_credentials() {
-    NO_UPDATE_TOKEN=""
-
     # Config file is created automatically after first run
     [[ -r ${CONFIG} ]] && . "${CONFIG}"
 
@@ -354,20 +352,19 @@ _check_credentials() {
 
         [[ -z ${ACCESS_TOKEN} || ! ${ACCESS_TOKEN} =~ ya29\.[0-9A-Za-z_-]+ || ${ACCESS_TOKEN_EXPIRY:-0} -lt "$(printf "%(%s)T\\n" "-1")" ]] &&
             { _get_access_token_and_update || return 1; }
+        printf "%b\n" "ACCESS_TOKEN=\"${ACCESS_TOKEN}\"\nACCESS_TOKEN_EXPIRY=\"${ACCESS_TOKEN_EXPIRY}\"" >| "${TMPFILE}_ACCESS_TOKEN"
 
         # launch a background service to check access token and update it
         # checks ACCESS_TOKEN_EXPIRY, try to update before 5 mins of expiry, a fresh token gets 60 mins
-        # process will be killed when script exits
+        # process will be killed when script exits or "${MAIN_PID}" is killed
         {
-            while :; do
-                # print access token to tmpfile so every function can source it and get access_token value
-                printf "%s\n" "export ACCESS_TOKEN=\"${ACCESS_TOKEN}\" ACCESS_TOKEN_EXPIRY=\"${ACCESS_TOKEN_EXPIRY}\"" >| "${TMPFILE}_ACCESS_TOKEN"
+            until ! kill -0 "${MAIN_PID}" 2>| /dev/null 1>&2; do
+                . "${TMPFILE}_ACCESS_TOKEN"
                 CURRENT_TIME="$(printf "%(%s)T\\n" "-1")"
                 REMAINING_TOKEN_TIME="$((ACCESS_TOKEN_EXPIRY - CURRENT_TIME))"
                 if [[ ${REMAINING_TOKEN_TIME} -le 300 ]]; then
-                    # timeout after 30 seconds, it shouldn't take too long anyway, don't update config
-                    { export NO_UPDATE_TOKEN=true &&
-                        _timeout 30 _get_access_token_and_update; } || :
+                    # timeout after 30 seconds, it shouldn't take too long anyway, and update tmp config
+                    CONFIG="${TMPFILE}_ACCESS_TOKEN" _timeout 30 _get_access_token_and_update || :
                 else
                     TOKEN_PROCESS_TIME_TO_SLEEP="$(if [[ ${REMAINING_TOKEN_TIME} -le 301 ]]; then
                         printf "0\n"
@@ -474,6 +471,8 @@ main() {
 
     trap 'abnormal_exit="1"; exit' INT TERM
     trap '_cleanup' EXIT
+
+    export MAIN_PID="$$"
 
     if [[ -n ${OAUTH_ENABLED} ]]; then
         "${EXTRA_LOG}" "justify" "Checking credentials.." "-"

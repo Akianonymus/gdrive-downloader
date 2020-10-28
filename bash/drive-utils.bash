@@ -85,10 +85,8 @@ _get_access_token_and_update() {
     RESPONSE="${1:-$(curl --compressed -s -X POST --data "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" "${TOKEN_URL}")}" || :
     if ACCESS_TOKEN="$(_json_value access_token 1 1 <<< "${RESPONSE}")"; then
         ACCESS_TOKEN_EXPIRY="$(($(printf "%(%s)T\\n" "-1") + $(_json_value expires_in 1 1 <<< "${RESPONSE}") - 1))"
-        [[ -z ${NO_UPDATE_TOKEN} ]] && {
-            _update_config ACCESS_TOKEN "${ACCESS_TOKEN}" "${CONFIG}"
-            _update_config ACCESS_TOKEN_EXPIRY "${ACCESS_TOKEN_EXPIRY}" "${CONFIG}"
-        }
+        _update_config ACCESS_TOKEN "${ACCESS_TOKEN}" "${CONFIG}"
+        _update_config ACCESS_TOKEN_EXPIRY "${ACCESS_TOKEN_EXPIRY}" "${CONFIG}"
     else
         "${QUIET:-_print_center}" "justify" "Error: Something went wrong" ", printing error." 1>&2
         printf "%s\n" "${RESPONSE}" 1>&2
