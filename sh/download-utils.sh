@@ -119,7 +119,7 @@ _download_file() {
 ###################################################
 _download_file_main() {
     [ $# -lt 2 ] && printf "Missing arguments\n" && return 1
-    unset line_download_file_main fileid_download_file_main name_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS && retry_download_file_main="${RETRY:-0}"
+    unset line_download_file_main fileid_download_file_main name_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main && retry_download_file_main="${RETRY:-0}"
     [ "${1}" = parse ] && parallel_download_file_main="${3}" line_download_file_main="${2}" fileid_download_file_main="${line_download_file_main%%"|:_//_:|"*}" \
         name_download_file_main="${line_download_file_main##*"|:_//_:|"}" size_download_file_main="$(_tmp="${line_download_file_main#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
     parallel_download_file_main="${parallel_download_file_main:-${5}}"
@@ -130,6 +130,7 @@ _download_file_main() {
         else
             _download_file "${fileid_download_file_main:-${2}}" "${name_download_file_main:-${3}}" "${size_download_file_main:-${4}}" && RETURN_STATUS=1 && break
         fi
+        sleep "$((sleep_download_file_main += 1))" # on every retry, sleep the times of retry it is, e.g for 1st, sleep 1, for 2nd, sleep 2
         RETURN_STATUS=2 retry_download_file_main="$((retry_download_file_main - 1))" && continue
     done
     { [ "${RETURN_STATUS}" = 1 ] && printf "%b" "${parallel_download_file_main:+${RETURN_STATUS}\n}"; } || printf "%b" "${parallel_download_file_main:+${RETURN_STATUS}\n}" 1>&2

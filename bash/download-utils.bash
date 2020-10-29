@@ -116,7 +116,7 @@ _download_file() {
 ###################################################
 _download_file_main() {
     [[ $# -lt 2 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" 1>&2 && return 1
-    declare line fileid name size parallel retry="${RETRY:-0}" && unset RETURN_STATUS
+    declare line fileid name size parallel retry="${RETRY:-0}" _sleep && unset RETURN_STATUS
     [[ ${1} = parse ]] && parallel="${3}" line="${2}" fileid="${line%%"|:_//_:|"*}" \
         name="${line##*"|:_//_:|"}" size="$(_tmp="${line#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
     parallel="${parallel:-${5}}"
@@ -127,6 +127,7 @@ _download_file_main() {
         else
             _download_file "${fileid:-${2}}" "${name:-${3}}" "${size:-${4}}" && RETURN_STATUS=1 && break
         fi
+        sleep "$((_sleep += 1))" # on every retry, sleep the times of retry it is, e.g for 1st, sleep 1, for 2nd, sleep 2
         RETURN_STATUS=2 retry="$((retry - 1))" && continue
     done
     { [[ ${RETURN_STATUS} = 1 ]] && printf "%b" "${parallel:+${RETURN_STATUS}\n}"; } || printf "%b" "${parallel:+${RETURN_STATUS}\n}" 1>&2
