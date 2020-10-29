@@ -283,6 +283,9 @@ EOF
 $(printf "%s\n" "${folders_list_download_folder}")
 EOF
     fi
+
+    cd - 2>| /dev/null 1>&2 || exit 1
+
     return 0
 }
 

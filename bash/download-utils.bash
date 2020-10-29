@@ -202,7 +202,7 @@ ${json_search_fragment}"
         name="${name}${RANDOM}"
     fi && mkdir -p "${name}"
 
-    cd "${name}" || exit 1
+    cd "${name}" 2>| /dev/null 1>&2 || exit 1
 
     if [[ -n "${num_of_files}" ]]; then
         if [[ -n ${parallel} ]]; then
@@ -255,6 +255,8 @@ ${json_search_fragment}"
             (_download_folder "${line%%"|:_//_:|"*}" "${line##*"|:_//_:|"}" "${parallel:-}")
         done 4<<< "${folders_list}"
     fi
+
+    cd - 2>| /dev/null 1>&2 || exit 1
     return 0
 }
 
