@@ -49,15 +49,12 @@ _short_help() {
 ###################################################
 _auto_update() {
     export REPO
-    (
-        _REPO="${REPO}"
-        command -v "${COMMAND_NAME}" 1> /dev/null &&
-            if [ -n "${_REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
-                current_time="$(date +'%s')"
-                [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] && _update
-                _update_value LAST_UPDATE_TIME "${current_time}"
-            fi
-    ) 2>| /dev/null 1>&2 &
+    command -v "${COMMAND_NAME}" 1> /dev/null &&
+        if [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+            current_time="$(date +'%s')"
+            [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] && _update
+            _update_value LAST_UPDATE_TIME "${current_time}"
+        fi
     return 0
 }
 
@@ -444,32 +441,34 @@ main() {
     "${SKIP_INTERNET_CHECK:-_check_internet}"
 
     _cleanup() {
+        # unhide the cursor if hidden
+        [ -n "${SUPPORT_ANSI_ESCAPES}" ] && printf "\e[?25h"
         {
-            # unhide the cursor if hidden
-            [ -n "${SUPPORT_ANSI_ESCAPES}" ] && printf "\033[?25h"
-
             [ -n "${OAUTH_ENABLED}" ] && {
                 # update the config with latest ACCESS_TOKEN and ACCESS_TOKEN_EXPIRY only if changed
-                [ "$(. "${TMPFILE}_ACCESS_TOKEN" && printf "%s\n" "${ACCESS_TOKEN}")" = "${ACCESS_TOKEN}" ] || {
-                    _update_config ACCESS_TOKEN "${ACCESS_TOKEN}" "${CONFIG}"
-                    _update_config ACCESS_TOKEN_EXPIRY "${ACCESS_TOKEN_EXPIRY}" "${CONFIG}"
-                }
+                [ -f "${TMPFILE}_ACCESS_TOKEN" ] && {
+                    . "${TMPFILE}_ACCESS_TOKEN"
+                    [ "${INITIAL_ACCESS_TOKEN}" = "${ACCESS_TOKEN}" ] || {
+                        _update_config ACCESS_TOKEN "${ACCESS_TOKEN}" "${CONFIG}"
+                        _update_config ACCESS_TOKEN_EXPIRY "${ACCESS_TOKEN_EXPIRY}" "${CONFIG}"
+                    }
+                } 1>| /dev/null
 
                 # grab all chidren processes of access token service
                 # https://askubuntu.com/a/512872
-                token_service_pids="$(ps --ppid="${ACCESS_TOKEN_SERVICE_PID}" -o pid=)"
-                # first kill parent id, then children processes
-                kill "${ACCESS_TOKEN_SERVICE_PID}"
-                for pid in ${token_service_pids}; do
-                    kill "${pid}"
-                done
+                [ -n "${ACCESS_TOKEN_SERVICE_PID}" ] && {
+                    token_service_pids="$(ps --ppid="${ACCESS_TOKEN_SERVICE_PID}" -o pid=)"
+                    # first kill parent id, then children processes
+                    kill "${ACCESS_TOKEN_SERVICE_PID}"
+                } 1>| /dev/null
             }
 
-            # manually kill all script children pids
-            script_children_pids="$(ps --ppid="$$" -o pid=)"
-            for pid in ${script_children_pids}; do
-                kill "${pid}"
-            done
+            # grab all script children pids
+            script_children_pids="$(ps --ppid="${MAIN_PID}" -o pid=)"
+
+            # kill all grabbed children processes
+            # shellcheck disable=SC2086
+            kill ${token_service_pids} ${script_children_pids} 1>| /dev/null
 
             rm -f "${TMPFILE:?}"*
 
