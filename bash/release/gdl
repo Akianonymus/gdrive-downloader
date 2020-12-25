@@ -24,7 +24,7 @@ _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "
 _clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
 else
 if [[ -z $QUIET ]];then
-if [[ -t 2 && -n $TERM && $TERM =~ (xterm|rxvt|urxvt|linux|vt|screen) ]];then
+if [[ -t 2 && -n $TERM && $TERM =~ (xterm|rxvt|urxvt|linux|vt|screen|st) ]];then
 shopt -s checkwinsize&&(:&&:)
 if [[ $COLUMNS -lt 45 ]];then
 _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
