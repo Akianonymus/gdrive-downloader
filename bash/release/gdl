@@ -194,7 +194,7 @@ fi
 if [[ -n $parallel ]];then
 wait "$pid" 2>|/dev/null 1>&2
 else
-until [[ -f $name ]];do sleep 0.5;done
+until [[ -f $name ]]||! kill -0 "$pid" 2>|/dev/null 1>&2;do sleep 0.5;done
 _newline "\n\n"
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
 downloaded="$(_actual_size_in_bytes "$name")"

@@ -82,7 +82,7 @@ _download_file() {
     if [ -n "${parallel_download_file}" ]; then
         wait "${pid}" 2>| /dev/null 1>&2
     else
-        until [ -f "${name_download_file}" ]; do sleep 0.5; done
+        until [ -f "${name_download_file}" ] || ! kill -0 "${pid}" 2>| /dev/null 1>&2; do sleep 0.5; done
 
         _newline "\n\n"
         until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
