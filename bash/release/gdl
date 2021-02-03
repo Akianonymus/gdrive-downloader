@@ -250,9 +250,9 @@ _search_error_message(){
 "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
 printf "%s\n" "${1:?}"&&return 1
 }
-if json_search="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000")";then
+if json_search="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name")";then
 until ! next_page_token="$(_json_value nextPageToken 1 1 <<<"${json_search_fragment:-$json_search}")";do
-json_search_fragment="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&pageToken=$next_page_token")"||_search_error_message "$json_search_fragment"
+json_search_fragment="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name&pageToken=$next_page_token")"||_search_error_message "$json_search_fragment"
 json_search="$json_search
 $json_search_fragment"
 done
