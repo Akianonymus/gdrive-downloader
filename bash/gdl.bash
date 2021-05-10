@@ -30,7 +30,7 @@ Options:\n
   -V | --verbose - Display detailed message (only for non-parallel uploads).\n
   --skip-internet-check - Do not check for internet connection, recommended to use in sync jobs.\n
   -u | --update - Update the installed script in your system.\n
-  --version | --info - Show detailed info, only if script is installed system wide.\n
+  -V | --version | --info - Show detailed info, only if script is installed system wide.\n
   --uninstall - Uninstall script, remove related files.\n
   -D | --debug - Display script command trace.\n
   -h | --help - Display usage instructions.\n"
@@ -153,7 +153,7 @@ _setup_arguments() {
             -D | --debug) DEBUG="true" && export DEBUG ;;
             -u | --update) _check_debug && _update ;;
             -U | --uninstall) _check_debug && _update uninstall ;;
-            --version | --info) _version_info ;;
+            -V | --version | --info) _version_info ;;
             -l | --log)
                 _check_longoptions "${1}" "${2}"
                 LOG_FILE_ID="${2}" && shift
@@ -220,9 +220,7 @@ _setup_arguments() {
                 fi
                 ;;
             -q | --quiet) QUIET="_print_center_quiet" ;;
-            -V | --verbose)
-                VERBOSE="true"
-                ;;
+            --verbose) VERBOSE="true" ;;
             --skip-internet-check)
                 SKIP_INTERNET_CHECK=":"
                 ;;

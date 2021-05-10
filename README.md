@@ -390,7 +390,7 @@ These are the custom flags that are currently implemented:
 
     ---
 
--   <strong>-V | --verbose</strong>
+-   <strong>--verbose</strong>
 
     Display detailed message (only for non-parallel downloads).
 
@@ -402,7 +402,7 @@ These are the custom flags that are currently implemented:
 
     ---
 
--   <strong>--version | --info</strong>
+-   <strong>-V | --version | --info</strong>
 
     Show detailed info about script ( if script is installed system wide ).
 
