@@ -2,8 +2,8 @@
 set -e
 
 # gdrive IDs
-FILE_ID="1qzA3yqlcOctz_ZDcDaPqsvd7DWozsSHB"
-FOLDER_ID="1DbfjPfqDegvNMZBqI3cQvOTEi2KiSBaY"
+FILE_ID="14eh2_N3rGeGzUMamk2uyoU_CF9O7YUkA"
+FOLDER_ID="1AC0UsKfLZfflIkO7Ork78et5VzIvFSDM"
 
 _test() (
     shell="${1:?Error: Specify shell name.}"
