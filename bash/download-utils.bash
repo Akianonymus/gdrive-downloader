@@ -63,13 +63,13 @@ _download_file() {
 
     if [[ -n ${use_aria} ]]; then
         # shellcheck disable=SC2086
-        aria2c ${SPEED_LIMIT:+${ARIA_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${ARIA_EXTRA_FLAGS} \
+        aria2c ${SPEED_LIMIT:+${ARIA_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${ARIA_EXTRA_FLAGS} \
             "${flag}" "${flag_value}" \
             "${url}" -o "${name}" &
         pid="${!}"
     else
         # shellcheck disable=SC2086
-        curl ${SPEED_LIMIT:+${CURL_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${CURL_EXTRA_FLAGS} \
+        curl ${SPEED_LIMIT:+${CURL_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${CURL_EXTRA_FLAGS} \
             --header "${range}" \
             "${flag}" "${flag_value}" \
             "${url}" >> "${name}" &

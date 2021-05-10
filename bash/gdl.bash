@@ -23,6 +23,7 @@ Options:\n
   -s | --skip-subdirs - Skip downloading of sub folders present in case of folders.\n
   -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel.\n
   --speed 'speed' - Limit the download speed, supported formats: 1K and 1M.\n
+  -ua | --user-agent 'user agent string' - Specify custom user agent.\n
   -R | --retry 'num of retries' - Retry the file upload if it fails, postive integer as argument. Currently only for file uploads.\n
   -l | --log 'file_to_save_info' - Save downloaded files info to the given filename.\n
   -q | --quiet - Supress the normal output, only show success/error upload messages for files, and one extra line at the beginning for folder showing no. of files and sub folders.\n
@@ -124,8 +125,9 @@ _setup_arguments() {
     # De-initialize if any variables set already.
     unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD CONFIG FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
     unset DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
-    unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY SPEED_LIMIT
+    unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY
+    export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
     CURL_PROGRESS="-s" CURL_SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls"
     EXTRA_LOG=":"
     CONFIG="${HOME}/.gdl.conf"
@@ -203,6 +205,10 @@ _setup_arguments() {
                     printf "Error: Wrong speed limit format, supported formats: 1K and 1M.\n" 1>&2
                     exit 1
                 fi
+                ;;
+            -ua | --user-agent)
+                _check_longoptions "${1}" "${2}"
+                export USER_AGENT="${2}" && shift
                 ;;
             -R | --retry)
                 _check_longoptions "${1}" "${2}"

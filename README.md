@@ -366,6 +366,12 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-ua | --user-agent 'user agent string'</strong>
+
+    Specify custom user agent.
+
+    ---
+
 -   <strong>-R | --retry 'num of retries'</strong>
 
     Retry the file download if it fails, postive integer as argument. Currently only for file downloads.
