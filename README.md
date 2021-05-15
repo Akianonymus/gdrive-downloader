@@ -378,6 +378,26 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-in | --include 'pattern'</strong>
+
+    Only download the files which contain the given pattern - Applicable for folder downloads.
+
+    e.g: `gdl gdrive_id --include '1'`, will only include with files with pattern '1' in the name.
+
+    Regex can be used which works with grep -E command.
+
+    ---
+
+-   <strong>-ex | --exclude 'pattern'</strong>
+
+    Only download the files which does not contain the given pattern - Applicable for folder downloads.
+
+    e.g: `gdl gdrive_id --exclude '1'`, will only include with files with pattern '1' not present in the name.
+
+    Regex can be used which works with grep -E command.
+
+    ---
+
 -   <strong>-l | --log 'log_file_name'</strong>
 
     Save downloaded files info to the given filename.

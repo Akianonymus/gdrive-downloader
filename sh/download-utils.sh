@@ -193,6 +193,10 @@ EOF
     exec 5<&- && exec 6<&- && exec 7<&-
     _clear_line 1
 
+    # include or exlude the files if -in or -ex flag was used, use grep
+    [ -n "${INCLUDE_FILES}" ] && files_list_download_folder="$(printf "%s\n" "${files_list_download_folder}" | grep -E "${INCLUDE_FILES}")"
+    [ -n "${EXCLUDE_FILES}" ] && files_list_download_folder="$(printf "%s\n" "${files_list_download_folder}" | grep -Ev "${EXCLUDE_FILES}")"
+
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
     folders_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
@@ -209,10 +213,10 @@ EOF
     exec 5<&- && exec 6<&-
     _clear_line 1
 
-    if [ -z "${files_download_folder:-${folders_download_folder}}" ]; then
+    if [ -z "${files_list_download_folder:-${folders_download_folder}}" ]; then
         for _ in 1 2; do _clear_line 1; done && _print_center "justify" "${name_download_folder}" " | Empty Folder" "=" && _newline "\n" && return 0
     fi
-    [ -n "${files_download_folder}" ] && num_of_files_download_folder="$(($(printf "%s\n" "${files_download_folder}" | wc -l)))"
+    [ -n "${files_list_download_folder}" ] && num_of_files_download_folder="$(($(printf "%s\n" "${files_list_download_folder}" | wc -l)))"
     [ -n "${folders_download_folder}" ] && num_of_folders_download_folder="$(($(printf "%s\n" "${folders_download_folder}" | wc -l)))"
 
     for _ in 1 2; do _clear_line 1; done

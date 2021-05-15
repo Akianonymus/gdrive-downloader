@@ -180,6 +180,10 @@ ${json_search_fragment}"
     done 4<<< "$(printf "%s\n" "${files[@]}")" 5<<< "${files_size}" 6<<< "${files_name}")"
     _clear_line 1
 
+    # include or exlude the files if -in or -ex flag was used, use grep
+    [[ -n ${INCLUDE_FILES} ]] && files_list="$(grep -E "${INCLUDE_FILES}" <<< "${files_list}")"
+    [[ -n ${EXCLUDE_FILES} ]] && files_list="$(grep -Ev "${EXCLUDE_FILES}" <<< "${files_list}")"
+
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
     mapfile -t folders <<< "$(printf "%s\n" "${json_search}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
@@ -191,9 +195,9 @@ ${json_search_fragment}"
 
     for _ in 1 2; do _clear_line 1; done
 
-    [[ -z ${files[*]:-${folders[*]}} ]] && _print_center "justify" "${name}" " | Empty Folder" "=" && _newline "\n" && return 0
+    [[ -z ${files_list[*]:-${folders[*]}} ]] && _print_center "justify" "${name}" " | Empty Folder" "=" && _newline "\n" && return 0
 
-    [[ -n ${files[*]} ]] && num_of_files="${#files[@]}"
+    [[ -n ${files_list[*]} ]] && num_of_files="$(_count <<< "${files_list}")"
     [[ -n ${folders[*]} ]] && num_of_folders="${#folders[@]}"
 
     _print_center "justify" "${name}" "${num_of_files:+ | ${num_of_files} files}${num_of_folders:+ | ${num_of_folders} sub folders}" "=" && _newline "\n\n"

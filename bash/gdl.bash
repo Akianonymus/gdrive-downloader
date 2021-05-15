@@ -25,6 +25,10 @@ Options:\n
   --speed 'speed' - Limit the download speed, supported formats: 1K and 1M.\n
   -ua | --user-agent 'user agent string' - Specify custom user agent.\n
   -R | --retry 'num of retries' - Retry the file upload if it fails, postive integer as argument. Currently only for file uploads.\n
+  -in | --include 'pattern' - Only download the files which contain the given pattern - Applicable for folder downloads.\n
+      e.g: ${0##*/} local_folder --include '1', will only include with files with pattern '1' in the name. Regex can be used which works with grep -E command.\n
+  -ex | --exclude 'pattern' - Only download the files which does not contain the given pattern - Applicable for folder downloads.\n
+      e.g: ${0##*/} local_folder --exclude '1', will only include with files with pattern '1' not present in the name. Regex can be used which works with grep -E command.\n
   -l | --log 'file_to_save_info' - Save downloaded files info to the given filename.\n
   -q | --quiet - Supress the normal output, only show success/error upload messages for files, and one extra line at the beginning for folder showing no. of files and sub folders.\n
   -V | --verbose - Display detailed message (only for non-parallel uploads).\n
@@ -126,7 +130,7 @@ _setup_arguments() {
     unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD CONFIG FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
     unset DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
     unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
-    unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY
+    unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
     export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
     CURL_PROGRESS="-s" CURL_SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls"
     EXTRA_LOG=":"
@@ -218,6 +222,14 @@ _setup_arguments() {
                     printf "Error: -R/--retry only takes positive integers as arguments, min = 1, max = infinity.\n"
                     exit 1
                 fi
+                ;;
+            -in | --include)
+                _check_longoptions "${1}" "${2}"
+                INCLUDE_FILES="${INCLUDE_FILES:+${INCLUDE_FILES}|}${2}" && shift
+                ;;
+            -ex | --exclude)
+                _check_longoptions "${1}" "${2}"
+                EXCLUDE_FILES="${EXCLUDE_FILES:+${EXCLUDE_FILES}|}${2}" && shift
                 ;;
             -q | --quiet) QUIET="_print_center_quiet" ;;
             --verbose) VERBOSE="true" ;;
@@ -399,7 +411,7 @@ _process_arguments() {
         FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHECK \
         COLUMNS TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SPEED_LIMIT \
         DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
-        OAUTH_ENABLED API_KEY_DOWNLOAD
+        OAUTH_ENABLED API_KEY_DOWNLOAD INCLUDE_FILES EXCLUDE_FILES
 
     export -f _actual_size_in_bytes _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
         _download_file _download_file_main _download_folder _log_in_file
