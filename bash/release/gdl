@@ -137,28 +137,7 @@ printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name=" "$config_path"||:)" \
 "$value_name=\"$value\"" >|"$config_path"
 chmod u-w+r "$config_path"
 }
-_download_file(){
-[[ $# -lt 3 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
-declare file_id="$1" name="$2" server_size="$3" parallel="$4" \
-range downloaded old_downloaded left speed eta \
-use_aria="$DOWNLOAD_WITH_ARIA" flag flag_value url cookies
-server_size_readable="$(_bytes_to_human "$server_size")"
-_print_center "justify" "$name" " | ${server_size:+$server_size_readable}" "="
-if [[ -s $name ]];then
-declare local_size&&local_size="$(_actual_size_in_bytes "$name")"
-if [[ $local_size -ge $server_size ]];then
-"${QUIET:-_print_center}" "justify" "File already present" "="&&_newline "\n"
-_log_in_file
-return 0
-else
-_print_center "justify" "File is partially" " present, resuming.." "-"
-range="Range: bytes=$local_size-$server_size"
-[[ -z ${OAUTH_ENABLED:-$API_KEY_DOWNLOAD} ]]&&unset use_aria
-fi
-else
-[[ $server_size -gt 0 ]]&&range="Range: bytes=0-$server_size"
-_print_center "justify" "Downloading file.." "-"
-fi
+_common_stuff(){
 if [[ -n $OAUTH_ENABLED ]];then
 . "${TMPFILE}_ACCESS_TOKEN"
 flag="--header" flag_value="Authorization: Bearer $ACCESS_TOKEN"
@@ -171,26 +150,63 @@ else
 curl -c "${TMPFILE}_${file_id}_COOKIE" -I $CURL_PROGRESS -o /dev/null "https://drive.google.com/uc?export=download&id=$file_id"||:
 for _ in 1 2;do _clear_line 1;done
 confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}_${file_id}_COOKIE")"&&printf "%s\n" "${_//*$'\t'/}")"||:
-flag="-b" flag_value="${TMPFILE}_${file_id}_COOKIE"
-[[ -n $use_aria ]]&&{
+url="https://drive.google.com/uc?export=download&id=$file_id${confirm_string:+&confirm=$confirm_string}"
+[[ $DOWNLOADER == "aria2c" ]]&&{
 cookies="$(sed -e "s/^\# .*//g" -e "s/^\#HttpOnly_//g" "${TMPFILE}_${file_id}_COOKIE")"
 printf "%s\n" "$cookies" >|"${TMPFILE}_${file_id}_COOKIE"
-flag="--load-cookies"
+flag="--load-cookies" flag_value="${TMPFILE}_${file_id}_COOKIE"
 }
-url="https://drive.google.com/uc?export=download&id=$file_id${confirm_string:+&confirm=$confirm_string}"
 fi
-if [[ -n $use_aria ]];then
+return 0
+}
+_download_with_aria2c(){
+[[ $# -lt 3 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
+declare file_id="$1" name="$2" server_size="$3" parallel="$4" \
+server_size_readable flag flag_value url cookies
+server_size_readable="$(_bytes_to_human "$server_size")"
+_print_center "justify" "$name" " | ${server_size:+$server_size_readable}" "="
+_common_stuff
+declare download_status=0
 aria2c ${SPEED_LIMIT:+$ARIA_SPEED_LIMIT_FLAG} $SPEED_LIMIT ${USER_AGENT:+$USER_AGENT_FLAG} $USER_AGENT $ARIA_EXTRA_FLAGS \
 "$flag" "$flag_value" \
-"$url" -o "$name"&
-pid="$!"
+"$url" -o "$name"||download_status=1
+if [[ $download_status -eq 0 ]];then
+"${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
+rm -f "$name.aria2"
 else
+"${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
+return 1
+fi
+_log_in_file "$name" "$server_size_readable" "$file_id"
+return 0
+}
+_download_with_curl(){
+[[ $# -lt 3 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
+declare file_id="$1" name="$2" server_size="$3" parallel="$4" \
+range downloaded old_downloaded left speed eta \
+flag flag_value url cookies
+server_size_readable="$(_bytes_to_human "$server_size")"
+_print_center "justify" "$name" " | ${server_size:+$server_size_readable}" "="
+if [[ -s $name ]];then
+declare local_size&&local_size="$(_actual_size_in_bytes "$name")"
+if [[ $local_size -ge $server_size ]];then
+"${QUIET:-_print_center}" "justify" "File already present" "="&&_newline "\n"
+_log_in_file
+return 0
+else
+_print_center "justify" "File is partially" " present, resuming.." "-"
+range="Range: bytes=$local_size-$server_size"
+fi
+else
+[[ $server_size -gt 0 ]]&&range="Range: bytes=0-$server_size"
+_print_center "justify" "Downloading file.." "-"
+fi
+_common_stuff
 curl ${SPEED_LIMIT:+$CURL_SPEED_LIMIT_FLAG} $SPEED_LIMIT ${USER_AGENT:+$USER_AGENT_FLAG} $USER_AGENT $CURL_EXTRA_FLAGS \
 --header "$range" \
 "$flag" "$flag_value" \
 "$url" >>"$name"&
 pid="$!"
-fi
 if [[ -n $parallel ]];then
 wait "$pid" 2>|/dev/null 1>&2
 else
@@ -211,7 +227,6 @@ fi
 if [[ $(_actual_size_in_bytes "$name") -ge $server_size ]];then
 for _ in 1 2 3;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
-rm -f "$name.aria2"
 else
 "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
 return 1
@@ -227,9 +242,9 @@ name="${line##*"|:_//_:|"}" size="$(_tmp="${line#*"|:_//_:|"}"&&printf "%s\n" "$
 parallel="${parallel:-$5}"
 unset RETURN_STATUS&&until [[ $retry -le 0 && -n $RETURN_STATUS ]];do
 if [[ -n $parallel ]];then
-_download_file "${fileid:-$2}" "${name:-$3}" "${size:-$4}" true 2>|/dev/null 1>&2&&RETURN_STATUS=1&&break
+"_download_with_$DOWNLOADER" "${fileid:-$2}" "${name:-$3}" "${size:-$4}" true 2>|/dev/null 1>&2&&RETURN_STATUS=1&&break
 else
-_download_file "${fileid:-$2}" "${name:-$3}" "${size:-$4}"&&RETURN_STATUS=1&&break
+"_download_with_$DOWNLOADER" "${fileid:-$2}" "${name:-$3}" "${size:-$4}"&&RETURN_STATUS=1&&break
 fi
 sleep "$((_sleep+=1))"
 RETURN_STATUS=2 retry="$((retry-1))"&&continue
@@ -497,10 +512,11 @@ exit 0
 _setup_arguments(){
 [[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
 unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD CONFIG FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
-unset DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
+unset ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
 unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
 unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
 export USER_AGENT_FLAG="--user-agent"
+export DOWNLOADER="curl"
 CURL_PROGRESS="-s" CURL_SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls"
 EXTRA_LOG=":"
 CONFIG="$HOME/.gdl.conf"
@@ -524,14 +540,16 @@ case "$1" in
 -l|--log)_check_longoptions "$1" "$2"
 LOG_FILE_ID="$2"&&shift
 ;;
--aria|--aria-flags)DOWNLOAD_WITH_ARIA="true"
+-aria|--aria-flags)\
+DOWNLOADER="aria2c"
 [[ $1 == "--aria-flags" ]]&&{
 _check_longoptions "$1" "$2"
 ARIA_EXTRA_FLAGS=" $ARIA_EXTRA_FLAGS $2 "&&shift
 }
 ;;
 -o|--oauth)OAUTH_ENABLED="true";;
--k|--key)API_KEY_DOWNLOAD="true"
+-k|--key)\
+API_KEY_DOWNLOAD="true"
 _API_KEY="${2##default=}"
 if [[ $_API_KEY =~ AIza[0-9A-Za-z_-]{35} ]];then
 API_KEY="$_API_KEY"&&shift
@@ -544,7 +562,8 @@ CONFIG="$2"&&shift
 -d|--directory)_check_longoptions "$1" "$2"
 FOLDERNAME="$2"&&shift
 ;;
--s|--skip-subdirs)SKIP_SUBDIRS="true"
+-s|--skip-subdirs)\
+SKIP_SUBDIRS="true"
 ;;
 -p|--parallel)_check_longoptions "$1" "$2"
 if [[ $2 -gt 0 ]];then
@@ -583,7 +602,8 @@ EXCLUDE_FILES="${EXCLUDE_FILES:+$EXCLUDE_FILES|}$2"&&shift
 ;;
 -q|--quiet)QUIET="_print_center_quiet";;
 --verbose)VERBOSE="true";;
---skip-internet-check)SKIP_INTERNET_CHECK=":"
+--skip-internet-check)\
+SKIP_INTERNET_CHECK=":"
 ;;
 ''|*)[[ -n $1 ]]&&{
 if [[ $1 == -* ]];then
@@ -597,10 +617,10 @@ shift
 done
 [[ -z ${ID_INPUT_ARRAY[*]} ]]&&_short_help
 [[ -n $OAUTH_ENABLED ]]&&unset API_KEY_DOWNLOAD
-[[ -n $DOWNLOAD_WITH_ARIA ]]&&{
+[[ $DOWNLOADER == "aria2c" ]]&&{
 command -v aria2c 1>|/dev/null||{ printf "%s\n" "Error: aria2c not installed."&&exit 1;}
 ARIA_SPEED_LIMIT_FLAG="--max-download-limit"
-ARIA_EXTRA_FLAGS="$ARIA_EXTRA_FLAGS -q --file-allocation=none --auto-file-renaming=false --continue"
+ARIA_EXTRA_FLAGS="$ARIA_EXTRA_FLAGS --auto-file-renaming=false --continue"
 }
 _check_debug
 return 0
@@ -722,7 +742,7 @@ COLUMNS TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SPEED_LIMIT \
 DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
 OAUTH_ENABLED API_KEY_DOWNLOAD INCLUDE_FILES EXCLUDE_FILES
 export -f _actual_size_in_bytes _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
-_download_file _download_file_main _download_folder _log_in_file
+_download_with_"$DOWNLOADER" _common_stuff _download_file_main _download_folder _log_in_file
 ${FOLDERNAME:+mkdir -p $FOLDERNAME}
 cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
 unset Aseen&&declare -A Aseen
