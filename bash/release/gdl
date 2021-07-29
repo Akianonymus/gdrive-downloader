@@ -826,6 +826,7 @@ return 0
 }
 trap 'abnormal_exit="1"; exit' INT TERM
 trap '_cleanup' EXIT
+trap '' TSTP
 export MAIN_PID="$$"
 if [[ -n $OAUTH_ENABLED ]];then
 "$EXTRA_LOG" "justify" "Checking credentials.." "-"
