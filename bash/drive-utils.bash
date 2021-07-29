@@ -94,3 +94,11 @@ _get_access_token_and_update() {
     fi
     return 0
 }
+
+_ALL_FUNCTIONS=(
+    _api_request _api_request_oauth
+    _check_id _extract_id
+    _get_access_token_and_update
+
+)
+export -f "${_ALL_FUNCTIONS[@]}"

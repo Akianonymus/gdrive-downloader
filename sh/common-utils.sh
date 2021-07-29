@@ -46,7 +46,6 @@ _bytes_to_human() {
 #             Check QUIET, then check terminal size and enable print functions accordingly.
 ###################################################
 _check_debug() {
-    _print_center_quiet() { { [ $# = 3 ] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
     if [ -n "${DEBUG}" ]; then
         set -x && PS4='-> '
         _print_center() { { [ $# = 3 ] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
@@ -222,6 +221,14 @@ _print_center() {
     printf "\n"
 
     return 0
+}
+
+###################################################
+# print_center arguments but normal print
+###################################################
+_print_center_quiet() {
+    { [ $# = 3 ] && printf "%s\n" "${2}"; } ||
+        { printf "%s%s\n" "${2}" "${3}"; }
 }
 
 ###################################################
