@@ -150,6 +150,7 @@ _get_columns_size() {
 ###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
+# Globals: None
 # Arguments: 3
 #   ${1} = repo name
 #   ${2} = sha sum or branch name or tag name
@@ -163,16 +164,24 @@ _get_files_and_commits() {
     # shellcheck disable=SC2086
     html_get_files_and_commits="$(curl -s --compressed "https://github.com/${repo_get_files_and_commits}/file-list/${type_value_get_files_and_commits}/${path_get_files_and_commits}")" ||
         { _print_center "normal" "Error: Cannot fetch" " update details" "=" 1>&2 && exit 1; }
+    # just grep the commit/ strings from html, then remove extra info with sed
     commits_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -o "commit/.*\"" | sed -e 's/commit\///g' -e 's/\"//g' -e 's/>.*//g')"
+    # only grep blob because we just want files
     # shellcheck disable=SC2001
-    files_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -oE '(blob|tree)/'"${type_value_get_files_and_commits}"'.*\"' | sed -e 's/\"//g' -e 's/>.*//g')"
+    files_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -oE 'blob/'"${type_value_get_files_and_commits}"'.*\"' | sed -e 's/\"//g' -e 's/>.*//g')"
 
-    total_files="$(printf "%s\n" "${files_get_files_and_commits}" | wc -l)"
-    total_commits="$(printf "%s\n" "${commits_get_files_and_commits}" | wc -l)"
-    if [ "$((total_files - 2))" -eq "$((total_commits))" ]; then
-        files_get_files_and_commits="$(printf "%s\n" "${files_get_files_and_commits}" | sed 1,2d)"
-    elif [ "$((total_files))" -gt "$((total_commits))" ]; then
-        files_get_files_and_commits="$(printf "%s\n" "${files_get_files_and_commits}" | sed 1d)"
+    total_files="$(($(printf "%s\n" "${files_get_files_and_commits}" | wc -l)))"
+    total_commits="$(($(printf "%s\n" "${commits_get_files_and_commits}" | wc -l)))"
+
+    # exit right out in case wasn't able to grab commits or files
+    if [ "${total_commits}" -eq "0" ] || [ "${total_files}" -eq "0" ]; then
+        _print_center "normal" "Error: Cannot fetch" " update details" "=" 1>&2 && exit 1
+    fi
+
+    # this is gonna trigger in case of non-release commit sha
+    if [ "${total_commits}" -gt "${total_files}" ]; then
+        # delete alternate lines ( sed '{N;P;d}' ), because duplicate for every commit
+        commits_get_files_and_commits="$(printf "%s\n" "${commits_get_files_and_commits}" | sed -e 'N;P;d')"
     fi
 
     exec 4<< EOF
@@ -181,12 +190,11 @@ EOF
     exec 5<< EOF
 $(printf "%s\n" "${commits_get_files_and_commits}")
 EOF
-
     while read -r file <&4 && read -r commit <&5; do
         printf "%s\n" "${file##blob\/${type_value_get_files_and_commits}\/}__.__${commit}"
-    done | grep -v tree || :
-
+    done
     exec 4<&- && exec 5<&-
+
     return 0
 }
 
