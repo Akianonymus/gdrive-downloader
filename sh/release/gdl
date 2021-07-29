@@ -18,7 +18,6 @@ done
 printf "%s\n" "$b_bytes_to_human$d_bytes_to_human $type_bytes_to_human"
 }
 _check_debug(){
-_print_center_quiet(){ { [ $# = 3 ]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";};}
 if [ -n "$DEBUG" ];then
 set -x&&PS4='-> '
 _print_center(){ { [ $# = 3 ]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";};}
@@ -111,6 +110,9 @@ printf "%s%s%s" "$filler_print_center" "$out_print_center" "$filler_print_center
 [ "$(((term_cols_print_center-str_len_print_center)%2))" -ne 0 ]&&printf "%s" "$symbol_print_center"
 printf "\n"
 return 0
+}
+_print_center_quiet(){
+{ [ $# = 3 ]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";}
 }
 _timeout(){
 timeout_timeout="${1:?Error: Specify Timeout}"&&shift

@@ -17,7 +17,6 @@ _check_bash_version(){
 { ! [[ ${BASH_VERSINFO:-0} -ge 4 ]]&&printf "Bash version lower than 4.x not supported.\n"&&exit 1;}||:
 }
 _check_debug(){
-_print_center_quiet(){ { [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";};}
 if [[ -n $DEBUG ]];then
 set -x&&PS4='-> '
 _print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";};}
@@ -43,6 +42,7 @@ _print_center(){ :;}&&_clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
 fi
 set +x
 fi
+export -f _newline _print_center _clear_line
 }
 _check_internet(){
 "$EXTRA_LOG" "justify" "Checking Internet Connection.." "-"
@@ -115,6 +115,9 @@ printf "%s%s%s" "$filler" "$out" "$filler"
 printf "\n"
 return 0
 }
+_print_center_quiet(){
+{ [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";}
+}
 _timeout(){
 declare timeout="${1:?Error: Specify Timeout}"&&shift
 {
@@ -137,6 +140,20 @@ printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name=" "$config_path"||:)" \
 "$value_name=\"$value\"" >|"$config_path"
 chmod u-w+r "$config_path"
 }
+_ALL_FUNCTIONS=(
+_actual_size_in_bytes
+_bytes_to_human
+_check_internet
+_clear_line
+_count
+_display_time
+_json_value
+_move_cursor
+_print_center
+_print_center_quiet
+_timeout
+_update_config)
+export -f "${_ALL_FUNCTIONS[@]}"
 _common_stuff(){
 if [[ -n $OAUTH_ENABLED ]];then
 . "${TMPFILE}_ACCESS_TOKEN"
@@ -355,6 +372,15 @@ printf "%s\n" "Size: $2"
 printf "%s\n\n" "ID: $3"
 } >>"$LOG_FILE_ID"
 }
+_ALL_FUNCTIONS=(
+_common_stuff
+_download_with_aria2c
+_download_with_curl
+_download_file_main
+_download_folder
+_search_error_message
+_log_in_file)
+export -f "${_ALL_FUNCTIONS[@]}"
 _api_request(){
 curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
 "$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
@@ -420,6 +446,11 @@ return 1
 fi
 return 0
 }
+_ALL_FUNCTIONS=(
+_api_request _api_request_oauth
+_check_id _extract_id
+_get_access_token_and_update)
+export -f "${_ALL_FUNCTIONS[@]}"
 _usage(){
 printf "%b" "
 The script can be used to download file/directory from google drive.\n
@@ -741,8 +772,6 @@ FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD SKIP_INTERNET_CHEC
 COLUMNS TMPFILE CURL_PROGRESS EXTRA_LOG RETRY QUIET SPEED_LIMIT \
 DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
 OAUTH_ENABLED API_KEY_DOWNLOAD INCLUDE_FILES EXCLUDE_FILES
-export -f _actual_size_in_bytes _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
-_download_with_"$DOWNLOADER" _common_stuff _download_file_main _download_folder _log_in_file
 ${FOLDERNAME:+mkdir -p $FOLDERNAME}
 cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
 unset Aseen&&declare -A Aseen

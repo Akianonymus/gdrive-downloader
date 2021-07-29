@@ -414,9 +414,6 @@ _process_arguments() {
         DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG CURL_SPEED_LIMIT_FLAG CURL_EXTRA_FLAGS \
         OAUTH_ENABLED API_KEY_DOWNLOAD INCLUDE_FILES EXCLUDE_FILES
 
-    export -f _actual_size_in_bytes _bytes_to_human _count _api_request _api_request_oauth _json_value _print_center _print_center _newline _clear_line _move_cursor \
-        _download_with_"${DOWNLOADER}" _common_stuff _download_file_main _download_folder _log_in_file
-
     ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
     cd "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
 

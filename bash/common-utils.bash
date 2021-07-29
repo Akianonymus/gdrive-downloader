@@ -53,7 +53,6 @@ _check_bash_version() {
 #             Check QUIET, then check terminal size and enable print functions accordingly.
 ###################################################
 _check_debug() {
-    _print_center_quiet() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
     if [[ -n ${DEBUG} ]]; then
         set -x && PS4='-> '
         _print_center() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
@@ -81,6 +80,7 @@ _check_debug() {
         fi
         set +x
     fi
+    export -f _newline _print_center _clear_line
 }
 
 ###################################################
@@ -235,6 +235,14 @@ _print_center() {
 }
 
 ###################################################
+# print_center arguments but normal print
+###################################################
+_print_center_quiet() {
+    { [[ $# = 3 ]] && printf "%s\n" "${2}"; } ||
+        { printf "%s%s\n" "${2}" "${3}"; }
+}
+
+###################################################
 # Alternative to timeout command
 # Arguments: 1 and rest
 #   ${1} = amount of time to sleep
@@ -276,3 +284,19 @@ _update_config() {
         "${value_name}=\"${value}\"" >| "${config_path}"
     chmod u-w+r "${config_path}"
 }
+
+_ALL_FUNCTIONS=(
+    _actual_size_in_bytes
+    _bytes_to_human
+    _check_internet
+    _clear_line
+    _count
+    _display_time
+    _json_value
+    _move_cursor
+    _print_center
+    _print_center_quiet
+    _timeout
+    _update_config
+)
+export -f "${_ALL_FUNCTIONS[@]}"

@@ -311,3 +311,14 @@ _log_in_file() {
         printf "%s\n\n" "ID: ${3}"
     } >> "${LOG_FILE_ID}"
 }
+
+_ALL_FUNCTIONS=(
+    _common_stuff
+    _download_with_aria2c
+    _download_with_curl
+    _download_file_main
+    _download_folder
+    _search_error_message
+    _log_in_file
+)
+export -f "${_ALL_FUNCTIONS[@]}"
