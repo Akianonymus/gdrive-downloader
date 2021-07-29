@@ -128,10 +128,11 @@ _setup_arguments() {
     # Internal variables
     # De-initialize if any variables set already.
     unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD CONFIG FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
-    unset DOWNLOAD_WITH_ARIA ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
+    unset ARIA_EXTRA_FLAGS ARIA_SPEED_LIMIT_FLAG
     unset DEBUG QUIET VERBOSE VERBOSE_PROGRESS SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
     export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
+    export DOWNLOADER="curl"
     CURL_PROGRESS="-s" CURL_SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls"
     EXTRA_LOG=":"
     CONFIG="${HOME}/.gdl.conf"
@@ -163,7 +164,7 @@ _setup_arguments() {
                 LOG_FILE_ID="${2}" && shift
                 ;;
             -aria | --aria-flags)
-                DOWNLOAD_WITH_ARIA="true"
+                DOWNLOADER="aria2c"
                 [ "${1}" = "--aria-flags" ] && {
                     _check_longoptions "${1}" "${2}"
                     ARIA_EXTRA_FLAGS=" ${ARIA_EXTRA_FLAGS} ${2} " && shift
@@ -256,10 +257,10 @@ _setup_arguments() {
 
     [ -n "${OAUTH_ENABLED}" ] && unset API_KEY_DOWNLOAD
 
-    [ -n "${DOWNLOAD_WITH_ARIA}" ] && {
+    [ "${DOWNLOADER}" = "aria2c" ] && {
         command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
         ARIA_SPEED_LIMIT_FLAG="--max-download-limit"
-        ARIA_EXTRA_FLAGS="${ARIA_EXTRA_FLAGS} -q --file-allocation=none --auto-file-renaming=false --continue"
+        ARIA_EXTRA_FLAGS="${ARIA_EXTRA_FLAGS} --auto-file-renaming=false --continue"
     }
 
     _check_debug
