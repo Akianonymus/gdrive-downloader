@@ -59,8 +59,7 @@ _check_debug() {
         _clear_line() { :; } && _move_cursor() { :; } && _newline() { :; }
     else
         if [[ -z ${QUIET} ]]; then
-            # check if running in terminal and support ansi escape sequences
-            if [[ -t 2 && -n ${TERM} && ${TERM} =~ (xterm|rxvt|urxvt|linux|vt|screen|st) ]]; then
+            if _support_ansi_escapes; then
                 # This refreshes the interactive shell so we can use the ${COLUMNS} variable in the _print_center function.
                 shopt -s checkwinsize && (: && :)
                 if [[ ${COLUMNS} -lt 45 ]]; then
@@ -68,8 +67,7 @@ _check_debug() {
                 else
                     trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
                 fi
-                EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG \
-                    SUPPORT_ANSI_ESCAPES="true"
+                export EXTRA_LOG="_print_center" CURL_PROGRESS="-#" SUPPORT_ANSI_ESCAPES="true"
             else
                 _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
                 _clear_line() { :; } && _move_cursor() { :; }
@@ -96,7 +94,7 @@ _check_internet() {
     if ! _timeout 10 curl -Is google.com; then
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
-        exit 1
+        return 1
     fi
     _clear_line 1
 }
@@ -128,7 +126,8 @@ _count() {
 
 ###################################################
 # Convert given time in seconds to readable form
-# 110 to 1m50s
+# 110 to 1 minute(s) and 50 seconds
+# Globals: None
 # Arguments: 1
 #   ${1} = Positive Integer ( time in seconds )
 # Result: read description
@@ -138,14 +137,45 @@ _count() {
 _display_time() {
     declare T="${1}"
     declare DAY="$((T / 60 / 60 / 24))" HR="$((T / 60 / 60 % 24))" MIN="$((T / 60 % 60))" SEC="$((T % 60))"
-    [[ ${DAY} -gt 0 ]] && printf '%dd' "${DAY}"
-    [[ ${HR} -gt 0 ]] && printf '%dh' "${HR}"
-    [[ ${MIN} -gt 0 ]] && printf '%dm' "${MIN}"
-    printf '%ds\n' "${SEC}"
+    [[ ${DAY} -gt 0 ]] && printf '%d days ' "${DAY}"
+    [[ ${HR} -gt 0 ]] && printf '%d hrs ' "${HR}"
+    [[ ${MIN} -gt 0 ]] && printf '%d minute(s) ' "${MIN}"
+    [[ ${DAY} -gt 0 || ${HR} -gt 0 || ${MIN} -gt 0 ]] && printf 'and '
+    printf '%d seconds\n' "${SEC}"
+}
+
+###################################################
+# Fetch latest commit sha of release or branch
+# Do not use github rest api because rate limit error occurs
+# Globals: None
+# Arguments: 3
+#   ${1} = "branch" or "release"
+#   ${2} = branch name or release name
+#   ${3} = repo name e.g labbots/google-drive-upload
+# Result: print fetched sha
+###################################################
+_get_latest_sha() {
+    declare LATEST_SHA
+    case "${1:-${TYPE}}" in
+        branch)
+            LATEST_SHA="$(
+                : "$(curl --compressed -s https://github.com/"${3:-${REPO}}"/commits/"${2:-${TYPE_VALUE}}".atom -r 0-2000)"
+                : "$(printf "%s\n" "${_}" | grep -o "Commit\\/.*<" -m1 || :)" && : "${_##*\/}" && printf "%s\n" "${_%%<*}"
+            )"
+            ;;
+        release)
+            LATEST_SHA="$(
+                : "$(curl -L --compressed -s https://github.com/"${3:-${REPO}}"/releases/"${2:-${TYPE_VALUE}}")"
+                : "$(printf "%s\n" "${_}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && : "${_##*commit\/}" && printf "%s\n" "${_%%\"*}"
+            )"
+            ;;
+    esac
+    printf "%b" "${LATEST_SHA:+${LATEST_SHA}\n}"
 }
 
 ###################################################
 # Method to extract specified field data from json
+# Globals: None
 # Arguments: 2
 #   ${1} - value of field to fetch from json
 #   ${2} - Optional, no of lines to parse for the given field in 1st arg
@@ -154,7 +184,7 @@ _display_time() {
 #   _json_value "Arguments" < file
 #   _json_value "Arguments" <<< "${varibale}"
 #   echo something | _json_value "Arguments"
-# Result: print extracted value or return 1
+# Result: print extracted value
 ###################################################
 _json_value() {
     declare num _tmp no_of_lines
@@ -243,6 +273,29 @@ _print_center_quiet() {
 }
 
 ###################################################
+# Evaluates value1=value2
+# Arguments: 3
+#   ${1} = direct ( d ) or indirect ( i ) - ( evaluation mode )  #   ${2} = var name
+#   ${3} = var value
+# Result: export value1=value2
+###################################################
+_set_value() {
+    declare mode="${1:?}" var="${2:?}" value="${3:?}"
+    case "${mode}" in
+        d | direct) export "${var}=${value}" ;;
+        i | indirect) export "${var}=${!value}" ;;
+    esac
+}
+
+###################################################
+# Check if script terminal supports ansi escapes
+# Result: return 1 or 0
+###################################################
+_support_ansi_escapes() {
+    { [[ -t 2 && -n ${TERM} && ${TERM} =~ (xterm|rxvt|urxvt|linux|vt|screen) ]] && return 0; } || return 1
+}
+
+###################################################
 # Alternative to timeout command
 # Arguments: 1 and rest
 #   ${1} = amount of time to sleep
@@ -279,10 +332,11 @@ _update_config() {
     [[ $# -lt 3 ]] && printf "Missing arguments\n" && return 1
     declare value_name="${1}" value="${2}" config_path="${3}"
     ! [ -f "${config_path}" ] && : >| "${config_path}" # If config file doesn't exist.
-    chmod u+w "${config_path}"
+    chmod u+w "${config_path}" || return 1
     printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name}=" "${config_path}" || :)" \
-        "${value_name}=\"${value}\"" >| "${config_path}"
-    chmod u-w+r "${config_path}"
+        "${value_name}=\"${value}\"" >| "${config_path}" || return 1
+    chmod a-w-r-x,u+r "${config_path}" || return 1
+    return 0
 }
 
 _ALL_FUNCTIONS=(
@@ -292,6 +346,7 @@ _ALL_FUNCTIONS=(
     _clear_line
     _count
     _display_time
+    _get_latest_sha
     _json_value
     _move_cursor
     _print_center

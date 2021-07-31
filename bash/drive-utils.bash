@@ -76,29 +76,10 @@ _extract_id() {
     printf "%b" "${ID:+${ID}\n}"
 }
 
-###################################################
-# Method to regenerate access_token ( also updates in config ).
-# Make a request on https://www.googleapis.com/oauth2/""${API_VERSION}""/tokeninfo?access_token=${ACCESS_TOKEN} url and check if the given token is valid, if not generate one.
-# Result: Update access_token and expiry else print error
-###################################################
-_get_access_token_and_update() {
-    RESPONSE="${1:-$(curl --compressed -s -X POST --data "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" "${TOKEN_URL}")}" || :
-    if ACCESS_TOKEN="$(_json_value access_token 1 1 <<< "${RESPONSE}")"; then
-        ACCESS_TOKEN_EXPIRY="$(($(printf "%(%s)T\\n" "-1") + $(_json_value expires_in 1 1 <<< "${RESPONSE}") - 1))"
-        _update_config ACCESS_TOKEN "${ACCESS_TOKEN}" "${CONFIG}"
-        _update_config ACCESS_TOKEN_EXPIRY "${ACCESS_TOKEN_EXPIRY}" "${CONFIG}"
-    else
-        "${QUIET:-_print_center}" "justify" "Error: Something went wrong" ", printing error." 1>&2
-        printf "%s\n" "${RESPONSE}" 1>&2
-        return 1
-    fi
-    return 0
-}
-
 _ALL_FUNCTIONS=(
-    _api_request _api_request_oauth
-    _check_id _extract_id
-    _get_access_token_and_update
-
+    _api_request
+    _api_request_oauth
+    _check_id
+    _extract_id
 )
 export -f "${_ALL_FUNCTIONS[@]}"

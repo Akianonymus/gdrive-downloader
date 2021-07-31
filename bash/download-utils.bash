@@ -54,7 +54,7 @@ _download_with_aria2c() {
     declare download_status=0
 
     # shellcheck disable=SC2086
-    aria2c ${SPEED_LIMIT:+${ARIA_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${ARIA_EXTRA_FLAGS} \
+    aria2c ${SPEED_LIMIT:+${SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${ARIA_EXTRA_FLAGS} \
         "${flag}" "${flag_value}" \
         "${url}" -o "${name}" || download_status=1
 
@@ -103,7 +103,7 @@ _download_with_curl() {
     _common_stuff
 
     # shellcheck disable=SC2086
-    curl ${SPEED_LIMIT:+${CURL_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${CURL_EXTRA_FLAGS} \
+    curl ${SPEED_LIMIT:+${SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${CURL_EXTRA_FLAGS} \
         --header "${range}" \
         "${flag}" "${flag_value}" \
         "${url}" >> "${name}" &
@@ -249,7 +249,7 @@ ${json_search_fragment}"
             [[ -f "${TMPFILE}"ERROR ]] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            printf "%s\n" "${files_list}" | xargs -n1 -P"${NO_OF_PARALLEL_JOBS_FINAL}" -i bash -c '
+            printf "%s\n" "${files_list}" | xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 bash -c '
                 _download_file_main parse "{}" true
             ' 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR &
             pid="${!}"
@@ -318,7 +318,6 @@ _ALL_FUNCTIONS=(
     _download_with_curl
     _download_file_main
     _download_folder
-    _search_error_message
     _log_in_file
 )
 export -f "${_ALL_FUNCTIONS[@]}"

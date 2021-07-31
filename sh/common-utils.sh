@@ -53,10 +53,7 @@ _check_debug() {
     else
         if [ -z "${QUIET}" ]; then
             # check if running in terminal and support ansi escape sequences
-            case "${TERM}" in
-                xterm* | rxvt* | urxvt* | linux* | vt* | screen* | st*) ansi_escapes="true" ;;
-            esac
-            if [ -t 2 ] && [ -n "${ansi_escapes}" ]; then
+            if _support_ansi_escapes; then
                 ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2>| /dev/null &&
                     _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
                 EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG \
@@ -86,7 +83,7 @@ _check_internet() {
     if ! _timeout 10 curl -Is google.com --compressed; then
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
-        exit 1
+        return 1
     fi
     _clear_line 1
 }
@@ -102,8 +99,24 @@ _clear_line() {
 }
 
 ###################################################
+# Alternative to dirname command
+# Globals: None
+# Arguments: 1
+#   ${1} = path of file or folder
+# Result: read description
+# Reference:
+#   https://github.com/dylanaraps/pure-sh-bible#file-paths
+###################################################
+_dirname() {
+    dir_dirname="${1:-.}"
+    dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}" && [ "${dir_dirname##*/*}" ] && dir_dirname=.
+    dir_dirname="${dir_dirname%/*}" && dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}"
+    printf '%s\n' "${dir_dirname:-/}"
+}
+
+###################################################
 # Convert given time in seconds to readable form
-# 110 to 1m50s
+# 110 to 1 minute(s) and 50 seconds
 # Arguments: 1
 #   ${1} = Positive Integer ( time in seconds )
 # Result: read description
@@ -113,10 +126,11 @@ _clear_line() {
 _display_time() {
     t_display_time="${1}" day_display_time="$((t_display_time / 60 / 60 / 24))"
     hr_display_time="$((t_display_time / 60 / 60 % 24))" min_display_time="$((t_display_time / 60 % 60))" sec_display_time="$((t_display_time % 60))"
-    [ "${day_display_time}" -gt 0 ] && printf '%dd' "${day_display_time}"
-    [ "${hr_display_time}" -gt 0 ] && printf '%dh' "${hr_display_time}"
-    [ "${min_display_time}" -gt 0 ] && printf '%dm' "${min_display_time}"
-    printf '%ds\n' "${sec_display_time}"
+    [ "${day_display_time}" -gt 0 ] && printf '%d days ' "${day_display_time}"
+    [ "${hr_display_time}" -gt 0 ] && printf '%d hrs ' "${hr_display_time}"
+    [ "${min_display_time}" -gt 0 ] && printf '%d minute(s) ' "${min_display_time}"
+    [ "${day_display_time}" -gt 0 ] || [ "${hr_display_time}" -gt 0 ] || [ "${min_display_time}" -gt 0 ] && printf 'and '
+    printf '%d seconds\n' "${sec_display_time}"
 }
 
 ###################################################
@@ -129,6 +143,35 @@ _get_columns_size() {
         { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
         { command -v tput 1>| /dev/null && tput cols; } ||
         return 1
+}
+
+###################################################
+# Fetch latest commit sha of release or branch
+# Do not use github rest api because rate limit error occurs
+# Globals: None
+# Arguments: 3
+#   ${1} = "branch" or "release"
+#   ${2} = branch name or release name
+#   ${3} = repo name e.g labbots/google-drive-upload
+# Result: print fetched sha
+###################################################
+_get_latest_sha() {
+    unset latest_sha_get_latest_sha raw_get_latest_sha
+    case "${1:-${TYPE}}" in
+        branch)
+            latest_sha_get_latest_sha="$(
+                raw_get_latest_sha="$(curl --compressed -s https://github.com/"${3:-${REPO}}"/commits/"${2:-${TYPE_VALUE}}".atom -r 0-2000)"
+                _tmp="$(printf "%s\n" "${raw_get_latest_sha}" | grep -o "Commit\\/.*<" -m1 || :)" && _tmp="${_tmp##*\/}" && printf "%s\n" "${_tmp%%<*}"
+            )"
+            ;;
+        release)
+            latest_sha_get_latest_sha="$(
+                raw_get_latest_sha="$(curl -L --compressed -s https://github.com/"${3:-${REPO}}"/releases/"${2:-${TYPE_VALUE}}")"
+                _tmp="$(printf "%s\n" "${raw_get_latest_sha}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && _tmp="${_tmp##*commit\/}" && printf "%s\n" "${_tmp%%\"*}"
+            )"
+            ;;
+    esac
+    printf "%b" "${latest_sha_get_latest_sha:+${latest_sha_get_latest_sha}\n}"
 }
 
 ###################################################
@@ -232,6 +275,34 @@ _print_center_quiet() {
 }
 
 ###################################################
+# Evaluates value1=value2
+# Arguments: 3
+#   ${1} = direct ( d ) or indirect ( i ) - ( evaluation mode )
+#   ${2} = var name
+#   ${3} = var value
+# Result: export value1=value2
+###################################################
+_set_value() {
+    mode_set_value="${1:?}" var_set_value="${2:?}" value_set_value="${3:?}"
+    case "${mode_set_value}" in
+        d | direct) export "${var_set_value}=${value_set_value}" ;;
+        i | indirect) export "${var_set_value}=$(eval printf "%s" \"\$"${value_set_value}"\")" ;;
+    esac
+}
+
+###################################################
+# Check if script terminal supports ansi escapes
+# Result: return 1 or 0
+###################################################
+_support_ansi_escapes() {
+    unset ansi_escapes
+    case "${TERM}" in
+        xterm* | rxvt* | urxvt* | linux* | vt* | screen*) ansi_escapes="true" ;;
+    esac
+    { [ -t 2 ] && [ -n "${ansi_escapes}" ] && return 0; } || return 1
+}
+
+###################################################
 # Alternative to timeout command
 # Arguments: 1 and rest
 #   ${1} = amount of time to sleep
@@ -257,7 +328,6 @@ _timeout() {
 ###################################################
 # Config updater
 # Incase of old value, update, for new value add.
-# Globals: None
 # Arguments: 3
 #   ${1} = value name
 #   ${2} = value
@@ -268,8 +338,9 @@ _update_config() {
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
     value_name_update_config="${1}" value_update_config="${2}" config_path_update_config="${3}"
     ! [ -f "${config_path_update_config}" ] && : >| "${config_path_update_config}" # If config file doesn't exist.
-    chmod u+w "${config_path_update_config}"
+    chmod u+w "${config_path_update_config}" || return 1
     printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name_update_config}=" "${config_path_update_config}" || :)" \
-        "${value_name_update_config}=\"${value_update_config}\"" >| "${config_path_update_config}"
-    chmod u-w+r "${config_path_update_config}"
+        "${value_name_update_config}=\"${value_update_config}\"" >| "${config_path_update_config}" || return 1
+    chmod a-w-r-x,u+r "${config_path_update_config}" || return 1
+    return 0
 }
