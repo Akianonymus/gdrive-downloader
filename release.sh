@@ -14,10 +14,11 @@ _merge() (
         sed -n 1p gdl."${shell}"
         printf "%s\n" "SELF_SOURCE=\"true\""
         {
-            sed 1d common-utils."${shell}" \
-                download-utils."${shell}" \
-                drive-utils."${shell}" \
-                gdl."${shell}"
+            sed 1d auth-utils."${shell}"
+            sed 1d common-utils."${shell}"
+            sed 1d download-utils."${shell}"
+            sed 1d drive-utils."${shell}"
+            sed 1d gdl."${shell}"
         } | shfmt -mn
     } >| "release/gdl"
     chmod +x "release/gdl"

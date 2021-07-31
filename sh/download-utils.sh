@@ -56,7 +56,7 @@ _download_with_aria2c() {
     download_status=0
 
     # shellcheck disable=SC2086
-    aria2c ${SPEED_LIMIT:+${ARIA_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${ARIA_EXTRA_FLAGS} \
+    aria2c ${SPEED_LIMIT:+${SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${ARIA_EXTRA_FLAGS} \
         "${flag_download_file}" "${flag_value_download_file}" \
         "${url_download_file}" -o "${name_download_file}" || download_status=1
 
@@ -103,7 +103,7 @@ _download_with_curl() {
     _common_stuff
 
     # shellcheck disable=SC2086
-    curl ${SPEED_LIMIT:+${CURL_SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${CURL_EXTRA_FLAGS} \
+    curl ${SPEED_LIMIT:+${SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${CURL_EXTRA_FLAGS} \
         --header "${range_download_file}" \
         "${flag_download_file}" "${flag_value_download_file}" \
         "${url_download_file}" >> "${name_download_file}" &
@@ -269,7 +269,7 @@ EOF
             [ -f "${TMPFILE}"ERROR ] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (printf "%s\n" "${files_list_download_folder}" | xargs -n1 -P"${NO_OF_PARALLEL_JOBS_FINAL}" -i sh -c '
+            (printf "%s\n" "${files_list_download_folder}" | xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 sh -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
                 ' 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
