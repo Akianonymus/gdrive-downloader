@@ -274,7 +274,7 @@ After installation, no more configuration is needed for public files/folders.
 
 But sometimes, downloading files from shared drive ( team drives ) errors. To tackle this, use `--key` flag and bypass that error. In case it still errors out, give your own api key as argument.
 
-To get your own api key, go to `Retrieve API key` section in [auth.md](https://github.com/akianonymus/google-drive-upload/blob/master/auth.md).
+To get your own api key, go to `Retrieve API key` section in [auth.md](https://github.com/Akianonymus/gdrive-downloader/blob/master/auth.md).
 
 Note: Even after specifying api key, don't recklessly download a file over and over, it will lead to 24 hr ip ban.
 
@@ -452,7 +452,7 @@ These are the custom flags that are currently implemented:
 
 ### Authentication
 
-For oauth or api key authentication, see [auth.md](https://github.com/akianonymus/google-drive-upload/blob/master/auth.md)
+For oauth or api key authentication, see [auth.md](https://github.com/Akianonymus/gdrive-downloader/blob/master/auth.md)
 
 #### First Run
 

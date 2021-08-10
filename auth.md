@@ -1,4 +1,6 @@
-# Generating Oauth Credentials
+# Authentication
+
+## Generating Oauth Credentials
 
 - Follow [Enable Drive API](#enable-drive-api) section.
 - Open [google console](https://console.developers.google.com/).
@@ -11,7 +13,7 @@
 
 Now, we have obtained our credentials, move to the [First run](#first-run) section to use those credentials:
 
-# Enable Drive API
+## Enable Drive API
 
 - Log into google developer console at [google console](https://console.developers.google.com/).
 - Click select project at the right side of "Google Cloud Platform" of upper left of window.
@@ -31,7 +33,7 @@ By this, a side bar is opened. At there, select "API & Services" -> "Library". A
 
 [Go back to oauth credentials setup](#generating-oauth-credentials)
 
-# Retrieve API key
+### Retrieve API key
 
 In order to use a custom api key, follow the below steps:
 
