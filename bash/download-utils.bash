@@ -20,7 +20,9 @@ _common_stuff() {
         # normal downloading
         "${EXTRA_LOG}" "justify" "Fetching" " cookies.." "-"
         # shellcheck disable=SC2086
-        curl -c "${TMPFILE}_${file_id}_COOKIE" -I ${CURL_PROGRESS} -o /dev/null "https://drive.google.com/uc?export=download&id=${file_id}" || :
+        _curl -I ${CURL_PROGRESS} \
+            -c "${TMPFILE}_${file_id}_COOKIE" -o /dev/null \
+            "https://drive.google.com/uc?export=download&id=${file_id}" || return 1
         for _ in 1 2; do _clear_line 1; done
         confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}_${file_id}_COOKIE")" && printf "%s\n" "${_//*$'\t'/}")" || :
 
@@ -54,7 +56,7 @@ _download_with_aria2c() {
     declare download_status=0
 
     # shellcheck disable=SC2086
-    aria2c ${SPEED_LIMIT:+${SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${ARIA_EXTRA_FLAGS} \
+    aria2c ${ARIA_FLAGS} \
         "${flag}" "${flag_value}" \
         "${url}" -o "${name}" || download_status=1
 
@@ -103,7 +105,7 @@ _download_with_curl() {
     _common_stuff
 
     # shellcheck disable=SC2086
-    curl ${SPEED_LIMIT:+${SPEED_LIMIT_FLAG}} ${SPEED_LIMIT} ${USER_AGENT:+${USER_AGENT_FLAG}} ${USER_AGENT} ${CURL_EXTRA_FLAGS} \
+    _curl -Ls \
         --header "${range}" \
         "${flag}" "${flag_value}" \
         "${url}" >> "${name}" &

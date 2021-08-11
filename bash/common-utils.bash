@@ -91,7 +91,7 @@ _check_debug() {
 ###################################################
 _check_internet() {
     "${EXTRA_LOG}" "justify" "Checking Internet Connection.." "-"
-    if ! _timeout 10 curl -Is google.com; then
+    if ! _timeout 10 _curl -Is google.com; then
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
         return 1
@@ -122,6 +122,14 @@ _clear_line() {
 _count() {
     mapfile -tn 0 lines
     printf '%s\n' "${#lines[@]}"
+}
+
+###################################################
+# a curl wrapper to add some flags
+###################################################
+_curl() {
+    # shellcheck disable=SC2086
+    curl ${CURL_FLAGS} "${@}" || return 1
 }
 
 ###################################################
@@ -344,6 +352,7 @@ export -f _actual_size_in_bytes \
     _check_internet \
     _clear_line \
     _count \
+    _curl \
     _display_time \
     _get_latest_sha \
     _json_value \

@@ -6,7 +6,8 @@
 ###################################################
 _api_request() {
     # shellcheck disable=SC2086
-    curl -e "https://drive.google.com" --compressed ${CURL_PROGRESS} \
+    _curl --compressed ${CURL_PROGRESS} \
+        -e "https://drive.google.com" \
         "${API_URL}/drive/${API_VERSION}/${1:?}&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
     _clear_line 1 1>&2
 }
@@ -18,7 +19,7 @@ _api_request_oauth() {
     . "${TMPFILE}_ACCESS_TOKEN"
 
     # shellcheck disable=SC2086
-    curl --compressed ${CURL_PROGRESS} \
+    _curl --compressed ${CURL_PROGRESS} \
         -H "Authorization: Bearer ${ACCESS_TOKEN}" \
         "${API_URL}/drive/${API_VERSION}/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
     _clear_line 1 1>&2

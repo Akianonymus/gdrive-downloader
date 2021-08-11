@@ -226,7 +226,7 @@ printf -- "-> \033[?7l"
 read -r AUTHORIZATION_CODE&&authorization_code=1
 printf '\033[?7h'
 done
-response="$(curl --compressed "$CURL_PROGRESS" -X POST \
+response="$(_curl --compressed $CURL_PROGRESS -X POST \
 --data "code=$AUTHORIZATION_CODE&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&redirect_uri=$REDIRECT_URI&grant_type=authorization_code" "$TOKEN_URL")"||:
 _clear_line 1 1>&2
 refresh_token_value="$(_json_value refresh_token 1 1 <<<"$response")"||{ printf "%s\n" "Error: Cannot fetch refresh token, make sure the authorization code was correct."&&return 1;}
@@ -249,7 +249,7 @@ declare token_expiry_name="${token_name}_EXPIRY"
 _set_value indirect token_value "$token_name"
 _set_value indirect token_expiry_value "$token_expiry_name"
 [[ $no_check == skip_check || -z $token_value || ${token_expiry_value:-0} -lt "$(printf '%(%s)T\n' "-1")" || ! $token_value =~ $access_token_regex ]]&&{
-response="${response_json:-$(curl --compressed -s -X POST --data \
+response="${response_json:-$(_curl --compressed -s -X POST --data \
 "client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&refresh_token=$REFRESH_TOKEN&grant_type=refresh_token" "$TOKEN_URL")}"||:
 if token_value="$(_json_value access_token 1 1 <<<"$response")";then
 token_expiry_value="$(($(printf '%(%s)T\n' "-1")+$(_json_value expires_in 1 1 <<<"$response")-1))"
@@ -351,7 +351,7 @@ export -f _newline _print_center _clear_line
 }
 _check_internet(){
 "$EXTRA_LOG" "justify" "Checking Internet Connection.." "-"
-if ! _timeout 10 curl -Is google.com;then
+if ! _timeout 10 _curl -Is google.com;then
 _clear_line 1
 "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
 return 1
@@ -364,6 +364,9 @@ printf "\033[%sA\033[2K" "$1"
 _count(){
 mapfile -tn 0 lines
 printf '%s\n' "${#lines[@]}"
+}
+_curl(){
+curl $CURL_FLAGS "$@"||return 1
 }
 _display_time(){
 declare T="$1"
@@ -475,6 +478,7 @@ _bytes_to_human \
 _check_internet \
 _clear_line \
 _count \
+_curl \
 _display_time \
 _get_latest_sha \
 _json_value \
@@ -493,7 +497,9 @@ flag="--referer" flag_value="https://drive.google.com"
 url="$API_URL/drive/$API_VERSION/files/$file_id?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=$API_KEY"
 else
 "$EXTRA_LOG" "justify" "Fetching" " cookies.." "-"
-curl -c "${TMPFILE}_${file_id}_COOKIE" -I $CURL_PROGRESS -o /dev/null "https://drive.google.com/uc?export=download&id=$file_id"||:
+_curl -I $CURL_PROGRESS \
+-c "${TMPFILE}_${file_id}_COOKIE" -o /dev/null \
+"https://drive.google.com/uc?export=download&id=$file_id"||return 1
 for _ in 1 2;do _clear_line 1;done
 confirm_string="$(: "$(grep -F 'download_warning' "${TMPFILE}_${file_id}_COOKIE")"&&printf "%s\n" "${_//*$'\t'/}")"||:
 url="https://drive.google.com/uc?export=download&id=$file_id${confirm_string:+&confirm=$confirm_string}"
@@ -513,7 +519,7 @@ server_size_readable="$(_bytes_to_human "$server_size")"
 _print_center "justify" "$name" " | ${server_size:+$server_size_readable}" "="
 _common_stuff
 declare download_status=0
-aria2c ${SPEED_LIMIT:+$SPEED_LIMIT_FLAG} $SPEED_LIMIT ${USER_AGENT:+$USER_AGENT_FLAG} $USER_AGENT $ARIA_EXTRA_FLAGS \
+aria2c $ARIA_FLAGS \
 "$flag" "$flag_value" \
 "$url" -o "$name"||download_status=1
 if [[ $download_status -eq 0 ]];then
@@ -548,7 +554,7 @@ else
 _print_center "justify" "Downloading file.." "-"
 fi
 _common_stuff
-curl ${SPEED_LIMIT:+$SPEED_LIMIT_FLAG} $SPEED_LIMIT ${USER_AGENT:+$USER_AGENT_FLAG} $USER_AGENT $CURL_EXTRA_FLAGS \
+_curl -Ls \
 --header "$range" \
 "$flag" "$flag_value" \
 "$url" >>"$name"&
@@ -708,13 +714,14 @@ _download_file_main \
 _download_folder \
 _log_in_file
 _api_request(){
-curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
+_curl --compressed $CURL_PROGRESS \
+-e "https://drive.google.com" \
 "$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
 }
 _api_request_oauth(){
 . "${TMPFILE}_ACCESS_TOKEN"
-curl --compressed $CURL_PROGRESS \
+_curl --compressed $CURL_PROGRESS \
 -H "Authorization: Bearer $ACCESS_TOKEN" \
 "$API_URL/drive/$API_VERSION/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
@@ -836,12 +843,12 @@ _setup_arguments(){
 [[ $# == 0 ]]&&printf "%s: Missing arguments\n" "${FUNCNAME[0]}"&&return 1
 unset LIST_ACCOUNTS UPDATE_DEFAULT_ACCOUNT CUSTOM_ACCOUNT_NAME NEW_ACCOUNT_NAME DELETE_ACCOUNT_NAME ACCOUNT_ONLY_RUN
 unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
-unset ARIA_EXTRA_FLAGS
 unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
 unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
+unset ARIA_FLAGS CURL_FLAGS
 export USER_AGENT_FLAG="--user-agent"
 export DOWNLOADER="curl"
-export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls" EXTRA_LOG=":"
+export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" EXTRA_LOG=":"
 CONFIG="$HOME/.gdl.conf"
 unset ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN
 export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk" \
@@ -864,11 +871,15 @@ case "$1" in
 -l|--log)_check_longoptions "$1" "$2"
 export LOG_FILE_ID="$2"&&shift
 ;;
--aria|--aria-flags)\
+-aria|--aria-flags)command -v aria2c \
+1>|/dev/null||{
+printf "%s\n" "Error: aria2c not installed."&&exit 1
+}
 DOWNLOADER="aria2c"
+SPEED_LIMIT_FLAG="--max-download-limit"
 [[ $1 == "--aria-flags" ]]&&{
 _check_longoptions "$1" "$2"
-ARIA_EXTRA_FLAGS=" $ARIA_EXTRA_FLAGS $2 "&&shift
+ARIA_FLAGS=" $ARIA_FLAGS $2 "&&shift
 }
 ;;
 -o|--oauth)export OAUTH_ENABLED="true";;
@@ -967,14 +978,19 @@ esac
 shift
 done
 _check_debug
-[[ -n $QUIET ]]&&export CURL_PROGRESS="-s" ARIA_EXTRA_FLAGS=" $ARIA_EXTRA_FLAGS -q "
+[[ -n $QUIET ]]&&export CURL_PROGRESS="-s" ARIA_FLAGS=" $ARIA_FLAGS -q "
+declare extra_flags="" flag="" value=""
+for var in SPEED_LIMIT USER_AGENT;do
+_set_value i value "$var"
+[[ -n $value ]]&&{
+_set_value i flag "${var}_FLAG"
+extra_flags="$extra_flags $flag $value"
+}
+done
+export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $extra_flags"
+export CURL_FLAGS="$extra_flags"
 [[ -n $OAUTH_ENABLED ]]&&unset API_KEY_DOWNLOAD
 [[ -n $API_KEY_DOWNLOAD ]]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "$API_KEY" "$CONFIG"
-[[ $DOWNLOADER == "aria2c" ]]&&{
-command -v aria2c 1>|/dev/null||{ printf "%s\n" "Error: aria2c not installed."&&exit 1;}
-SPEED_LIMIT_FLAG="--max-download-limit"
-ARIA_EXTRA_FLAGS="$ARIA_EXTRA_FLAGS --auto-file-renaming=false --continue"
-}
 [[ -n $DELETE_ACCOUNT_NAME ]]&&_delete_account "$DELETE_ACCOUNT_NAME"
 [[ -n $LIST_ACCOUNTS ]]&&_all_accounts
 [[ -z ${ID_INPUT_ARRAY[*]} ]]&&{

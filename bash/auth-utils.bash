@@ -339,7 +339,8 @@ _check_refresh_token() {
                 read -r AUTHORIZATION_CODE && authorization_code=1
                 printf '\033[?7h'
             done
-            response="$(curl --compressed "${CURL_PROGRESS}" -X POST \
+            # shellcheck disable=SC2086
+            response="$(_curl --compressed ${CURL_PROGRESS} -X POST \
                 --data "code=${AUTHORIZATION_CODE}&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&redirect_uri=${REDIRECT_URI}&grant_type=authorization_code" "${TOKEN_URL}")" || :
             _clear_line 1 1>&2
 
@@ -384,7 +385,7 @@ _check_access_token() {
     _set_value indirect token_expiry_value "${token_expiry_name}"
 
     [[ ${no_check} = skip_check || -z ${token_value} || ${token_expiry_value:-0} -lt "$(printf "%(%s)T\\n" "-1")" || ! ${token_value} =~ ${access_token_regex} ]] && {
-        response="${response_json:-$(curl --compressed -s -X POST --data \
+        response="${response_json:-$(_curl --compressed -s -X POST --data \
             "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" "${TOKEN_URL}")}" || :
 
         if token_value="$(_json_value access_token 1 1 <<< "${response}")"; then

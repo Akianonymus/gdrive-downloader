@@ -104,12 +104,12 @@ _setup_arguments() {
     # De-initialize if any variables set already.
     unset LIST_ACCOUNTS UPDATE_DEFAULT_ACCOUNT CUSTOM_ACCOUNT_NAME NEW_ACCOUNT_NAME DELETE_ACCOUNT_NAME ACCOUNT_ONLY_RUN
     unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
-    unset ARIA_EXTRA_FLAGS
     unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
+    unset ARIA_FLAGS CURL_FLAGS
     export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
     export DOWNLOADER="curl"
-    export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" CURL_EXTRA_FLAGS="-Ls" EXTRA_LOG=":"
+    export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" EXTRA_LOG=":"
     CONFIG="${HOME}/.gdl.conf"
 
     # API
@@ -141,10 +141,12 @@ _setup_arguments() {
                 export LOG_FILE_ID="${2}" && shift
                 ;;
             -aria | --aria-flags)
+                command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
                 DOWNLOADER="aria2c"
+                SPEED_LIMIT_FLAG="--max-download-limit"
                 [ "${1}" = "--aria-flags" ] && {
                     _check_longoptions "${1}" "${2}"
-                    ARIA_EXTRA_FLAGS=" ${ARIA_EXTRA_FLAGS} ${2} " && shift
+                    ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && shift
                 }
                 ;;
             -o | --oauth) export OAUTH_ENABLED="true" ;;
@@ -257,17 +259,27 @@ _setup_arguments() {
 
     _check_debug
 
-    [ -n "${QUIET}" ] && export CURL_PROGRESS="-s" ARIA_EXTRA_FLAGS=" ${ARIA_EXTRA_FLAGS} -q "
+    [ -n "${QUIET}" ] && export CURL_PROGRESS="-s" ARIA_FLAGS=" ${ARIA_FLAGS} -q "
+
+    # check if extra flags for network requests was given, if present, then add to extra_flags var which later will be suffixed to ARIA_FLAGS and CURL_FLAGS
+    extra_flags="" flag="" value=""
+    for var in SPEED_LIMIT USER_AGENT; do
+        _set_value i value "${var}"
+        [ -n "${value}" ] && {
+            _set_value i flag "${var}_FLAG"
+            extra_flags="${extra_flags} ${flag} ${value}"
+        }
+    done
+
+    # used when downloaded with aria
+    export ARIA_FLAGS="${ARIA_FLAGS} --auto-file-renaming=false --continue ${extra_flags}"
+
+    # set CURL_FLAGS which will be used with every curl request, including donwloadind the files
+    export CURL_FLAGS="${extra_flags}"
 
     [ -n "${OAUTH_ENABLED}" ] && unset API_KEY_DOWNLOAD
 
     [ -n "${API_KEY_DOWNLOAD}" ] && "${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY}" "${CONFIG}"
-
-    [ "${DOWNLOADER}" = "aria2c" ] && {
-        command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
-        SPEED_LIMIT_FLAG="--max-download-limit"
-        ARIA_EXTRA_FLAGS="${ARIA_EXTRA_FLAGS} --auto-file-renaming=false --continue"
-    }
 
     # handle account related flags here as we want to use the flags independenlty even with no normal valid inputs
     # delete account, --delete-account flag

@@ -80,7 +80,7 @@ _check_debug() {
 ###################################################
 _check_internet() {
     "${EXTRA_LOG}" "justify" "Checking Internet Connection.." "-"
-    if ! _timeout 10 curl -Is google.com --compressed; then
+    if ! _timeout 10 _curl -Is google.com --compressed; then
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
         return 1
@@ -96,6 +96,14 @@ _check_internet() {
 ###################################################
 _clear_line() {
     printf "\033[%sA\033[2K" "${1}"
+}
+
+###################################################
+# a curl wrapper to add some flags
+###################################################
+_curl() {
+    # shellcheck disable=SC2086
+    curl ${CURL_FLAGS} "${@}" || return 1
 }
 
 ###################################################

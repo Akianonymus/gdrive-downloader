@@ -370,7 +370,7 @@ _check_refresh_token() {
                 read -r AUTHORIZATION_CODE && authorization_code=1
                 printf '\033[?7h'
             done
-            response_check_refresh_token="$(curl --compressed "${CURL_PROGRESS}" -X POST \
+            response_check_refresh_token="$(_curl --compressed "${CURL_PROGRESS}" -X POST \
                 --data "code=${AUTHORIZATION_CODE}&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&redirect_uri=${REDIRECT_URI}&grant_type=authorization_code" "${TOKEN_URL}")" || :
             _clear_line 1 1>&2
 
