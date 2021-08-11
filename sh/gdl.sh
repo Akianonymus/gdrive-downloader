@@ -108,9 +108,14 @@ _setup_arguments() {
     unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT PROXY
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
     unset ARIA_FLAGS CURL_FLAGS
-    export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
     export DOWNLOADER="curl"
-    export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" PROXY_FLAG="--proxy" EXTRA_LOG=":"
+    export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
+    # curl and aria2c specific flags
+    export ARIA_SPEED_LIMIT_FLAG="--max-download-limit" \
+        CURL_SPEED_LIMIT_FLAG="--limit-rate" \
+        ARIA_PROXY_FLAG="--all-proxy" \
+        CURL_PROXY_FLAG="--proxy"
+    export CURL_PROGRESS="-s" EXTRA_LOG=":"
     CONFIG="${HOME}/.gdl.conf"
 
     # API
@@ -144,8 +149,6 @@ _setup_arguments() {
             -aria | --aria-flags)
                 command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
                 DOWNLOADER="aria2c"
-                SPEED_LIMIT_FLAG="--max-download-limit"
-                PROXY_FLAG="--all_proxy"
                 [ "${1}" = "--aria-flags" ] && {
                     _check_longoptions "${1}" "${2}"
                     ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && shift
@@ -269,20 +272,24 @@ _setup_arguments() {
     [ -n "${QUIET}" ] && export CURL_PROGRESS="-s" ARIA_FLAGS=" ${ARIA_FLAGS} -q "
 
     # check if extra flags for network requests was given, if present, then add to extra_flags var which later will be suffixed to ARIA_FLAGS and CURL_FLAGS
-    extra_flags="" flag="" value=""
-    for var in SPEED_LIMIT USER_AGENT PROXY; do
-        _set_value i value "${var}"
-        [ -n "${value}" ] && {
-            _set_value i flag "${var}_FLAG"
-            extra_flags="${extra_flags} ${flag} ${value}"
-        }
+    ARIA_extra_flags="" CURL_extra_flags=""
+    for downloader in CURL ARIA; do
+        extra_flags="" flag="" value=""
+        for var in SPEED_LIMIT USER_AGENT PROXY; do
+            _set_value i value "${var}"
+            [ -n "${value}" ] && {
+                _set_value i flag "${downloader}_${var}_FLAG"
+                extra_flags="${extra_flags} ${flag} ${value}"
+            }
+        done
+        _set_value d "${downloader}_extra_flags" "${extra_flags}"
     done
 
     # used when downloaded with aria
-    export ARIA_FLAGS="${ARIA_FLAGS} --auto-file-renaming=false --continue ${extra_flags}"
+    export ARIA_FLAGS="${ARIA_FLAGS} --auto-file-renaming=false --continue ${ARIA_extra_flags}"
 
     # set CURL_FLAGS which will be used with every curl request, including donwloadind the files
-    export CURL_FLAGS="${extra_flags}"
+    export CURL_FLAGS="${CURL_FLAGS} ${CURL_extra_flags}"
 
     [ -n "${OAUTH_ENABLED}" ] && unset API_KEY_DOWNLOAD
 

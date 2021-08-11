@@ -860,9 +860,13 @@ unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_P
 unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT PROXY
 unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
 unset ARIA_FLAGS CURL_FLAGS
-export USER_AGENT_FLAG="--user-agent"
 export DOWNLOADER="curl"
-export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" PROXY_FLAG="--proxy" EXTRA_LOG=":"
+export USER_AGENT_FLAG="--user-agent"
+export ARIA_SPEED_LIMIT_FLAG="--max-download-limit" \
+CURL_SPEED_LIMIT_FLAG="--limit-rate" \
+ARIA_PROXY_FLAG="--all-proxy" \
+CURL_PROXY_FLAG="--proxy"
+export CURL_PROGRESS="-s" EXTRA_LOG=":"
 CONFIG="$HOME/.gdl.conf"
 unset ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN
 export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk" \
@@ -890,8 +894,6 @@ export LOG_FILE_ID="$2"&&shift
 printf "%s\n" "Error: aria2c not installed."&&exit 1
 }
 DOWNLOADER="aria2c"
-SPEED_LIMIT_FLAG="--max-download-limit"
-PROXY_FLAG="--all_proxy"
 [ "$1" = "--aria-flags" ]&&{
 _check_longoptions "$1" "$2"
 ARIA_FLAGS=" $ARIA_FLAGS $2 "&&shift
@@ -994,16 +996,20 @@ shift
 done
 _check_debug
 [ -n "$QUIET" ]&&export CURL_PROGRESS="-s" ARIA_FLAGS=" $ARIA_FLAGS -q "
+ARIA_extra_flags="" CURL_extra_flags=""
+for downloader in CURL ARIA;do
 extra_flags="" flag="" value=""
 for var in SPEED_LIMIT USER_AGENT PROXY;do
 _set_value i value "$var"
 [ -n "$value" ]&&{
-_set_value i flag "${var}_FLAG"
+_set_value i flag "${downloader}_${var}_FLAG"
 extra_flags="$extra_flags $flag $value"
 }
 done
-export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $extra_flags"
-export CURL_FLAGS="$extra_flags"
+_set_value d "${downloader}_extra_flags" "$extra_flags"
+done
+export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $ARIA_extra_flags"
+export CURL_FLAGS="$CURL_FLAGS $CURL_extra_flags"
 [ -n "$OAUTH_ENABLED" ]&&unset API_KEY_DOWNLOAD
 [ -n "$API_KEY_DOWNLOAD" ]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "$API_KEY" "$CONFIG"
 [ -n "$DELETE_ACCOUNT_NAME" ]&&_delete_account "$DELETE_ACCOUNT_NAME"
