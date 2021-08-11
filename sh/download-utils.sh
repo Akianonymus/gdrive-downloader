@@ -152,15 +152,28 @@ _download_with_curl() {
 _download_file_main() {
     [ $# -lt 2 ] && printf "Missing arguments\n" && return 1
     unset line_download_file_main fileid_download_file_main name_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main && retry_download_file_main="${RETRY:-0}"
-    [ "${1}" = parse ] && parallel_download_file_main="${3}" line_download_file_main="${2}" fileid_download_file_main="${line_download_file_main%%"|:_//_:|"*}" \
-        name_download_file_main="${line_download_file_main##*"|:_//_:|"}" size_download_file_main="$(_tmp="${line_download_file_main#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
-    parallel_download_file_main="${parallel_download_file_main:-${5}}"
+
+    if [ "${1}" = parse ]; then
+        parallel_download_file_main="${3}"
+        line_download_file_main="${2}"
+        fileid_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
+        name_download_file_main="${line_download_file_main##*"|:_//_:|"}"
+        size_download_file_main="$(_tmp="${line_download_file_main#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
+    else
+        fileid_download_file_main="${2}"
+        name_download_file_main="${3}"
+        size_download_file_main="${4}"
+        parallel_download_file_main="${5}"
+    fi
+
+    # just return if fileid or name is empty
+    [ -z "${fileid_download_file_main:+${name_download_file_main}}" ] && return 0
 
     unset RETURN_STATUS && until [ "${retry_download_file_main}" -le 0 ] && [ -n "${RETURN_STATUS}" ]; do
         if [ -n "${parallel_download_file_main}" ]; then
-            "_download_with_${DOWNLOADER}" "${fileid_download_file_main:-${2}}" "${name_download_file_main:-${3}}" "${size_download_file_main:-${4}}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
+            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
         else
-            "_download_with_${DOWNLOADER}" "${fileid_download_file_main:-${2}}" "${name_download_file_main:-${3}}" "${size_download_file_main:-${4}}" && RETURN_STATUS=1 && break
+            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${size_download_file_main}" && RETURN_STATUS=1 && break
         fi
         sleep "$((sleep_download_file_main += 1))" # on every retry, sleep the times of retry it is, e.g for 1st, sleep 1, for 2nd, sleep 2
         RETURN_STATUS=2 retry_download_file_main="$((retry_download_file_main - 1))" && continue
@@ -219,8 +232,10 @@ EOF
     exec 7<< EOF
 $(printf "%s\n" "${files_name_download_folder}")
 EOF
+
     files_list_download_folder="$(while read -r id <&5 && read -r size <&6 && read -r name <&7; do
-        printf "%s\n" "${id}|:_//_:|${size}|:_//_:|${name}"
+        [ -n "${id:+${name}}" ] &&
+            printf "%s\n" "${id}|:_//_:|${size}|:_//_:|${name}"
     done)"
     exec 5<&- && exec 6<&- && exec 7<&-
     _clear_line 1
@@ -239,8 +254,10 @@ EOF
     exec 6<< EOF
 $(printf "%s\n" "${folders_name_download_folder}")
 EOF
+
     folders_list_download_folder="$(while read -r id <&5 && read -r name <&6; do
-        printf "%s\n" "${id}|:_//_:|${name}"
+        [ -n "${id:+${name}}" ] &&
+            printf "%s\n" "${id}|:_//_:|${name}"
     done)"
     exec 5<&- && exec 6<&-
     _clear_line 1

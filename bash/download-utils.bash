@@ -152,15 +152,27 @@ _download_with_curl() {
 _download_file_main() {
     [[ $# -lt 2 ]] && printf "%s: Missing arguments\n" "${FUNCNAME[0]}" 1>&2 && return 1
     declare line fileid name size parallel retry="${RETRY:-0}" _sleep && unset RETURN_STATUS
-    [[ ${1} = parse ]] && parallel="${3}" line="${2}" fileid="${line%%"|:_//_:|"*}" \
-        name="${line##*"|:_//_:|"}" size="$(_tmp="${line#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
-    parallel="${parallel:-${5}}"
+
+    if [[ ${1} = parse ]]; then
+        parallel="${3}" line="${2}"
+        fileid="${line%%"|:_//_:|"*}"
+        name="${line##*"|:_//_:|"}"
+        size="$(_tmp="${line#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
+    else
+        fileid="${2}"
+        name="${3}"
+        size="${4}"
+        parallel="${5}"
+    fi
+
+    # just return if fileid or name is empty
+    [[ -z ${fileid:+${name}} ]] && return 0
 
     unset RETURN_STATUS && until [[ ${retry} -le 0 && -n ${RETURN_STATUS} ]]; do
         if [[ -n ${parallel} ]]; then
-            "_download_with_${DOWNLOADER}" "${fileid:-${2}}" "${name:-${3}}" "${size:-${4}}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
+            "_download_with_${DOWNLOADER}" "${fileid}" "${name}" "${size}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
         else
-            "_download_with_${DOWNLOADER}" "${fileid:-${2}}" "${name:-${3}}" "${size:-${4}}" && RETURN_STATUS=1 && break
+            "_download_with_${DOWNLOADER}" "${fileid}" "${name}" "${size}" && RETURN_STATUS=1 && break
         fi
         sleep "$((_sleep += 1))" # on every retry, sleep the times of retry it is, e.g for 1st, sleep 1, for 2nd, sleep 2
         RETURN_STATUS=2 retry="$((retry - 1))" && continue
@@ -210,8 +222,10 @@ ${json_search_fragment}"
     mapfile -t files <<< "$(printf "%s\n" "${json_search}" | grep '"size":' -B3 | _json_value id all all)" || :
     files_size="$(_json_value size all all <<< "${json_search}")" || :
     files_name="$(printf "%s\n" "${json_search}" | grep size -B2 | _json_value name all all)" || :
+
     files_list="$(while read -r -u 4 _id && read -r -u 5 _size && read -r -u 6 _name; do
-        printf "%s\n" "${_id}|:_//_:|${_size}|:_//_:|${_name}"
+        [[ -n ${_id:+${_name}} ]] &&
+            printf "%s\n" "${_id}|:_//_:|${_size}|:_//_:|${_name}"
     done 4<<< "$(printf "%s\n" "${files[@]}")" 5<<< "${files_size}" 6<<< "${files_name}")"
     _clear_line 1
 
@@ -223,8 +237,10 @@ ${json_search_fragment}"
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
     mapfile -t folders <<< "$(printf "%s\n" "${json_search}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
     folders_name="$(printf "%s\n" "${json_search}" | grep '"mimeType":.*folder.*' -B1 | _json_value name all all)" || :
+
     folders_list="$(while read -r -u 4 _id && read -r -u 5 _name; do
-        printf "%s\n" "${_id}|:_//_:|${_name}"
+        [[ -n ${_id:+${_name}} ]] &&
+            printf "%s\n" "${_id}|:_//_:|${_name}"
     done 4<<< "$(printf "%s\n" "${folders[@]}")" 5<<< "${folders_name}")"
     _clear_line 1
 
