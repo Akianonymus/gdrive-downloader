@@ -877,23 +877,20 @@ ARIA_EXTRA_FLAGS=" $ARIA_EXTRA_FLAGS $2 "&&shift
 }
 ;;
 -o|--oauth)export OAUTH_ENABLED="true";;
--a|--account)export \
-OAUTH_ENABLED="true"
+-a|--account)export OAUTH_ENABLED="true"
 _check_longoptions "$1" "$2"
 export CUSTOM_ACCOUNT_NAME="${2##default=}"&&shift
 [ -z "${2##default=*}" ]&&export UPDATE_DEFAULT_ACCOUNT="_update_config"
 ;;
 -la|--list-account)export LIST_ACCOUNTS="true";;
--ca|--create-account)export \
-OAUTH_ENABLED="true"
+-ca|--create-account)export OAUTH_ENABLED="true"
 _check_longoptions "$1" "$2"
 export NEW_ACCOUNT_NAME="$2"&&shift
 ;;
 -da|--delete-account)_check_longoptions "$1" "$2"
 export DELETE_ACCOUNT_NAME="$2"&&shift
 ;;
--k|--key)export \
-API_KEY_DOWNLOAD="true"
+-k|--key)export API_KEY_DOWNLOAD="true"
 _API_KEY="${2##default=}"
 if printf "%s\n" "$_API_KEY"|grep -qE 'AIza[0-9A-Za-z_-]{35}';then
 export API_KEY="$_API_KEY"&&shift
@@ -906,8 +903,7 @@ CONFIG="$2"&&shift
 -d|--directory)_check_longoptions "$1" "$2"
 export FOLDERNAME="$2"&&shift
 ;;
--s|--skip-subdirs)export \
-SKIP_SUBDIRS="true"
+-s|--skip-subdirs)export SKIP_SUBDIRS="true"
 ;;
 -p|--parallel)_check_longoptions "$1" "$2"
 if [ "$2" -gt 0 ] 2>|/dev/null 1>&2;then

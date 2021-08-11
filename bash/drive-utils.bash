@@ -76,10 +76,7 @@ _extract_id() {
     printf "%b" "${ID:+${ID}\n}"
 }
 
-_ALL_FUNCTIONS=(
-    _api_request
-    _api_request_oauth
-    _check_id
+export -f _api_request \
+    _api_request_oauth \
+    _check_id \
     _extract_id
-)
-export -f "${_ALL_FUNCTIONS[@]}"

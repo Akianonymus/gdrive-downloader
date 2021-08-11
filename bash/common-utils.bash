@@ -339,19 +339,16 @@ _update_config() {
     return 0
 }
 
-_ALL_FUNCTIONS=(
-    _actual_size_in_bytes
-    _bytes_to_human
-    _check_internet
-    _clear_line
-    _count
-    _display_time
-    _get_latest_sha
-    _json_value
-    _move_cursor
-    _print_center
-    _print_center_quiet
-    _timeout
+export -f _actual_size_in_bytes \
+    _bytes_to_human \
+    _check_internet \
+    _clear_line \
+    _count \
+    _display_time \
+    _get_latest_sha \
+    _json_value \
+    _move_cursor \
+    _print_center \
+    _print_center_quiet \
+    _timeout \
     _update_config
-)
-export -f "${_ALL_FUNCTIONS[@]}"

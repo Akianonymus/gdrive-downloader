@@ -294,19 +294,18 @@ done
 export ACCESS_TOKEN_SERVICE_PID="$!"
 return 0
 }
-ALL_FUNCTIONS=(_account_name_valid
-_account_exists
-_all_accounts
-_set_new_account_name
-_delete_account
-_handle_old_config
-_check_credentials
-_check_account_credentials
-_check_client
-_check_refresh_token
-_check_access_token
-_reload_config)
-export -f "${ALL_FUNCTIONS[@]}"
+export -f _account_name_valid \
+_account_exists \
+_all_accounts \
+_set_new_account_name \
+_delete_account \
+_handle_old_config \
+_check_credentials \
+_check_account_credentials \
+_check_client \
+_check_refresh_token \
+_check_access_token \
+_reload_config
 _actual_size_in_bytes(){
 declare file="${1:?Error: give filename}"
 { : "$(BLOCK_SIZE=512 BLOCKSIZE=512 du "$file")"&&: "${_%%$'\t'*}"&&printf "%s\n" "$((_*512))";}||return 1
@@ -471,21 +470,19 @@ printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name=" "$config_path"||:)" \
 chmod a-w-r-x,u+r "$config_path"||return 1
 return 0
 }
-_ALL_FUNCTIONS=(
-_actual_size_in_bytes
-_bytes_to_human
-_check_internet
-_clear_line
-_count
-_display_time
-_get_latest_sha
-_json_value
-_move_cursor
-_print_center
-_print_center_quiet
-_timeout
-_update_config)
-export -f "${_ALL_FUNCTIONS[@]}"
+export -f _actual_size_in_bytes \
+_bytes_to_human \
+_check_internet \
+_clear_line \
+_count \
+_display_time \
+_get_latest_sha \
+_json_value \
+_move_cursor \
+_print_center \
+_print_center_quiet \
+_timeout \
+_update_config
 _common_stuff(){
 if [[ -n $OAUTH_ENABLED ]];then
 . "${TMPFILE}_ACCESS_TOKEN"
@@ -704,14 +701,12 @@ printf "%s\n" "Size: $2"
 printf "%s\n\n" "ID: $3"
 } >>"$LOG_FILE_ID"
 }
-_ALL_FUNCTIONS=(
-_common_stuff
-_download_with_aria2c
-_download_with_curl
-_download_file_main
-_download_folder
-_log_in_file)
-export -f "${_ALL_FUNCTIONS[@]}"
+export -f _common_stuff \
+_download_with_aria2c \
+_download_with_curl \
+_download_file_main \
+_download_folder \
+_log_in_file
 _api_request(){
 curl -e "https://drive.google.com" --compressed $CURL_PROGRESS \
 "$API_URL/drive/$API_VERSION/${1:?}&key=$API_KEY&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
@@ -764,12 +759,10 @@ case "$ID" in
 esac
 printf "%b" "${ID:+$ID\n}"
 }
-_ALL_FUNCTIONS=(
-_api_request
-_api_request_oauth
-_check_id
-_extract_id)
-export -f "${_ALL_FUNCTIONS[@]}"
+export -f _api_request \
+_api_request_oauth \
+_check_id \
+_extract_id
 _usage(){
 printf "%b" "
 The script can be used to download file/directory from google drive.\n

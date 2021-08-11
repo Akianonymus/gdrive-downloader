@@ -312,12 +312,9 @@ _log_in_file() {
     } >> "${LOG_FILE_ID}"
 }
 
-_ALL_FUNCTIONS=(
-    _common_stuff
-    _download_with_aria2c
-    _download_with_curl
-    _download_file_main
-    _download_folder
+export -f _common_stuff \
+    _download_with_aria2c \
+    _download_with_curl \
+    _download_file_main \
+    _download_folder \
     _log_in_file
-)
-export -f "${_ALL_FUNCTIONS[@]}"

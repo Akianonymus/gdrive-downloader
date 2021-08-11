@@ -300,7 +300,7 @@ _process_arguments() {
         case "${Aseen}" in
             *"|:_//_:|${id}|:_//_:|"*) continue ;;
             *) Aseen="${Aseen}|:_//_:|${id}|:_//_:|" ;;
-        esac; do
+        esac do
         _check_id "${id}" || continue
         if [ -n "${FOLDER_ID}" ]; then
             _download_folder "${FOLDER_ID}" "${NAME}" "${PARALLEL_DOWNLOAD:-}"
