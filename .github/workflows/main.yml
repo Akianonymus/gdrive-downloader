@@ -14,7 +14,7 @@ jobs:
   tests:
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest]
+        platform: [ubuntu-18.04, macos-latest]
     name: Test on ${{ matrix.platform }}
     runs-on: ${{ matrix.platform }}
     if: "!contains(github.event.head_commit.message, 'SKIP-CI')"
@@ -34,11 +34,11 @@ jobs:
     - name: 'Format, lint ( shellcheck ) and release test'
       run: |
           set -e
-          { { command -v apt-get && apt-get install aria2 snapd shellcheck -yqq && snap install shfmt ;} ||
-            { command -v brew && brew install shfmt aria2 shellcheck;} ;} 2>| /dev/null 1>&2
+          { command -v apt-get && sudo apt-get install aria2 snapd shellcheck -yqq && sudo snap install shfmt ;} ||
+            { command -v brew && brew install shfmt aria2 shellcheck;}
 
           # merge test
-          sh release.sh
+          bash release.sh
           { [ -n "$(git diff)" ] && printf "%s\n" "Error: Run release.sh before pushing the commits" && git diff && exit 1 ;} || :
     - name: 'Download test'
       run: |
