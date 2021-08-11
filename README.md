@@ -358,6 +358,12 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>--proxy 'http://user:password@host:port'</strong>
+
+    Specify a proxy to use, should be in the format accepted by curl --proxy and aria2c --all-proxy flag.
+
+    ---
+
 -   <strong>--speed 'speed'</strong>
 
     Limit the download speed, supported formats: 1K and 1M.

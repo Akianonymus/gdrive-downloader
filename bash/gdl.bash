@@ -27,6 +27,7 @@ Options:\n
   -d | --directory 'foldername' - option to _download given input in custom directory.\n
   -s | --skip-subdirs - Skip downloading of sub folders present in case of folders.\n
   -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel.\n
+  --proxy 'http://user:password@host:port' - Specify a proxy to use, should be in the format accepted by curl --proxy and aria2c --all-proxy flag.\n
   --speed 'speed' - Limit the download speed, supported formats: 1K and 1M.\n
   -ua | --user-agent 'user agent string' - Specify custom user agent.\n
   -R | --retry 'num of retries' - Retry the file upload if it fails, postive integer as argument. Currently only for file uploads.\n
@@ -102,12 +103,12 @@ _setup_arguments() {
     # De-initialize if any variables set already.
     unset LIST_ACCOUNTS UPDATE_DEFAULT_ACCOUNT CUSTOM_ACCOUNT_NAME NEW_ACCOUNT_NAME DELETE_ACCOUNT_NAME ACCOUNT_ONLY_RUN
     unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
-    unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT
+    unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT PROXY
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
     unset ARIA_FLAGS CURL_FLAGS
     export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
     export DOWNLOADER="curl"
-    export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" EXTRA_LOG=":"
+    export CURL_PROGRESS="-s" SPEED_LIMIT_FLAG="--limit-rate" PROXY_FLAG="--proxy" EXTRA_LOG=":"
     CONFIG="${HOME}/.gdl.conf"
 
     # API
@@ -142,6 +143,7 @@ _setup_arguments() {
                 command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
                 DOWNLOADER="aria2c"
                 SPEED_LIMIT_FLAG="--max-download-limit"
+                PROXY_FLAG="--all_proxy"
                 [[ ${1} = "--aria-flags" ]] && {
                     _check_longoptions "${1}" "${2}"
                     ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && shift
@@ -194,6 +196,10 @@ _setup_arguments() {
                     exit 1
                 fi
                 export PARALLEL_DOWNLOAD="parallel" && shift
+                ;;
+            --proxy)
+                _check_longoptions "${1}" "${2}"
+                export PROXY="${2}" && shift
                 ;;
             --speed)
                 _check_longoptions "${1}" "${2}"
@@ -261,7 +267,7 @@ _setup_arguments() {
 
     # check if extra flags for network requests was given, if present, then add to extra_flags var which later will be suffixed to ARIA_FLAGS and CURL_FLAGS
     declare extra_flags="" flag="" value=""
-    for var in SPEED_LIMIT USER_AGENT; do
+    for var in SPEED_LIMIT USER_AGENT PROXY; do
         _set_value i value "${var}"
         [[ -n ${value} ]] && {
             _set_value i flag "${var}_FLAG"
