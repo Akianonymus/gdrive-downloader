@@ -46,12 +46,11 @@ _check_debug() {
     else
         if [ -z "${QUIET}" ]; then
             # check if running in terminal and support ansi escape sequences
-            case "${TERM}" in
-                xterm* | rxvt* | urxvt* | linux* | vt* | screen* | st*) ansi_escapes="true" ;;
-            esac
-            if [ -t 2 ] && [ -n "${ansi_escapes}" ]; then
-                ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2>| /dev/null &&
+            if _support_ansi_escapes; then
+                if ! _required_column_size; then
                     _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+
+                fi
             else
                 _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
                 _clear_line() { :; }
@@ -136,18 +135,6 @@ _detect_profile() {
 }
 
 ###################################################
-# print column size
-# use bash or zsh or stty or tput
-###################################################
-_get_columns_size() {
-    { command -v bash 1>| /dev/null && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
-        { command -v zsh 1>| /dev/null && zsh -c 'printf "%s\n" "${COLUMNS}"'; } ||
-        { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
-        { command -v tput 1>| /dev/null && tput cols; } ||
-        return 1
-}
-
-###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
 # Globals: None
@@ -191,7 +178,7 @@ EOF
 $(printf "%s\n" "${commits_get_files_and_commits}")
 EOF
     while read -r file <&4 && read -r commit <&5; do
-        printf "%s\n" "${file##blob\/${type_value_get_files_and_commits}\/}__.__${commit}"
+        printf "%s\n" "${file##blob\/"${type_value_get_files_and_commits}"\/}__.__${commit}"
     done
     exec 4<&- && exec 5<&-
 
@@ -222,6 +209,7 @@ _get_latest_sha() {
                 _tmp="$(printf "%s\n" "${raw_get_latest_sha}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && _tmp="${_tmp##*commit\/}" && printf "%s\n" "${_tmp%%\"*}"
             )"
             ;;
+        *) : ;;
     esac
     printf "%b" "${latest_sha_get_latest_sha:+${latest_sha_get_latest_sha}\n}"
 }
@@ -286,6 +274,32 @@ _print_center() {
     printf "\n"
 
     return 0
+}
+
+###################################################
+# fetch column size and check if greater than the num ( see in function)
+# return 1 or 0
+###################################################
+_required_column_size() {
+    COLUMNS="$({ command -v bash 1>| /dev/null && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
+        { command -v zsh 1>| /dev/null && zsh -c 'printf "%s\n" "${COLUMNS}"'; } ||
+        { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
+        { command -v tput 1>| /dev/null && tput cols; })" || :
+
+    [ "$((COLUMNS))" -gt 45 ] && return 0
+}
+
+###################################################
+# Check if script terminal supports ansi escapes
+# Result: return 1 or 0
+###################################################
+_support_ansi_escapes() {
+    unset ansi_escapes
+    case "${TERM}" in
+        xterm* | rxvt* | urxvt* | linux* | vt* | screen*) ansi_escapes="true" ;;
+        *) : ;;
+    esac
+    { [ -t 2 ] && [ -n "${ansi_escapes}" ] && return 0; } || return 1
 }
 
 ###################################################
@@ -413,7 +427,7 @@ EOF
 # Download scripts
 ###################################################
 _download_file() {
-    gdl_release="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "${INSTALLATION}/release")"
+    gdl_release="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "release/${INSTALLATION}")"
     file="${gdl_release%%__.__*}" && sha="${gdl_release##*__.__}"
 
     [ "${GDL_SCRIPT_SHA}" = "${sha}" ] || {
@@ -651,7 +665,7 @@ _setup_arguments() {
     { printf "%s\n" "${PATH}" | grep -q -e "${INSTALL_PATH}:" -e "${INSTALL_PATH}/:" && IN_PATH="true"; } || :
 
     # check if install path outside home dir and running as root
-    [ -n "${INSTALL_PATH##${HOME}*}" ] && PERM_MODE="a" && GLOBAL_INSTALL="true" && ! [ "$(id -u)" = 0 ] &&
+    [ -n "${INSTALL_PATH##"${HOME}"*}" ] && PERM_MODE="a" && GLOBAL_INSTALL="true" && ! [ "$(id -u)" = 0 ] &&
         printf "%s\n" "Error: Need root access to run the script for given install path ( ${INSTALL_PATH} )." && exit 1
 
     # global dir must be in executable path

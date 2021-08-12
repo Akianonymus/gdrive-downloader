@@ -7,6 +7,7 @@
 # Todo: write doc
 ###################################################
 _common_stuff() {
+    export OAUTH_ENABLED TMPFILE ACCESS_TOKEN API_URL API_VERSION API_KEY API_KEY_DOWNLOAD EXTRA_LOG CURL_PROGRESS DOWNLOADER
     # download with oauth creds if enabled
     if [ -n "${OAUTH_ENABLED}" ]; then
         . "${TMPFILE}_ACCESS_TOKEN"
@@ -24,7 +25,7 @@ _common_stuff() {
             -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o /dev/null \
             "https://drive.google.com/uc?export=download&id=${file_id_download_file}" || :
         for _ in 1 2; do _clear_line 1; done
-        confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")" && printf "%s\n" "${_tmp##*$(printf '\t')}")" || :
+        confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")" && printf "%s\n" "${_tmp##*"$(printf '\t')"}")" || :
 
         flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 
@@ -45,6 +46,7 @@ _common_stuff() {
 # Todo: write doc
 ###################################################
 _download_with_aria2c() {
+    export ARIA_FLAGS QUIET
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
     file_id_download_file="${1}" name_download_file="${2}" server_size_download_file="${3}" parallel_download_file="${4}"
     unset flag_download_file flag_value_download_file url_download_file cookies_download_file
@@ -78,6 +80,7 @@ _download_with_aria2c() {
 # Todo: write doc
 ###################################################
 _download_with_curl() {
+    export QUIET
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
     file_id_download_file="${1}" name_download_file="${2}" server_size_download_file="${3}" parallel_download_file="${4}"
     unset range_download_file downloaded_download_file old_downloaded_download_file left_download_file speed_download_file eta_download_file \
@@ -150,6 +153,7 @@ _download_with_curl() {
 # Todo: write doc
 ###################################################
 _download_file_main() {
+    export DOWNLOADER
     [ $# -lt 2 ] && printf "Missing arguments\n" && return 1
     unset line_download_file_main fileid_download_file_main name_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main && retry_download_file_main="${RETRY:-0}"
 
@@ -188,6 +192,7 @@ _download_file_main() {
 # Todo: write doc
 ###################################################
 _download_folder() {
+    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
     folder_id_download_folder="${1}" name_download_folder="${2}" parallel_download_folder="${3}"
     unset json_search_download_folder json_search_fragment_download_folder next_page_token \
@@ -223,6 +228,7 @@ ${json_search_fragment_download_folder}"
     files_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"size":' -B3 | _json_value id all all)" || :
     files_size_download_folder="$(printf "%s\n" "${json_search_download_folder}" | _json_value size all all)" || :
     files_name_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep size -B2 | _json_value name all all)" || :
+
     exec 5<< EOF
 $(printf "%s\n" "${files_download_folder}")
 EOF
@@ -232,7 +238,6 @@ EOF
     exec 7<< EOF
 $(printf "%s\n" "${files_name_download_folder}")
 EOF
-
     files_list_download_folder="$(while read -r id <&5 && read -r size <&6 && read -r name <&7; do
         [ -n "${id:+${name}}" ] &&
             printf "%s\n" "${id}|:_//_:|${size}|:_//_:|${name}"
@@ -265,8 +270,8 @@ EOF
     if [ -z "${files_list_download_folder:-${folders_download_folder}}" ]; then
         for _ in 1 2; do _clear_line 1; done && _print_center "justify" "${name_download_folder}" " | Empty Folder" "=" && _newline "\n" && return 0
     fi
-    [ -n "${files_list_download_folder}" ] && num_of_files_download_folder="$(($(printf "%s\n" "${files_list_download_folder}" | wc -l)))"
-    [ -n "${folders_download_folder}" ] && num_of_folders_download_folder="$(($(printf "%s\n" "${folders_download_folder}" | wc -l)))"
+    [ -n "${files_list_download_folder}" ] && num_of_files_download_folder="$(($(printf "%s\n" "${files_list_download_folder}" | _count)))"
+    [ -n "${folders_download_folder}" ] && num_of_folders_download_folder="$(($(printf "%s\n" "${folders_download_folder}" | _count)))"
 
     for _ in 1 2; do _clear_line 1; done
     _print_center "justify" \
@@ -275,7 +280,7 @@ EOF
         _newline "\n\n"
 
     if [ -f "${name_download_folder}" ]; then
-        name_download_folder="${name_download_folder}$(date +'%s')"
+        name_download_folder="${name_download_folder}$(_epoch)"
     fi && mkdir -p "${name_download_folder}"
 
     cd "${name_download_folder}" || exit 1
@@ -288,18 +293,18 @@ EOF
             [ -f "${TMPFILE}"ERROR ] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (printf "%s\n" "${files_list_download_folder}" | xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 sh -c '
+            (printf "%s\n" "${files_list_download_folder}" | xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 "${_SHELL:-sh}" -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
-                ' 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
+             ' 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
             pid="${!}"
 
             until [ -f "${TMPFILE}"SUCCESS ] || [ -f "${TMPFILE}"ERROR ]; do sleep 0.5; done
 
             _clear_line 1
             until ! kill -0 "${pid}" 2>| /dev/null 1>&2; do
-                success_status_download_folder="$(($(wc -l < "${TMPFILE}"SUCCESS)))"
-                error_status_download_folder="$(($(wc -l < "${TMPFILE}"ERROR)))"
+                success_status_download_folder="$(($(_count < "${TMPFILE}"SUCCESS)))"
+                error_status_download_folder="$(($(_count < "${TMPFILE}"ERROR)))"
                 sleep 1
                 if [ "$((success_status_download_folder + error_status_download_folder))" != "${TOTAL}" ]; then
                     printf '%s\r' "$(_print_center "justify" "Status" ": ${success_status_download_folder:-0} Downloaded | ${error_status_download_folder:-0} Failed" "=")"
@@ -307,8 +312,8 @@ EOF
                 TOTAL="$((success_status_download_folder + error_status_download_folder))"
             done
             _newline "\n"
-            success_status_download_folder="$(($(wc -l < "${TMPFILE}"SUCCESS)))"
-            error_status_download_folder="$(($(wc -l < "${TMPFILE}"ERROR)))"
+            success_status_download_folder="$(($(_count < "${TMPFILE}"SUCCESS)))"
+            error_status_download_folder="$(($(_count < "${TMPFILE}"ERROR)))"
             _clear_line 1 && _newline "\n"
         else
             while read -r line <&4 && { [ -n "${line}" ] || continue; }; do
@@ -347,6 +352,7 @@ EOF
 # Todo: write doc
 ###################################################
 _log_in_file() {
+    export LOG_FILE_ID
     [ -z "${LOG_FILE_ID}" ] || [ -d "${LOG_FILE_ID}" ] && return 0
     # shellcheck disable=SC2129
     # https://github.com/koalaman/shellcheck/issues/1202#issuecomment-608239163
@@ -356,3 +362,15 @@ _log_in_file() {
         printf "%s\n\n" "ID: ${3}"
     } >> "${LOG_FILE_ID}"
 }
+
+# export the required functions when sourced from bash scripts
+{
+    # shellcheck disable=SC2163
+    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
+        export "${tmp?}" _common_stuff \
+            _download_with_aria2c \
+            _download_with_curl \
+            _download_file_main \
+            _download_folder \
+            _log_in_file
+} 2>| /dev/null 1>&2 || :

@@ -1,28 +1,30 @@
 name: Checks
-on:
+'on':
   push:
     branches:
-      - 'master'
+      - master
     paths-ignore:
       - '*.md'
   pull_request:
     branches:
-      - 'master'
+      - master
     paths-ignore:
       - '*.md'
 jobs:
   tests:
     strategy:
       matrix:
-        platform: [ubuntu-18.04, macos-latest]
-    name: Test on ${{ matrix.platform }}
-    runs-on: ${{ matrix.platform }}
-    if: "!contains(github.event.head_commit.message, 'SKIP-CI')"
+        platform:
+          - ubuntu-18.04
+          - macos-latest
+    name: 'Test on ${{ matrix.platform }}'
+    runs-on: '${{ matrix.platform }}'
+    if: '!contains(github.event.head_commit.message, ''SKIP-CI'')'
     steps:
-    - name: Check out code
-      uses: actions/checkout@v1
-    - name: 'Install'
-      run: |
+      - name: Check out code
+        uses: actions/checkout@v1
+      - name: Install
+        run: |
           set -e
           sh install.sh
               PATH="${HOME}/.gdrive-downloader:${PATH}"
@@ -31,17 +33,18 @@ jobs:
               gdl --info
           sh install.sh -U  && sh install.sh -c custom_gdl
               custom_gdl --info
-    - name: 'Format, lint ( shellcheck ) and release test'
-      run: |
+      - name: 'Format, lint ( shellcheck ) and release test'
+        run: |
           set -e
-          { command -v apt-get && sudo apt-get install aria2 snapd shellcheck -yqq && sudo snap install shfmt ;} ||
-            { command -v brew && brew install shfmt aria2 shellcheck;}
+          { command -v apt-get && sudo apt-get install aria2 snapd -yqq && sudo snap install shfmt ;} ||
+            { command -v brew && brew install shfmt aria2 ;}
 
+          brew install shellcheck
           # merge test
           bash release.sh
           { [ -n "$(git diff)" ] && printf "%s\n" "Error: Run release.sh before pushing the commits" && git diff && exit 1 ;} || :
-    - name: 'Download test'
-      run: |
+      - name: Download test
+        run: |
           set -e
           # update bash for macos
           command -v brew && brew reinstall bash

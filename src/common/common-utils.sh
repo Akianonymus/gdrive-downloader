@@ -1,4 +1,6 @@
 #!/usr/bin/env sh
+# Common fucntions which will be used in both bash and posix scripts
+# shellcheck source=/dev/null
 
 ###################################################
 # Print actual size of a file ( apparant size )
@@ -12,7 +14,7 @@ _actual_size_in_bytes() {
     # use block size to 512 because the lowest osx supports is 512
     # multiply with 512 to convert for 1 block size
     { _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du "${file_actual_size_in_bytes}")" &&
-        _tmp="${_tmp%%$(printf '\t')*}" && printf "%s\n" "$((_tmp * 512))"; } || return 1
+        _tmp="${_tmp%%"$(printf '\t')"*}" && printf "%s\n" "$((_tmp * 512))"; } || return 1
 }
 
 ###################################################
@@ -46,6 +48,7 @@ _bytes_to_human() {
 #             Check QUIET, then check terminal size and enable print functions accordingly.
 ###################################################
 _check_debug() {
+    export DEBUG QUIET
     if [ -n "${DEBUG}" ]; then
         set -x && PS4='-> '
         _print_center() { { [ $# = 3 ] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
@@ -54,10 +57,11 @@ _check_debug() {
         if [ -z "${QUIET}" ]; then
             # check if running in terminal and support ansi escape sequences
             if _support_ansi_escapes; then
-                ! COLUMNS="$(_get_columns_size)" || [ "${COLUMNS:-0}" -lt 45 ] 2>| /dev/null &&
+                if ! _required_column_size; then
                     _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
-                EXTRA_LOG="_print_center" CURL_PROGRESS="-#" && export CURL_PROGRESS EXTRA_LOG \
-                    SUPPORT_ANSI_ESCAPES="true"
+
+                fi
+                export EXTRA_LOG="_print_center" CURL_PROGRESS="-#" SUPPORT_ANSI_ESCAPES="true"
             else
                 _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
                 _clear_line() { :; } && _move_cursor() { :; }
@@ -68,6 +72,13 @@ _check_debug() {
         fi
         set +x
     fi
+    # export the required functions when sourced from bash scripts
+    {
+        [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
+            export "${tmp?}" _newline \
+                _print_center \
+                _clear_line
+    } 2>| /dev/null 1>&2 || :
 }
 
 ###################################################
@@ -79,7 +90,7 @@ _check_debug() {
 #   Error   - print message and exit 1
 ###################################################
 _check_internet() {
-    "${EXTRA_LOG}" "justify" "Checking Internet Connection.." "-"
+    "${EXTRA_LOG:-}" "justify" "Checking Internet Connection.." "-"
     if ! _timeout 10 _curl -Is google.com --compressed; then
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
@@ -103,23 +114,7 @@ _clear_line() {
 ###################################################
 _curl() {
     # shellcheck disable=SC2086
-    curl ${CURL_FLAGS} "${@}" || return 1
-}
-
-###################################################
-# Alternative to dirname command
-# Globals: None
-# Arguments: 1
-#   ${1} = path of file or folder
-# Result: read description
-# Reference:
-#   https://github.com/dylanaraps/pure-sh-bible#file-paths
-###################################################
-_dirname() {
-    dir_dirname="${1:-.}"
-    dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}" && [ "${dir_dirname##*/*}" ] && dir_dirname=.
-    dir_dirname="${dir_dirname%/*}" && dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}"
-    printf '%s\n' "${dir_dirname:-/}"
+    curl ${CURL_FLAGS:-} "${@}" || return 1
 }
 
 ###################################################
@@ -142,18 +137,6 @@ _display_time() {
 }
 
 ###################################################
-# print column size
-# use bash or zsh or stty or tput
-###################################################
-_get_columns_size() {
-    { command -v bash 1>| /dev/null && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
-        { command -v zsh 1>| /dev/null && zsh -c 'printf "%s\n" "${COLUMNS}"'; } ||
-        { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
-        { command -v tput 1>| /dev/null && tput cols; } ||
-        return 1
-}
-
-###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
 # Globals: None
@@ -164,6 +147,7 @@ _get_columns_size() {
 # Result: print fetched sha
 ###################################################
 _get_latest_sha() {
+    export TYPE TYPE_VALUE REPO
     unset latest_sha_get_latest_sha raw_get_latest_sha
     case "${1:-${TYPE}}" in
         branch)
@@ -178,6 +162,7 @@ _get_latest_sha() {
                 _tmp="$(printf "%s\n" "${raw_get_latest_sha}" | grep "=\"/""${3:-${REPO}}""/commit" -m1 || :)" && _tmp="${_tmp##*commit\/}" && printf "%s\n" "${_tmp%%\"*}"
             )"
             ;;
+        *) : ;;
     esac
     printf "%b" "${latest_sha_get_latest_sha:+${latest_sha_get_latest_sha}\n}"
 }
@@ -232,7 +217,7 @@ _move_cursor() {
 ###################################################
 _print_center() {
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
-    term_cols_print_center="${COLUMNS}"
+    term_cols_print_center="${COLUMNS:-}"
     type_print_center="${1}" filler_print_center=""
     case "${type_print_center}" in
         normal) out_print_center="${2}" && symbol_print_center="${3}" ;;
@@ -283,28 +268,14 @@ _print_center_quiet() {
 }
 
 ###################################################
-# Evaluates value1=value2
-# Arguments: 3
-#   ${1} = direct ( d ) or indirect ( i ) - ( evaluation mode )
-#   ${2} = var name
-#   ${3} = var value
-# Result: export value1=value2
-###################################################
-_set_value() {
-    case "${1:?}" in
-        d | direct) export "${2:?}=${3}" ;;
-        i | indirect) export "${2:?}=$(eval printf "%s" \"\$"${3}"\")" ;;
-    esac
-}
-
-###################################################
 # Check if script terminal supports ansi escapes
 # Result: return 1 or 0
 ###################################################
 _support_ansi_escapes() {
     unset ansi_escapes
-    case "${TERM}" in
+    case "${TERM:-}" in
         xterm* | rxvt* | urxvt* | linux* | vt* | screen*) ansi_escapes="true" ;;
+        *) : ;;
     esac
     { [ -t 2 ] && [ -n "${ansi_escapes}" ] && return 0; } || return 1
 }
@@ -333,31 +304,6 @@ _timeout() {
 }
 
 ###################################################
-# remove the given character from the given string
-# 1st arg - character
-# 2nd arg - string
-# print trimmed string
-# Reference: https://stackoverflow.com/a/65350253
-###################################################
-_trim() {
-    char_trim="${1}" str_trim="${2}"
-    # Disable globbing.
-    # This ensures that the word-splitting is safe.
-    set -f
-    # store old ifs, restore it later.
-    old_ifs=$IFS
-    IFS=$char_trim
-    # shellcheck disable=2086
-    set -- $str_trim
-    IFS=
-    printf "%s" "$*"
-    # Restore the value of 'IFS'.
-    IFS=$old_ifs
-    # re enable globbing
-    set +f
-}
-
-###################################################
 # Config updater
 # Incase of old value, update, for new value add.
 # Arguments: 3
@@ -376,3 +322,18 @@ _update_config() {
     chmod a-w-r-x,u+r "${config_path_update_config}" || return 1
     return 0
 }
+
+# export the required functions when sourced from bash scripts
+{
+    # shellcheck disable=SC2163
+    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
+        export "${tmp?}" _actual_size_in_bytes \
+            _bytes_to_human \
+            _clear_line \
+            _curl \
+            _json_value \
+            _move_cursor \
+            _print_center \
+            _print_center_quiet \
+            _update_config
+} 2>| /dev/null 1>&2 || :

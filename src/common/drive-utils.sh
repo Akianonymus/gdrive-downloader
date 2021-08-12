@@ -6,9 +6,9 @@
 ###################################################
 _api_request() {
     # shellcheck disable=SC2086
-    _curl --compressed ${CURL_PROGRESS} \
+    _curl --compressed ${CURL_PROGRESS:-} \
         -e "https://drive.google.com" \
-        "${API_URL}/drive/${API_VERSION}/${1:?}&key=${API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
+        "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY:?}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
     _clear_line 1 1>&2
 }
 
@@ -16,12 +16,12 @@ _api_request() {
 # A simple wrapper to check tempfile for access token and make authorized oauth requests to drive api
 ###################################################
 _api_request_oauth() {
-    . "${TMPFILE}_ACCESS_TOKEN"
+    . "${TMPFILE:?}_ACCESS_TOKEN"
 
     # shellcheck disable=SC2086
-    _curl --compressed ${CURL_PROGRESS} \
-        -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-        "${API_URL}/drive/${API_VERSION}/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
+    _curl --compressed ${CURL_PROGRESS:-} \
+        -H "Authorization: Bearer ${ACCESS_TOKEN:?}" \
+        "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
     _clear_line 1 1>&2
 }
 
@@ -30,6 +30,7 @@ _api_request_oauth() {
 # Todo: write doc
 ###################################################
 _check_id() {
+    export EXTRA_LOG API_REQUEST_FUNCTION QUIET
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
     "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
     id_check_id="${1}" json_check_id=""
@@ -65,17 +66,33 @@ _check_id() {
 
 ###################################################
 # Extract ID from a googledrive folder/file url.
-# Arguments: 1
+# Arguments: 2
 #   ${1} = googledrive folder/file url.
-# Result: print extracted ID
+#   ${2} = var name
+# Result: print extracted ID if ${2} not present, else set ${2} = extracted id
 ###################################################
 _extract_id() {
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
-    LC_ALL=C id_extract_id="${1}"
+    id_extract_id="${1}"
     case "${id_extract_id}" in
         *'drive.google.com'*'id='*) _tmp="${id_extract_id##*id=}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
         *'drive.google.com'*'file/d/'* | 'http'*'docs.google.com'*'/d/'*) _tmp="${id_extract_id##*\/d\/}" && _tmp="${_tmp%%\/*}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
         *'drive.google.com'*'drive'*'folders'*) _tmp="${id_extract_id##*\/folders\/}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
+        *) : ;;
     esac
-    printf "%b" "${id_extract_id:+${id_extract_id}\n}"
+    if [ -n "${2}" ]; then
+        _set_value d "${2}" "${id_extract_id}"
+    else
+        printf "%b" "${id_extract_id:+${id_extract_id}\n}"
+    fi
 }
+
+# export the required functions when sourced from bash scripts
+{
+    # shellcheck disable=SC2163
+    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
+        export "${tmp?}" _api_request \
+            _api_request_oauth \
+            _check_id \
+            _extract_id
+} 2>| /dev/null 1>&2 || :

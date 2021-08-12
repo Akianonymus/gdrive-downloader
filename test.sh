@@ -9,16 +9,16 @@ _test() (
     shell="${1:?Error: Specify shell name.}"
     use_key="${2}"
 
-    cd "${shell}/release" || exit 1
+    cd "release/${shell}" || exit 1
 
     count=0
     _error() {
-        printf "%s\n" "Error: Test $((count += 1)) failed."
+        printf "%s\n" "Error: Test $((count += 1)) failed for ${shell} ${use_key}."
         exit 1
     }
 
     _success() {
-        printf "\n%s\n\n" "Success: Test $((count += 1)) passed."
+        printf "\n%s\n\n" "Success: Test $((count += 1)) passed for ${shell} ${use_key}."
     }
 
     ### Folder ###
