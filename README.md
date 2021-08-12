@@ -444,9 +444,13 @@ These are the custom flags that are currently implemented:
 
     ---
 
--   <strong>-h | --help</strong>
+-   <strong>-h | --help 'flag name (optional)'</strong>
 
-    Display usage instructions.
+    Print help for all flags and basic usage instructions.
+
+    To see help for a specific flag, --help flag_name ( with or without dashes )
+
+    e.g: `gdl --help aria`
 
     ---
 

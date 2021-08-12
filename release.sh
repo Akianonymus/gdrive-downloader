@@ -6,6 +6,8 @@ set -e
 
 printf "Merging Scripts and minifying...\n"
 
+common_script="${PWD}/common/utils.sh"
+
 _merge() (
     shell="${1:?Error: give folder name.}"
     { [ "${shell}" = "sh" ] && flag="-p"; } || flag=""
@@ -16,6 +18,7 @@ _merge() (
         printf "%s\n" "SELF_SOURCE=\"true\""
         # shellcheck disable=SC2086
         {
+            sed 1d "${common_script}"
             sed 1d auth-utils."${shell}"
             sed 1d common-utils."${shell}"
             sed 1d download-utils."${shell}"

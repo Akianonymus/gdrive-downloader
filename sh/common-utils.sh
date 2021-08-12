@@ -333,6 +333,31 @@ _timeout() {
 }
 
 ###################################################
+# remove the given character from the given string
+# 1st arg - character
+# 2nd arg - string
+# print trimmed string
+# Reference: https://stackoverflow.com/a/65350253
+###################################################
+_trim() {
+    char_trim="${1}" str_trim="${2}"
+    # Disable globbing.
+    # This ensures that the word-splitting is safe.
+    set -f
+    # store old ifs, restore it later.
+    old_ifs=$IFS
+    IFS=$char_trim
+    # shellcheck disable=2086
+    set -- $str_trim
+    IFS=
+    printf "%s" "$*"
+    # Restore the value of 'IFS'.
+    IFS=$old_ifs
+    # re enable globbing
+    set +f
+}
+
+###################################################
 # Config updater
 # Incase of old value, update, for new value add.
 # Arguments: 3

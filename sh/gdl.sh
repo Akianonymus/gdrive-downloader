@@ -2,48 +2,83 @@
 # Download file/folder from google drive.
 # shellcheck source=/dev/null
 
+###################################################
+# 1st arg - can be flag name
+# if 1st arg given, print specific flag help
+# otherwise print full help
+###################################################
 _usage() {
-    printf "%b" "
-The script can be used to download file/directory from google drive.\n
-Usage:\n ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>\n
-Options:\n
-  -aria | --aria-flags 'flags' - Use aria2c to download. '-aria' does not take arguments.\n
-      To give custom flags as argument, use long flag, --aria-flags. e.g: --aria-flags '-s 10 -x 10'\n
-      Note 1: aria2c can only resume google drive downloads if '-k/--key' or '-o/--oauth' option is used.\n
-      Note 2: aria split downloading won't work in normal mode ( without '-k' or '-o' flag ) because it cannot get the remote server size. Same for any other feature which uses remote server size.\n
-      Note 3: By above notes, conclusion is, aria is basically same as curl in normal mode, so it is recommended to be used only with '--key' and '--oauth' flag.\n
-  -o | --oauth - Use this flag to trigger oauth authentication.\n
-      Note: If both --oauth and --key flag is used, --oauth flag is preferred.\n
-  -a | --account 'account name' - Use different account than the default one.\n
-      To change the default account name, use this format, -a/--account default=account_name\n
-  -la | --list-accounts - Print all configured accounts in the config files.\n
-  -ca | --create-account 'account name' - To create a new account with the given name if does not already exists.\n
-  -da | --delete-account 'account name' - To delete an account information from config file. \n
-  -k | --key 'API KEY' ( optional arg ) - To download with api key. If api key is not specified, then the predefined api key will be used.\n
-      To save your api key in config file, use 'gdl --key default=your api key'.\n
-      API key will be saved in '${HOME}/.gdl.conf' and will be used from now on.\n
-      Note: If both --key and --key oauth is used, --oauth flag is preferred.\n
-  -c | --config 'config file path' - Override default config file with custom config file. Default: ${HOME}/.gdl.conf\n
-  -d | --directory 'foldername' - option to _download given input in custom directory.\n
-  -s | --skip-subdirs - Skip downloading of sub folders present in case of folders.\n
-  -p | --parallel 'no_of_files_to_parallely_upload' - Download multiple files in parallel.\n
-  --proxy 'http://user:password@host:port' - Specify a proxy to use, should be in the format accepted by curl --proxy and aria2c --all-proxy flag.\n
-  --speed 'speed' - Limit the download speed, supported formats: 1K, and 1M.\n
-  -ua | --user-agent 'user agent string' - Specify custom user agent.\n
-  -R | --retry 'num of retries' - Retry the file upload if it fails, postive integer as argument. Currently only for file uploads.\n
-  -in | --include 'pattern' - Only download the files which contain the given pattern - Applicable for folder downloads.\n
-      e.g: ${0##*/} local_folder --include '1', will only include with files with pattern '1' in the name. Regex can be used which works with grep -E command.\n
-  -ex | --exclude 'pattern' - Exclude the files with the given pattern from downloading. - Applicable for folder downloads.\n
-      e.g: ${0##*/} local_folder --exclude '1', will exclude all the files pattern '1' in the name. Regex can be used which works with grep -E command.\n
-  -l | --log 'file_to_save_info' - Save downloaded files info to the given filename.\n
-  -q | --quiet - Supress the normal output, only show success/error upload messages for files, and one extra line at the beginning for folder showing no. of files and sub folders.\n
-  -V | --verbose - Display detailed message (only for non-parallel uploads).\n
-  --skip-internet-check - Do not check for internet connection, recommended to use in sync jobs.\n
-  $([ "${GDL_INSTALLED_WITH}" = script ] && printf '%s\n' '-u | --update - Update the installed script in your system.\n
-  -U | --uninstall - Uninstall script, remove related files.\n
-  -V | --version | --info - Show detailed info, only if script is installed system wide.\n')
-  -D | --debug - Display script command trace.\n
-  -h | --help - Display usage instructions.\n"
+    DEBUG="" _check_debug
+    _HELP_BAR="$(_print_center "normal" "_" "_")"
+    [ -n "${_HELP_BAR}" ] && export _HELP_BAR="${_HELP_BAR}
+"
+
+    ###################################################
+    # 1st arg = flags seperated by spaces
+    # 2nd arg = Flag argument type if required ( can be empty )
+    # 3rd arg = First help line
+    # 4rd arg = rest of the help lines
+    # export help_flag_name variable and append the help contents to ALL_HELP variable
+    # input - "-p --parallel" "num of jobs" "Specify num of parallel jobs" "Must be between 1 to 10"
+    # output:
+    #    -p | --parallel 'num of jobs' => Specify num of parallel jobs
+    #        Must be between 1 to 10
+    ###################################################
+    _set_help() {
+        content1_set_help="${3}" content2_set_help="" all_content_set_help=""
+        [ -n "${4}" ] && {
+            # add a new line to the start
+            content2_set_help="
+"
+            while read -r line <&4; do
+                # 8 spaces
+                content2_set_help="${content2_set_help}
+        ${line}"
+            done 4<< EOF
+${4}
+EOF
+        }
+
+        # add as a prefix on first help line
+        start_set_help=""
+        for f in ${1}; do
+            if [ -n "${start_set_help}" ]; then
+                start_set_help="${start_set_help} | ${f}"
+            else
+                start_set_help="${f}"
+            fi
+        done
+
+        # append at the end of first help line if 2nd arg is given
+        # append 4 spaces
+        start_set_help="    ${start_set_help} ${2:+\"${2}\"} => "
+
+        all_content_set_help="${start_set_help}${content1_set_help}${content2_set_help}"
+        for f in ${1}; do
+            flag_set_help="$(_trim "-" "${f}")"
+            _set_value d "help_${flag_set_help}" "${all_content_set_help}"
+        done
+
+        ALL_HELP="${ALL_HELP}
+${_HELP_BAR}
+${all_content_set_help}"
+    }
+    # create help variables and help content
+    _create_help
+
+    [ -n "${1}" ] && {
+        tmp_help_usage=""
+        _set_value i tmp_help_usage "help_$(_trim "-" "${1}")"
+
+        if [ -z "${tmp_help_usage}" ]; then
+            printf "%s\n" "Error: No help found for ${1}"
+        else
+            printf "%s\n%s\n%s\n" "${_HELP_BAR}" "${tmp_help_usage}" "${_HELP_BAR}"
+        fi
+        exit 0
+    }
+
+    printf "%s\n" "${ALL_HELP}"
     exit 0
 }
 
@@ -104,7 +139,7 @@ _setup_arguments() {
     # Internal variables
     # De-initialize if any variables set already.
     unset LIST_ACCOUNTS UPDATE_DEFAULT_ACCOUNT CUSTOM_ACCOUNT_NAME NEW_ACCOUNT_NAME DELETE_ACCOUNT_NAME ACCOUNT_ONLY_RUN
-    unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
+    unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD ALL_HELP
     unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT PROXY
     unset ID_INPUT_ARRAY FINAL_INPUT_ARRAY INCLUDE_FILES EXCLUDE_FILES
     unset ARIA_FLAGS CURL_FLAGS
@@ -129,15 +164,18 @@ _setup_arguments() {
         TOKEN_URL="https://accounts.google.com/o/oauth2/token"
 
     _check_longoptions() {
-        [ -z "${2}" ] &&
-            printf '%s: %s: option requires an argument\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" &&
+        [ -z "${2}" ] && {
+            printf "%s\n" "${0##*/}: ${1}: flag requires an argument."
+            printf "\n%s\n" "Help:"
+            printf "%s\n" "    $(_usage "${1}")"
             exit 1
+        }
         return 0
     }
 
     while [ "${#}" -gt 0 ]; do
         case "${1}" in
-            -h | --help) _usage ;;
+            -h | --help) _usage "${2}" ;;
             -D | --debug) DEBUG="true" && export DEBUG ;;
             -V | --version | --info) _version_info ;;
             -l | --log)
@@ -195,7 +233,7 @@ _setup_arguments() {
                 if [ "${2}" -gt 0 ] 2>| /dev/null 1>&2; then
                     export NO_OF_PARALLEL_JOBS="${2}"
                 else
-                    printf "\nError: -p/--parallel value ranges between 1 to 10.\n"
+                    printf "\nError: -p/--parallel accepts values between 1 to 10.\n"
                     exit 1
                 fi
                 export PARALLEL_DOWNLOAD="parallel" && shift
@@ -342,7 +380,12 @@ main() {
 
     if [ -z "${SELF_SOURCE}" ]; then
         export UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}"
-        export SOURCE_UTILS='. '${UTILS_FOLDER}/auth-utils.sh' && . '${UTILS_FOLDER}/common-utils.sh' && . '${UTILS_FOLDER}/drive-utils.sh' && . '${UTILS_FOLDER}/download-utils.sh''
+        export COMMON_UTILS_FILE="${COMMON_UTILS_FILE:-${PWD}/../common/utils.sh}"
+        export SOURCE_UTILS='. '${COMMON_UTILS_FILE}' &&
+        . '${UTILS_FOLDER}/auth-utils.sh' &&
+        . '${UTILS_FOLDER}/common-utils.sh' && 
+        . '${UTILS_FOLDER}/drive-utils.sh' &&
+        . '${UTILS_FOLDER}/download-utils.sh''
     else
         SCRIPT_PATH="$(cd "$(_dirname "${0}")" && pwd)/${0##*\/}" && export SCRIPT_PATH
         export SOURCE_UTILS='SOURCED_GDL=true . '${SCRIPT_PATH}''
