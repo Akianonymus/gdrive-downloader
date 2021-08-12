@@ -137,8 +137,6 @@ _setup_arguments() {
         case "${1}" in
             -h | --help) _usage ;;
             -D | --debug) DEBUG="true" && export DEBUG ;;
-            -u | --update) _check_debug && _update ;;
-            -U | --uninstall) _check_debug && _update uninstall ;;
             -V | --version | --info) _version_info ;;
             -l | --log)
                 _check_longoptions "${1}" "${2}"
