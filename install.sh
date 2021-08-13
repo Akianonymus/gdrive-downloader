@@ -137,57 +137,6 @@ _detect_profile() {
 ###################################################
 # Fetch latest commit sha of release or branch
 # Do not use github rest api because rate limit error occurs
-# Globals: None
-# Arguments: 3
-#   ${1} = repo name
-#   ${2} = sha sum or branch name or tag name
-#   ${3} = path ( optional )
-# Result: print fetched shas
-###################################################
-_get_files_and_commits() {
-    repo_get_files_and_commits="${1:-${REPO}}" type_value_get_files_and_commits="${2:-${LATEST_CURRENT_SHA}}" path_get_files_and_commits="${3:-}"
-    unset html_get_files_and_commits commits_get_files_and_commits files_get_files_and_commits
-
-    # shellcheck disable=SC2086
-    html_get_files_and_commits="$(curl -s --compressed "https://github.com/${repo_get_files_and_commits}/file-list/${type_value_get_files_and_commits}/${path_get_files_and_commits}")" ||
-        { _print_center "normal" "Error: Cannot fetch" " update details" "=" 1>&2 && exit 1; }
-    # just grep the commit/ strings from html, then remove extra info with sed
-    commits_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -o "commit/.*\"" | sed -e 's/commit\///g' -e 's/\"//g' -e 's/>.*//g')"
-    # only grep blob because we just want files
-    # shellcheck disable=SC2001
-    files_get_files_and_commits="$(printf "%s\n" "${html_get_files_and_commits}" | grep -oE 'blob/'"${type_value_get_files_and_commits}"'.*\"' | sed -e 's/\"//g' -e 's/>.*//g')"
-
-    total_files="$(($(printf "%s\n" "${files_get_files_and_commits}" | wc -l)))"
-    total_commits="$(($(printf "%s\n" "${commits_get_files_and_commits}" | wc -l)))"
-
-    # exit right out in case wasn't able to grab commits or files
-    if [ "${total_commits}" -eq "0" ] || [ "${total_files}" -eq "0" ]; then
-        _print_center "normal" "Error: Cannot fetch" " update details" "=" 1>&2 && exit 1
-    fi
-
-    # this is gonna trigger in case of non-release commit sha
-    if [ "${total_commits}" -gt "${total_files}" ]; then
-        # delete alternate lines ( sed '{N;P;d}' ), because duplicate for every commit
-        commits_get_files_and_commits="$(printf "%s\n" "${commits_get_files_and_commits}" | sed -e 'N;P;d')"
-    fi
-
-    exec 4<< EOF
-$(printf "%s\n" "${files_get_files_and_commits}")
-EOF
-    exec 5<< EOF
-$(printf "%s\n" "${commits_get_files_and_commits}")
-EOF
-    while read -r file <&4 && read -r commit <&5; do
-        printf "%s\n" "${file##blob\/"${type_value_get_files_and_commits}"\/}__.__${commit}"
-    done
-    exec 4<&- && exec 5<&-
-
-    return 0
-}
-
-###################################################
-# Fetch latest commit sha of release or branch
-# Do not use github rest api because rate limit error occurs
 # Arguments: 3
 #   ${1} = "branch" or "release"
 #   ${2} = branch name or release name
@@ -234,7 +183,7 @@ _get_latest_sha() {
 ###################################################
 _print_center() {
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
-    term_cols_print_center="${COLUMNS}"
+    term_cols_print_center="${COLUMNS:-}"
     type_print_center="${1}" filler_print_center=""
     case "${type_print_center}" in
         normal) out_print_center="${2}" && symbol_print_center="${3}" ;;
@@ -347,9 +296,9 @@ _variables() {
     GLOBAL_INSTALL="false" PERM_MODE="u"
     export GDL_INSTALLED_WITH="script"
 
-    export VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GDL_SCRIPT_SHA GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH"
+    export VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH"
 
-    VALUES_REGEX="" && for i in VALUES_LIST REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GDL_SCRIPT_SHA GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH; do
+    VALUES_REGEX="" && for i in VALUES_LIST ${VALUES_LIST}; do
         VALUES_REGEX="${VALUES_REGEX:+${VALUES_REGEX}|}^${i}=\".*\".* # added values"
     done
 
@@ -357,89 +306,21 @@ _variables() {
 }
 
 ###################################################
-# For self and automatic updates
-###################################################
-_print_self_update_code() {
-    cat << 'EOF'
-###################################################
-# Automatic updater, only update if script is installed system wide.
-# Result: On
-#   Update if AUTO_UPDATE_INTERVAL + LAST_UPDATE_TIME less than printf "%(%s)T\\n" "-1"
-###################################################
-_auto_update() {
-    export REPO
-    command -v "${COMMAND_NAME}" 1> /dev/null &&
-        if [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
-            current_time="$(date +'%s')"
-            [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(date +'%s')" ] && _update
-            _update_value LAST_UPDATE_TIME "${current_time}"
-        fi
-    return 0
-}
-
-###################################################
-# Install/Update/uninstall the script.
-# Arguments: 1
-#   ${1} = uninstall or update
-# Result: On
-#   ${1} = nothing - Update the script if installed, otherwise install.
-#   ${1} = uninstall - uninstall the script
-###################################################
-_update() {
-    job_update="${1:-update}"
-    [ "${GLOBAL_INSTALL}" = true ] && ! [ "$(id -u)" = 0 ] && printf "%s\n" "Error: Need root access to update." && return 0
-    [ "${job_update}" = uninstall ] && job_uninstall="--uninstall"
-    _print_center "justify" "Fetching ${job_update} script.." "-"
-    repo_update="${REPO:-akianonymus/gdrive-downloader}" type_value_update="${TYPE_VALUE:-latest}" cmd_update="${COMMAND_NAME:-gupload}" path_update="${INSTALL_PATH:-${HOME}/.gdrive-downloader/bin}"
-    { [ "${TYPE:-}" != branch ] && type_value_update="$(_get_latest_sha release "${type_value_update}" "${repo_update}")"; } || :
-    if script_update="$(curl --compressed -Ls "https://github.com/${repo_update}/raw/${type_value_update}/install.sh")"; then
-        _clear_line 1
-        printf "%s\n" "${script_update}" | sh -s -- ${job_uninstall:-} --skip-internet-check --cmd "${cmd_update}" --path "${path_update}"
-        current_time="$(date +'%s')"
-        [ -z "${job_uninstall}" ] && _update_value LAST_UPDATE_TIME "${current_time}"
-    else
-        _clear_line 1
-        "${QUIET:-_print_center}" "justify" "Error: Cannot download" " ${job_update} script." "=" 1>&2
-        return 1
-    fi
-    return 0
-}
-
-###################################################
-# Update in-script values
-###################################################
-_update_value() {
-    command_path="${INSTALL_PATH:?}/${COMMAND_NAME}"
-    value_name="${1:-}" value="${2:-}"
-    script_without_value_and_shebang="$(grep -v "${value_name}=\".*\".* # added values" "${command_path}" | sed 1d)"
-    new_script="$(
-        sed -n 1p "${command_path}"
-        printf "%s\n" "${value_name}=\"${value}\" # added values"
-        printf "%s\n" "${script_without_value_and_shebang}"
-    )"
-    chmod u+w "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod "a-w-r-x,${PERM_MODE:-u}+r+x" "${command_path}"
-    return 0
-}
-EOF
-}
-
-###################################################
 # Download scripts
 ###################################################
 _download_file() {
-    gdl_release="$(_get_files_and_commits "${REPO}" "${LATEST_CURRENT_SHA}" "release/${INSTALLATION}")"
-    file="${gdl_release%%__.__*}" && sha="${gdl_release##*__.__}"
-
-    [ "${GDL_SCRIPT_SHA}" = "${sha}" ] || {
-        cd "${INSTALL_PATH}" 2>| /dev/null 1>&2 || exit 1
-        GDL_SCRIPT_SHA="${sha}"
-        [ -f "${INSTALL_PATH}/${COMMAND_NAME}" ] && chmod u+w "${INSTALL_PATH}/${COMMAND_NAME}"
-        _print_center "justify" "${COMMAND_NAME}" "-"
-        # shellcheck disable=SC2086
-        ! curl -s --compressed "https://raw.githubusercontent.com/${REPO}/${sha}/${file}" -o "${COMMAND_NAME}" && return 1
-        _clear_line 1
-        cd - 2>| /dev/null 1>&2 || exit 1
-    }
+    cd "${INSTALL_PATH}" 2>| /dev/null 1>&2 || exit 1
+    # make the file writable if present
+    [ -f "${INSTALL_PATH}/${COMMAND_NAME}" ] && chmod u+w "${INSTALL_PATH}/${COMMAND_NAME}"
+    _print_center "justify" "${COMMAND_NAME}" "-"
+    # now download the binary
+    if script_download_file="$(curl -Ls --compressed "https://github.com/${REPO}/raw/${LATEST_CURRENT_SHA}/release/${INSTALLATION:-}/gdl")"; then
+        printf "%s\n" "${script_download_file}" >| "${COMMAND_NAME}" || return 1
+    else
+        return 1
+    fi
+    _clear_line 1
+    cd - 2>| /dev/null 1>&2 || exit 1
     return 0
 }
 
@@ -451,11 +332,10 @@ _inject_values() {
     script_without_values_and_shebang="$(grep -vE "${VALUES_REGEX}" "${INSTALL_PATH}/${COMMAND_NAME}" | sed 1d)"
     {
         printf "%s\n" "${shebang}"
-        for i in VALUES_LIST REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GDL_SCRIPT_SHA GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH; do
+        for i in VALUES_LIST ${VALUES_LIST}; do
             printf "%s\n" "${i}=\"$(eval printf "%s" \"\$"${i}"\")\" # added values"
         done
         printf "%s\n" "LATEST_INSTALLED_SHA=\"${LATEST_CURRENT_SHA}\" # added values"
-        _print_self_update_code # inject the self and auto update functions
         printf "%s\n" "${script_without_values_and_shebang}"
     } 1>| "${INSTALL_PATH}/${COMMAND_NAME}"
 }
@@ -486,7 +366,11 @@ _start() {
 
     _print_center "justify" "Downloading scripts.." "-"
     if _download_file; then
-        _inject_values || { "${QUIET:-_print_center}" "normal" "Cannot edit installed files" ", check if create a issue on github with proper log." "=" && exit 1; }
+        if ! _inject_values; then
+            "${QUIET:-_print_center}" "normal" "Cannot edit installed files" ", check if create a issue on github with proper log." "="
+            exit 1
+        fi
+
         chmod "a-w-r-x,${PERM_MODE:-u}+x+r" "${INSTALL_PATH}/${COMMAND_NAME}"
 
         [ "${GLOBAL_INSTALL}" = false ] && {

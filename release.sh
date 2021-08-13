@@ -24,6 +24,7 @@ _merge() (
         {
             sed 1d "${shell}/common-utils.${shell}"
             for script in \
+                update.sh \
                 auth-utils.sh \
                 common-utils.sh \
                 drive-utils.sh \
