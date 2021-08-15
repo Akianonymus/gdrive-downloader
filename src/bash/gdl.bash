@@ -13,7 +13,8 @@ main() {
         export UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}"
         export COMMON_PATH="${COMMON_UTILS_FILE:-${PWD}}/../common"
         { . "${UTILS_FOLDER}/common-utils.bash" &&
-            . "${COMMON_PATH}/help.sh" &&
+            . "${COMMON_PATH}/parser.sh" &&
+            . "${COMMON_PATH}/flags.sh" &&
             . "${COMMON_PATH}/auth-utils.sh" &&
             . "${COMMON_PATH}/common-utils.sh" &&
             . "${COMMON_PATH}/drive-utils.sh" &&

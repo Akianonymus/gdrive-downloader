@@ -91,5 +91,22 @@ _set_value() {
     esac
 }
 
+###################################################
+# remove the given character from the given string
+# 1st arg - character
+# 2nd arg - string
+# 3rd arg - var where to save the output
+# print trimmed string if 3rd arg empty else set
+###################################################
+_trim() {
+    declare char="${1}" str="${2}" var="${3}"
+
+    if [[ -n ${var} ]]; then
+        _set_value d "${var}" "${str//${char}/}"
+    else
+        printf "%s" "${str//${char}/}"
+    fi
+}
+
 export -f _count \
     _set_value

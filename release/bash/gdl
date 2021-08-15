@@ -43,6 +43,14 @@ i|indirect)export "${2:?}=${!3}";;
 *)return 1
 esac
 }
+_trim(){
+declare char="$1" str="$2" var="$3"
+if [[ -n $var ]];then
+_set_value d "$var" "${str//$char/}"
+else
+printf "%s" "${str//$char/}"
+fi
+}
 export -f _count \
 _set_value
 _auto_update(){
@@ -479,6 +487,14 @@ _tmp="$(printf "%s\n" "$raw_get_latest_sha"|grep '="/'"${3:-$REPO}""/commit" -m1
 esac
 printf "%b" "${latest_sha_get_latest_sha:+$latest_sha_get_latest_sha\n}"
 }
+_is_fd_open(){
+for fd in ${1:?};do
+if ! { true >&"$fd";} 2<>/dev/null;then
+printf "%s\n" "Error: fd $fd not open."
+return 1
+fi
+done
+}
 _json_value(){
 { [ "$2" -gt 0 ] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
 { [ "$3" -gt 0 ] 2>|/dev/null&&num_json_value="$3";}||{ ! [ "$3" = all ]&&num_json_value=1;}
@@ -605,7 +621,9 @@ _print_center "justify" "File Detected" "="&&_newline "\n"
 esac
 export NAME SIZE FILE_ID FOLDER_ID
 else
-_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="&&_newline "\n"
+_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="
+"${QUIET:-_print_center}" "normal" "$id_check_id" " "
+_newline "\n"
 return 1
 fi
 else
@@ -807,7 +825,7 @@ EOF
 exec 7<<EOF
 $(printf "%s\n" "$files_name_download_folder")
 EOF
-files_list_download_folder="$(while read -r id <&5&&read -r size <&6&&read -r name <&7;do
+files_list_download_folder="$(while IFS= read -r id <&5&&read -r size <&6&&read -r name <&7;do
 [ -n "${id:+$name}" ]&&printf "%s\n" "$id|:_//_:|$size|:_//_:|$name"
 done)"
 exec 5<&-&&exec 6<&-&&exec 7<&-
@@ -823,7 +841,7 @@ EOF
 exec 6<<EOF
 $(printf "%s\n" "$folders_name_download_folder")
 EOF
-folders_list_download_folder="$(while read -r id <&5&&read -r name <&6;do
+folders_list_download_folder="$(while IFS= read -r id <&5&&read -r name <&6;do
 [ -n "${id:+$name}" ]&&printf "%s\n" "$id|:_//_:|$name"
 done)"
 exec 5<&-&&exec 6<&-
@@ -867,7 +885,7 @@ success_status_download_folder="$(($(_count <"$TMPFILE"SUCCESS)))"
 error_status_download_folder="$(($(_count <"$TMPFILE"ERROR)))"
 _clear_line 1&&_newline "\n"
 else
-while read -r line <&4&&{ [ -n "$line" ]||continue;};do
+while IFS= read -r line <&4&&{ [ -n "$line" ]||continue;};do
 _download_file_main parse "$line"
 : "$((RETURN_STATUS<2?(success_status_download_folder+=1):(error_status_download_folder+=1)))"
 if [ -z "$VERBOSE" ];then
@@ -884,7 +902,7 @@ for _ in 1 2;do _clear_line 1;done
 [ "${error_status_download_folder:-0}" -gt 0 ]&&"${QUIET:-_print_center}" "justify" "Failed" ": $error_status_download_folder" "="
 _newline "\n"
 if [ -z "$SKIP_SUBDIRS" ]&&[ -n "$num_of_folders_download_folder" ];then
-while read -r line <&4&&{ [ -n "$line" ]||continue;};do
+while IFS= read -r line <&4&&{ [ -n "$line" ]||continue;};do
 (_download_folder "${line%%"|:_//_:|"*}" "${line##*"|:_//_:|"}" "${parallel:-}")
 done 4<<EOF
 $(printf "%s\n" "$folders_list_download_folder")
@@ -910,157 +928,483 @@ _download_file_main \
 _download_folder \
 _log_in_file
 } 2>|/dev/null 1>&2||:
-_create_help(){
-_set_help "-aria --aria-flags" \
-'flags' \
-"use aria2c to download. '-aria' does not take arguments." \
-"To give custom flags as argument, use long flag, --aria-flags. e.g: --aria-flags '-s 10 -x 10'
-
-Note 1: aria2c can only resume google drive downloads if '-k/--key' or '-o/--oauth' option is used.
-
-Note 2: aria split downloading won't work in normal mode ( without '-k' or '-o' flag ) because it cannot get the remote server size. Same for any other feature which uses remote server size.
-
-Note 3: By above notes, conclusion is, aria is basically same as curl in normal mode, so it is recommended to be used only with '--key' and '--oauth' flag."
-_set_help "-o --oauth" \
-"" \
-"Use this flag to trigger oauth authentication." \
-"Note: If both --oauth and --key flag is used, --oauth flag is preferred."
-_set_help "-a --account" \
-"account name" \
-"Use different account than the default one." \
-"To change the default account name, use this format, -a/--account default=account_name"
-_set_help "-la --list-accounts" \
-"" \
-"Print all configured accounts in the config files."
-_set_help "-ca --create-account" \
-"account name" \
-"To create a new account with the given name if does not already exists."
-_set_help "-da --delete-account" \
-"account name" \
-"To delete an account information from config file."
-_set_help "-k --key" \
-"API KEY( optional )" \
-"To download with api key. If api key is not specified, then the predefined api key will be used." \
-"To save your api key in config file, use 'gdl --key default=your api key'.
-
-     API key will be saved in '/data/data/com.termux/files/home/.gdl.conf' and will be used from now on.
-
-     Note: If both --key and --key oauth is used, --oauth flag is preferred."
-_set_help "-c --config" \
-"config file path" \
-"Override default config file with custom config file. Default: /data/data/com.termux/files/home/.gdl.conf"
-_set_help "-d --directory" \
-"foldername" \
-"To download given input in custom directory."
-_set_help "-s --skip-subdirs" \
-"" \
-"Skip downloading of sub folders present in case of folders."
-_set_help "-p --parallel" \
-"no of files to parallely download" \
-"Download multiple files in parallel."
-_set_help "--proxy" \
-"http://user:password@host:port" \
-"Specify a proxy to use, should be in the format accepted by curl --proxy and aria2c --all-proxy flag."
-_set_help "--speed" \
-"speed" \
-"Limit the download speed, supported formats: 1K and 1M."
-_set_help "-ua --user-agent" \
-"user agent string" \
-"Specify custom user agent."
-_set_help "-R --retry" \
-"num of retries" \
-"Retry the file upload if it fails, postive integer as argument. Currently only for file uploads."
-_set_help "-in --include" \
-"pattern" \
-"Only download the files which contain the given pattern - Applicable for folder downloads." \
-"e.g: gdl local_folder --include '1', will only include with files with pattern '1' in the name. Regex can be used which works with grep -E command."
-_set_help "-ex --exclude" \
-"pattern" \
-"Only download the files which does not contain the given pattern - Applicable for folder downloads." \
-"e.g: gdl local_folder --exclude '1', will only include with files with pattern '1' not present in the name. Regex can be used which works with grep -E command."
-_set_help "-l --log" \
-"file to save info" \
-"Save downloaded files info to the given filename."
-_set_help "-q --quiet" \
-"" \
-"Supress the normal output, only show success/error upload messages for files, and one extra line at the beginning for folder showing no. of files and sub folders."
-_set_help "--verbose" \
-"" \
-"Display detailed message (only for non-parallel uploads)"
-_set_help "--skip-internet-check" \
-"" \
-"Do not check for internet connection, recommended to use in sync jobs."
-_set_help "-V --version --info" \
-"" \
-"Show detailed info, only if script is installed system wide."
-_set_help "-D --debug" \
-"" \
-"Display script command trace."
-_set_help "-h --help" \
-"flag name (optional)" \
-"Print help for all flags and basic usage instructions." \
-"To see help for a specific flag, --help flag_name ( with or without dashes )
-e.g: ${0##*/} --help aria"
-[ "${GDL_INSTALLED_WITH:-}" = script ]&&{
-_set_help "-u --update" \
-"" \
-"Update the installed script in your system."
-_set_help "--uninstall" \
-"" \
-"Uninstall script, remove related files."
+_parser_check_arguments(){
+nargs_parser_check_arguments="$((${1:?_parser_check_arguments}))"
+num_parser_check_arguments=$(($#-2))
+[ "$num_parser_check_arguments" -lt "$nargs_parser_check_arguments" ]&&{
+printf "%s\n" "${0##*/}: $2: flag requires $nargs_parser_check_arguments argument."
+printf "\n%s\n" "Help:"
+printf "%s\n" "$(_usage "$2")"
+exit 1
 }
-ALL_HELP="
-The script can be used to download file/directory from google drive.
-
-Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
-
-Options:$ALL_HELP"
+return 0
+}
+_flag_exists(){
+tmp_flag_exists="" option_flag_exists=""
+_flag_help "${1:?}" tmp_flag_exists option_flag_exists
+[ -z "$tmp_flag_exists" ]&&return 1
+_set_value d "${2:?}" "$option_flag_exists"
+}
+_flag_help(){
+flag_flag_help=""
+_trim "-" "${1:?_flag_help}" flag_flag_help
+_set_value i "${2:?_flag_help}" "_parser__help_$flag_flag_help"
+_set_value d "${3:-_}" "$flag_flag_help"
+}
+_parse_arguments(){
+DEBUG="" _check_debug
+__NEWLINE="
+"
+__BAR="$(_print_center "normal" "_" "_")"
+__BAR="${__BAR:+$__BAR$__NEWLINE}"
+unset _ALL_HELP _PARSER_ARGS_SHIFT _PARSER_PREPROCESS_FUNCTION
+unset _PARSER_FLAGS _PARSER_CURRENT_FLAGS _PARSER_CURRENT_NARGS _PARSER_CURRENT_ARGS _PARSER_CURRENT_ARGS_TYPE
+_parser_setup_flags||return 1
+_parser_run_preprocess||return 1
+while [ "$#" -gt 0 ];do
+case "$1" in
+''):;;
+-*)\
+flag_parse_arguments=""
+if _flag_exists "$1" flag_parse_arguments;then
+"_parser_process_$flag_parse_arguments" "$@"||return 1
+else
+printf "%s\n\n" "${0##*/}: $1: Unknown option"
+_short_help
+fi
+;;
+*)_parser_process_input "$@"||return 1
+esac
+_PARSER_ARGS_SHIFT="$((_PARSER_ARGS_SHIFT+1))"
+shift "$_PARSER_ARGS_SHIFT"
+_PARSER_ARGS_SHIFT="0"
+done
+return 0
+}
+_parser_setup_flag(){
+_PARSER_CURRENT_FLAGS="" tmp_parser_setup_flag=""
+_PARSER_FLAGS="${1:?_parser_setup_flag}"
+for f in $_PARSER_FLAGS;do
+_trim "-" "$f" tmp_parser_setup_flag
+_PARSER_CURRENT_FLAGS="$_PARSER_CURRENT_FLAGS $tmp_parser_setup_flag"
+done
+_PARSER_CURRENT_NARGS="${2:?_parser_setup_flag}"
+_PARSER_CURRENT_ARGS_TYPE="$3"
+_PARSER_CURRENT_ARGS="$4"
+}
+_parser_setup_flag_help(){
+flags_parser_setup_flag_help="${_PARSER_CURRENT_FLAGS:?_parser_setup_flag_help}"
+nargs_parser_setup_flag_help="${_PARSER_CURRENT_NARGS:?_parser_setup_flag_help}"
+unset start_parser_setup_flag_help \
+help_parser_setup_flag_help \
+arg_parser_setup_flag_help \
+all_parser_setup_flag_help
+while IFS= read -r line <&4;do
+help_parser_setup_flag_help="$help_parser_setup_flag_help
+        $line"
+done 4<<EOF
+${1:?_parser_setup_flag_help}
+EOF
+for f in ${_PARSER_FLAGS:?_parser_setup_flag_help};do
+start_parser_setup_flag_help="${start_parser_setup_flag_help:+$start_parser_setup_flag_help | }$f"
+done
+if ! [ "$nargs_parser_setup_flag_help" = 0 ];then
+arg_parser_setup_flag_help="\"${_PARSER_CURRENT_ARGS:?_parser_setup_flag_help}\""
+if [ "$_PARSER_CURRENT_ARGS_TYPE" = optional ];then
+arg_parser_setup_flag_help="$arg_parser_setup_flag_help [ Optional ]"
+else
+arg_parser_setup_flag_help="$arg_parser_setup_flag_help [ Required ]"
+fi
+fi
+start_parser_setup_flag_help="    $start_parser_setup_flag_help $arg_parser_setup_flag_help"
+all_setup_help_flag="$start_parser_setup_flag_help${__NEWLINE:?}$help_parser_setup_flag_help"
+for f in $flags_parser_setup_flag_help;do
+_set_value d "_parser__help_$f" "$all_setup_help_flag"
+done
+[ "$_PARSER_FLAGS" = input ]&&return 0
+_ALL_HELP="$_ALL_HELP
+${__BAR:-}
+$all_setup_help_flag" 2>|/dev/null
+}
+_parser_setup_flag_preprocess(){
+_is_fd_open 4||return 1
+unset fn_parser_setup_flag_preprocess
+while IFS= read -r line <&4;do
+fn_parser_setup_flag_preprocess="$fn_parser_setup_flag_preprocess
+$line"
+done
+_PARSER_PREPROCESS_FUNCTION="$_PARSER_PREPROCESS_FUNCTION
+$fn_parser_setup_flag_preprocess"
+}
+_parser_setup_flag_process(){
+_is_fd_open 4||return 1
+unset fn_parser_setup_flag_process
+if [ "${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process}" -gt 0 ]&&! [ "$_PARSER_CURRENT_ARGS_TYPE" = optional ];then
+fn_parser_setup_flag_process="_parser_check_arguments ${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process} \"\${@}\""
+fi
+while IFS= read -r line <&4;do
+fn_parser_setup_flag_process="$fn_parser_setup_flag_process
+$line"
+done
+for f in ${_PARSER_CURRENT_FLAGS:?_parser_setup_flag_process};do
+eval "_parser_process_$f() { $fn_parser_setup_flag_process ; }"
+done
+}
+_parser_run_preprocess(){
+eval "_parser_preprocess_setup() { ${_PARSER_PREPROCESS_FUNCTION:-:} ; }"&&_parser_preprocess_setup
+}
+_parser_shift(){
+export _PARSER_ARGS_SHIFT="${1:-1}"
 }
 _short_help(){
 printf "No valid arguments provided, use -h/--help flag to see usage.\n"
 exit 0
 }
-_usage(){
-DEBUG="" _check_debug
-_HELP_BAR="$(_print_center "normal" "_" "_")"
-[ -n "$_HELP_BAR" ]&&export _HELP_BAR="$_HELP_BAR
-"
-_set_help(){
-content1_set_help="$3" content2_set_help="" all_content_set_help=""
-[ -n "$4" ]&&{
-content2_set_help="
-"
-while read -r line <&4;do
-content2_set_help="$content2_set_help
-        $line"
-done 4<<EOF
-$4
+_parser_setup_flags(){
+_parser_setup_flag "input" 0
+_parser_setup_flag_help \
+"Drive urls or id to process."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset TOTAL_INPUTS INPUT_ID
+EOF
+_parser_setup_flag_process 4<<'EOF'
+# set ID_INPUT_NUM to the input, where num is rank of input
+id_parse_arguments=""
+_extract_id "${1}" id_parse_arguments 
+
+if [ -n "${id_parse_arguments}" ]; then
+    # this works well in place of arrays
+    _set_value d "INPUT_ID_$((TOTAL_INPUTS += 1))" "${id_parse_arguments}"
+fi
+EOF
+_parser_setup_flag "-aria" 0
+_parser_setup_flag_help \
+"Use aria2c to download. To use custom flags for aria, see --aria-flags option."
+_parser_setup_flag_process 4<<'EOF'
+if ! command -v aria2c 1>|/dev/null ; then
+    printf "%s\n" "Error: aria2c not installed."
+    return 1
+fi
+export DOWNLOADER="aria2c"
+EOF
+_parser_setup_flag "--aria-flags" 1 required 'flags'
+_parser_setup_flag_help \
+'Same as -aria flag but requires argument.
+
+To give custom flags as argument, do
+    e.g: --aria-flags "-s 10 -x 10"
+
+Note 1: aria2c can only resume google drive downloads if "-k/--key" or "-o/--oauth" option is used.
+
+Note 2: aria split downloading will not work in normal mode ( without "-k" or "-o" flag ) because it cannot get the remote server size. Same for any other feature which uses remote server size.
+
+Note 3: By above notes, conclusion is, aria is basically same as curl in normal mode, so it is recommended to be used only with "--key" and "--oauth" flag.'
+_parser_setup_flag_preprocess 4<<'EOF'
+unset ARIA_FLAGS 
+EOF
+_parser_setup_flag_process 4<<'EOF'
+if ! command -v aria2c 1>|/dev/null ; then
+    printf "%s\n" "Error: aria2c not installed."
+    return 1
+fi
+export DOWNLOADER="aria2c"
+[ "${1}" = "--aria-flags" ] && {
+    ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && _parser_shift 
+}
+EOF
+_parser_setup_flag "-o --oauth" 0
+_parser_setup_flag_help \
+"Use this flag to trigger oauth authentication.
+
+Note: If both --oauth and --key flag is used, --oauth flag is preferred."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset OAUTH_ENABLED ACCOUNT_NAME \
+    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN 
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export OAUTH_ENABLED="true"
+EOF
+_parser_setup_flag "-a --account" 1 required "account name"
+_parser_setup_flag_help \
+"Use a different account than the default one.
+
+To change the default account name, use this format, -a/--account default=account_name"
+_parser_setup_flag_preprocess 4<<'EOF'
+unset OAUTH_ENABLED ACCOUNT_NAME ACCOUNT_ONLY_RUN CUSTOM_ACCOUNT_NAME UPDATE_DEFAULT_ACCOUNT
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export OAUTH_ENABLED="true" CUSTOM_ACCOUNT_NAME="${2##default=}"
+[ -z "${2##default=*}" ] && export UPDATE_DEFAULT_ACCOUNT="_update_config"
+_parser_shift
+EOF
+_parser_setup_flag "-la --list-accounts" 0
+_parser_setup_flag_help \
+"Print all configured accounts in the config files."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset LIST_ACCOUNTS
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export LIST_ACCOUNTS="true"
+EOF
+_parser_setup_flag "-ca --create-account" 1 required "account name"
+_parser_setup_flag_help \
+"To create a new account with the given name if does not already exists."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset OAUTH_ENABLED NEW_ACCOUNT_NAME
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export OAUTH_ENABLED="true"
+export NEW_ACCOUNT_NAME="${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-da --delete-account" 1 required "account name"
+_parser_setup_flag_help \
+"To delete an account information from config file."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset DELETE_ACCOUNT_NAME
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export DELETE_ACCOUNT_NAME="${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-k --key" 1 optional "API KEY"
+_parser_setup_flag_help \
+"To download with api key. If api key is not specified, then the predefined api key will be used.
+
+To save your api key in config file, use gdl --key default=your api key.
+
+API key will be saved in '$HOME/.gdl.conf' and will be used from now on.
+
+Note: If both --key and --key oauth is used, --oauth flag is preferred."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset API_KEY_DOWNLOAD UPDATE_DEFAULT_API_KEY
+export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export API_KEY_DOWNLOAD="true"
+_API_KEY="${2##default=}"
+# https://github.com/l4yton/RegHex#Google-Drive-API-Key
+regex="AIza[0-9A-Za-z_-]{35}"
+if [ -n "${_API_KEY}" ] && _assert_regex "${regex}" "${_API_KEY}"; then
+    export API_KEY="${_API_KEY}" && _parser_shift 
+    [ -z "${2##default=*}" ] && UPDATE_DEFAULT_API_KEY="_update_config"
+fi
+EOF
+_parser_setup_flag "-c --config" 1 required "config file path"
+_parser_setup_flag_help \
+"Override default config file with custom config file.
+
+Default: '$HOME/.gdl.conf'"
+_parser_setup_flag_process 4<<'EOF'
+CONFIG="${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-d --directory" 1 required "foldername"
+_parser_setup_flag_help \
+"To download given input in custom directory."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset FOLDERNAME
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export FOLDERNAME="${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-s --skip-subdirs" 0
+_parser_setup_flag_help \
+"Skip downloading of sub folders present in case of folders."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset SKIP_SUBDIRS
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export SKIP_SUBDIRS="true"
+EOF
+_parser_setup_flag "-p --parallel" 1 required "num of parallel downloads"
+_parser_setup_flag_help \
+"Download multiple files in parallel."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD
+EOF
+_parser_setup_flag_process 4<<'EOF'
+if [ "${2}" -gt 0 ] 2>| /dev/null 1>&2; then
+    export NO_OF_PARALLEL_JOBS="${2}"
+else
+    printf "\nError: -p/--parallel accepts values between 1 to 10.\n"
+    return 1
+fi
+export PARALLEL_DOWNLOAD="parallel"
+_parser_shift
+EOF
+_parser_setup_flag "--proxy" 1 required "http://user:password@host:port"
+_parser_setup_flag_help \
+"Specify a proxy to use, should be in the format accepted by curl --proxy and aria2c --all-proxy flag."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset PROXY
+export ARIA_PROXY_FLAG="--all-proxy" CURL_PROXY_FLAG="--proxy"
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export PROXY="${2}" && _parser_shift 
+EOF
+_parser_setup_flag "--speed" 1 required "speed"
+_parser_setup_flag_help \
+"Limit the download speed, supported formats: 1K and 1M"
+_parser_setup_flag_preprocess 4<<'EOF'
+unset SPEED_LIMIT
+export CURL_SPEED_LIMIT_FLAG="--limit-rate" ARIA_SPEED_LIMIT_FLAG="--max-download-limit"
+EOF
+_parser_setup_flag_process 4<<'EOF'
+regex='^([0-9]+)([k,K]|[m,M])+$'
+if _assert_regex "${regex}" "${2}"; then
+    export SPEED_LIMIT="${2}" && _parser_shift 
+else
+    printf "Error: Wrong speed limit format, supported formats: 1K and 1M.\n" 1>&2
+    return 1
+fi
+EOF
+_parser_setup_flag "-ua --user-agent" 1 required "user agent string"
+_parser_setup_flag_help \
+"Specify custom user agent."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset USER_AGENT
+export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export USER_AGENT="${2}" && shift
+EOF
+_parser_setup_flag "-R --retry" 1 required "num of retries"
+_parser_setup_flag_help \
+"Retry the file upload if it fails, postive integer as argument. Currently only for file uploads."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset RETRY
+EOF
+_parser_setup_flag_process 4<<'EOF'
+if [ "$((2))" -gt 0 ] 2>| /dev/null 1>&2; then
+    export RETRY="${2}" && _parser_shift 
+else
+    printf "Error: -R/--retry only takes positive integers as arguments, min = 1, max = infinity.\n"
+    return 1
+fi
+EOF
+_parser_setup_flag "-in --include" 1 required "pattern"
+_parser_setup_flag_help \
+"Only download the files which contain the given pattern - Applicable for folder downloads.
+
+e.g: ${0##*/} local_folder --include 1, will only include with files with pattern 1 in the name. Regex can be used which works with grep -E command."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset INCLUDE_FILES 
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export INCLUDE_FILES="${INCLUDE_FILES:+${INCLUDE_FILES}|}${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-ex --exclude" 1 required "pattern"
+_parser_setup_flag_help \
+"Only download the files which does not contain the given pattern - Applicable for folder downloads.
+
+e.g: ${0##*/} local_folder --exclude 1, will only include with files with pattern 1 not present in the name. Regex can be used which works with grep -E command."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset EXCLUDE_FILES
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export EXCLUDE_FILES="${EXCLUDE_FILES:+${EXCLUDE_FILES}|}${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-l --log" 1 required "file to save info"
+_parser_setup_flag_help \
+"Save downloaded files info to the given filename."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset LOG_FILE_ID
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export LOG_FILE_ID="${2}" && _parser_shift 
+EOF
+_parser_setup_flag "-q --quiet" 0
+_parser_setup_flag_help \
+"Supress the normal output, only show success/error upload messages for files, and one extra line at the beginning for folder showing no. of files and sub folders."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset QUIET
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export QUIET="_print_center_quiet"
+EOF
+_parser_setup_flag "--verbose" 0
+_parser_setup_flag_help \
+"Display detailed message (only for non-parallel uploads)."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset VERBOSE
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export VERBOSE="true" CURL_PROGRESS=""
+EOF
+_parser_setup_flag "--skip-internet-check" 0
+_parser_setup_flag_help \
+"Do not check for internet connection, recommended to use in sync jobs."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset SKIP_INTERNET_CHECK
+EOF
+_parser_setup_flag_process 4<<'EOF'
+SKIP_INTERNET_CHECK=":"
+EOF
+_parser_setup_flag "-V --version --info" 0
+_parser_setup_flag_help \
+"Show detailed info, only if script is installed system wide."
+_parser_setup_flag_process 4<<'EOF'
+_version_info
+EOF
+_parser_setup_flag "-D --debug" 0
+_parser_setup_flag_help \
+"Display script command trace."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset DEBUG
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export DEBUG="true"
+EOF
+_parser_setup_flag "-h --help" 1 optional "flag name"
+_parser_setup_flag_help \
+"Print help for all flags and basic usage instructions.
+
+To see help for a specific flag, --help flag_name ( with or without dashes )
+    e.g: ${0##*/} --help aria"
+_parser_setup_flag_preprocess 4<<'EOF'
+###################################################
+# 1st arg - can be flag name
+# if 1st arg given, print specific flag help
+# otherwise print full help
+###################################################
+_usage() {
+    [ -n "${1}" ] && {
+        tmp_help_usage=""
+        _flag_help "${1}" tmp_help_usage
+
+        if [ -z "${tmp_help_usage}" ]; then
+            printf "%s\n" "Error: No help found for ${1}"
+        else
+            printf "%s\n%s\n%s\n" "${__BAR}" "${tmp_help_usage}" "${__BAR}"
+        fi
+        exit 0
+    }
+
+    printf "%s\n" "${_ALL_HELP}"
+    exit 0
+}
+EOF
+_parser_setup_flag_process 4<<'EOF'
+_usage "${2}"
+EOF
+[ "${GDL_INSTALLED_WITH:-}" = script ]&&{
+_parser_setup_flag "-u --update" 0
+_parser_setup_flag_help \
+"Update the installed script in your system."
+_parser_setup_flag_process 4<<'EOF'
+_check_debug && _update && { exit 0 || exit 1; }
+EOF
+_parser_setup_flag "--uninstall" 0
+_parser_setup_flag_help \
+"Uninstall script, remove related files."
+_parser_setup_flag_process 4<<'EOF'
+_check_debug && _update uninstall && { exit 0 || exit 1; }
 EOF
 }
-start_set_help=""
-for f in $1;do
-start_set_help="${start_set_help:+$start_set_help | }$f"
-done
-start_set_help="    $start_set_help ${2:+\"$2\"} => "
-all_content_set_help="$start_set_help$content1_set_help$content2_set_help"
-_flag_help set "$1" "$all_content_set_help"
-ALL_HELP="$ALL_HELP
-$_HELP_BAR
-$all_content_set_help"
-}
-_create_help
-[ -n "$1" ]&&{
-tmp_help_usage=""
-_flag_help get tmp_help_usage "$1"
-if [ -z "$tmp_help_usage" ];then
-printf "%s\n" "Error: No help found for $1"
-else
-printf "%s\n%s\n%s\n" "$_HELP_BAR" "$tmp_help_usage" "$_HELP_BAR"
-fi
-exit 0
-}
-printf "%s\n" "$ALL_HELP"
-exit 0
+_ALL_HELP="
+The script can be used to download file/directory from google drive.
+
+Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
+
+Options:$_ALL_HELP"
 }
 _cleanup_config(){
 config="${1:?Error: Missing config}"&&unset values_regex _tmp
@@ -1091,152 +1435,17 @@ exit 0
 }
 _setup_arguments(){
 [ $# = 0 ]&&printf "Missing arguments\n"&&return 1
-unset LIST_ACCOUNTS UPDATE_DEFAULT_ACCOUNT CUSTOM_ACCOUNT_NAME NEW_ACCOUNT_NAME DELETE_ACCOUNT_NAME ACCOUNT_ONLY_RUN ACCOUNT_NAME
-unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD ALL_HELP
-unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT PROXY
-unset TOTAL_INPUTS ID_INPUT INCLUDE_FILES EXCLUDE_FILES
-unset ARIA_FLAGS CURL_FLAGS
+unset _ALL_HELP
+unset CURL_FLAGS
 export DOWNLOADER="curl"
-export USER_AGENT_FLAG="--user-agent"
-export ARIA_SPEED_LIMIT_FLAG="--max-download-limit" \
-CURL_SPEED_LIMIT_FLAG="--limit-rate" \
-ARIA_PROXY_FLAG="--all-proxy" \
-CURL_PROXY_FLAG="--proxy"
 export CURL_PROGRESS="-s" EXTRA_LOG=":"
-CONFIG="$HOME/.gdl.conf"
-unset ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN
-export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk" \
-API_URL="https://www.googleapis.com"
+export CONFIG="$HOME/.gdl.conf"
+export API_URL="https://www.googleapis.com"
 export API_VERSION="v3" \
 SCOPE="$API_URL/auth/drive" \
 REDIRECT_URI="urn:ietf:wg:oauth:2.0:oob" \
 TOKEN_URL="https://accounts.google.com/o/oauth2/token"
-_check_longoptions(){
-[ -z "$2" ]&&{
-printf "%s\n" "${0##*/}: $1: flag requires an argument."
-printf "\n%s\n" "Help:"
-printf "%s\n" "    $(_usage "$1")"
-exit 1
-}
-return 0
-}
-while [ "$#" -gt 0 ];do
-case "$1" in
--h|--help)_usage "$2";;
--D|--debug)DEBUG="true"&&export DEBUG;;
--V|--version|--info)_version_info;;
--l|--log)_check_longoptions "$1" "$2"
-export LOG_FILE_ID="$2"&&shift
-;;
--aria|--aria-flags)command -v aria2c \
-1>|/dev/null||{
-printf "%s\n" "Error: aria2c not installed."&&exit 1
-}
-DOWNLOADER="aria2c"
-[ "$1" = "--aria-flags" ]&&{
-_check_longoptions "$1" "$2"
-ARIA_FLAGS=" $ARIA_FLAGS $2 "&&shift
-}
-;;
--o|--oauth)export OAUTH_ENABLED="true";;
--a|--account)export \
-OAUTH_ENABLED="true"
-_check_longoptions "$1" "$2"
-export CUSTOM_ACCOUNT_NAME="${2##default=}"&&shift
-[ -z "${2##default=*}" ]&&export UPDATE_DEFAULT_ACCOUNT="_update_config"
-;;
--la|--list-account)export LIST_ACCOUNTS="true";;
--ca|--create-account)export \
-OAUTH_ENABLED="true"
-_check_longoptions "$1" "$2"
-export NEW_ACCOUNT_NAME="$2"&&shift
-;;
--da|--delete-account)_check_longoptions "$1" "$2"
-export DELETE_ACCOUNT_NAME="$2"&&shift
-;;
--k|--key)export \
-API_KEY_DOWNLOAD="true"
-_API_KEY="${2##default=}"
-regex="AIza[0-9A-Za-z_-]{35}"
-if [ -n "$_API_KEY" ]&&_assert_regex "$regex" "$_API_KEY";then
-export API_KEY="$_API_KEY"&&shift
-[ -z "${2##default=*}" ]&&UPDATE_DEFAULT_API_KEY="_update_config"
-fi
-;;
--c|--config)_check_longoptions "$1" "$2"
-CONFIG="$2"&&shift
-;;
--d|--directory)_check_longoptions "$1" "$2"
-export FOLDERNAME="$2"&&shift
-;;
--s|--skip-subdirs)export \
-SKIP_SUBDIRS="true"
-;;
--p|--parallel)_check_longoptions "$1" "$2"
-if [ "$2" -gt 0 ] 2>|/dev/null 1>&2;then
-export NO_OF_PARALLEL_JOBS="$2"
-else
-printf "\nError: -p/--parallel accepts values between 1 to 10.\n"
-exit 1
-fi
-export PARALLEL_DOWNLOAD="parallel"&&shift
-;;
---proxy)_check_longoptions "$1" "$2"
-export PROXY="$2"&&shift
-;;
---speed)_check_longoptions "$1" "$2"
-regex='^([0-9]+)([k,K]|[m,M])+$'
-if _assert_regex "$regex" "$2";then
-export SPEED_LIMIT="$2"&&shift
-else
-printf "Error: Wrong speed limit format, supported formats: 1K and 1M.\n" 1>&2
-exit 1
-fi
-;;
--ua|--user-agent)_check_longoptions "$1" "$2"
-export USER_AGENT="$2"&&shift
-;;
--R|--retry)_check_longoptions "$1" "$2"
-if [ "$((2))" -gt 0 ] 2>|/dev/null 1>&2;then
-export RETRY="$2"&&shift
-else
-printf "Error: -R/--retry only takes positive integers as arguments, min = 1, max = infinity.\n"
-exit 1
-fi
-;;
--in|--include)_check_longoptions "$1" "$2"
-export INCLUDE_FILES="${INCLUDE_FILES:+$INCLUDE_FILES|}$2"&&shift
-;;
--ex|--exclude)_check_longoptions "$1" "$2"
-export EXCLUDE_FILES="${EXCLUDE_FILES:+$EXCLUDE_FILES|}$2"&&shift
-;;
--q|--quiet)export QUIET="_print_center_quiet";;
---verbose)export VERBOSE="true" CURL_PROGRESS="";;
---skip-internet-check)\
-SKIP_INTERNET_CHECK=":"
-;;
-''):;;
--*)[ "${GDL_INSTALLED_WITH:-}" = script ]&&{
-case "$1" in
--u|--update)_check_debug&&_update&&{
-exit 0||exit 1
-}
-;;
---uninstall)_check_debug&&_update uninstall&&{
-exit 0||exit 1
-}
-;;
-*):
-esac
-}
-printf '%s: %s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "$1" "${0##*/}"&&exit 1
-;;
-*)\
-_tmp_id=""&&_extract_id "$1" _tmp_id
-[ -n "$_tmp_id" ]&&_set_value d "INPUT_ID_$((TOTAL_INPUTS+=1))" "$_tmp_id"
-esac
-shift
-done
+_parse_arguments "$@"||return 1
 _check_debug
 [ -n "$QUIET" ]&&export CURL_PROGRESS="-s" ARIA_FLAGS=" $ARIA_FLAGS -q "
 ARIA_extra_flags="" CURL_extra_flags=""
@@ -1254,7 +1463,7 @@ done
 export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $ARIA_extra_flags"
 export CURL_FLAGS="$CURL_FLAGS $CURL_extra_flags"
 [ -n "$OAUTH_ENABLED" ]&&unset API_KEY_DOWNLOAD
-[ -n "$API_KEY_DOWNLOAD" ]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "$API_KEY" "$CONFIG"
+[ -n "$API_KEY_DOWNLOAD" ]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "$CONFIG"
 [ -n "$DELETE_ACCOUNT_NAME" ]&&_delete_account "$DELETE_ACCOUNT_NAME"
 [ -n "$LIST_ACCOUNTS" ]&&_all_accounts
 [ -z "$INPUT_ID_1" ]&&{
@@ -1287,7 +1496,7 @@ export abnormal_exit&&if [ -n "$abnormal_exit" ];then
 printf "\n\n%s\n" "Script exited manually."
 kill "${_SCRIPT_KILL_SIGNAL:--9}" -$$&
 else
-{ _cleanup_config "$CONFIG"&&[ "$GDL_INSTALLED_WITH" = script ]&&_auto_update;} 1>|/dev/null&
+{ _cleanup_config "$CONFIG"&&[ "${GDL_INSTALLED_WITH:-}" = script ]&&_auto_update;} 1>|/dev/null&
 fi
 } 2>|/dev/null||:
 return 0
@@ -1349,7 +1558,7 @@ export _SHELL="bash"
 [[ -z $SELF_SOURCE ]]&&{
 export UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"
 export COMMON_PATH="${COMMON_UTILS_FILE:-$PWD}/../common"
-{ . "$UTILS_FOLDER/common-utils.bash"&&. "$COMMON_PATH/help.sh"&&. "$COMMON_PATH/auth-utils.sh"&&. "$COMMON_PATH/common-utils.sh"&&. "$COMMON_PATH/drive-utils.sh"&&. "$COMMON_PATH/download-utils.sh"&&. "$COMMON_PATH/gdl-common.sh";}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
+{ . "$UTILS_FOLDER/common-utils.bash"&&. "$COMMON_PATH/parser.sh"&&. "$COMMON_PATH/flags.sh"&&. "$COMMON_PATH/auth-utils.sh"&&. "$COMMON_PATH/common-utils.sh"&&. "$COMMON_PATH/drive-utils.sh"&&. "$COMMON_PATH/download-utils.sh"&&. "$COMMON_PATH/gdl-common.sh";}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
 }
 export SOURCE_UTILS=""
 [[ ${BASH_VERSINFO:-0} -ge 4 ]]||{ printf "Bash version lower than 4.x not supported.\n"&&return 1;}

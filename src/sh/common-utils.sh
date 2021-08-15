@@ -26,7 +26,6 @@ _count() {
 
 ###################################################
 # Alternative to dirname command
-# Globals: None
 # Arguments: 1
 #   ${1} = path of file or folder
 # Result: read description
@@ -45,33 +44,6 @@ _dirname() {
 ###################################################
 _epoch() {
     date +'%s'
-}
-
-###################################################
-# set or get flag varianle which contains the individual help contents
-# if ${1} = set then
-#    ${2} = flags seperated by space
-#    ${3} = flag help content
-# if ${1} = get
-#    ${2} = var name which will be set to help contents of the flag
-#    ${3} = flag name
-###################################################
-_flag_help() {
-    flag_flag_help=""
-    case "${1}" in
-        set)
-            for f in ${2}; do
-                _trim "-" "${f}" flag_flag_help
-                _set_value d "help_${flag_flag_help}" "${3}"
-            done
-            ;;
-        get)
-            _trim "-" "${3}" flag_flag_help
-            _set_value i "${2}" "help_${flag_flag_help}"
-            ;;
-        *) return 1 ;;
-    esac
-
 }
 
 ###################################################

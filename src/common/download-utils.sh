@@ -238,7 +238,7 @@ EOF
     exec 7<< EOF
 $(printf "%s\n" "${files_name_download_folder}")
 EOF
-    files_list_download_folder="$(while read -r id <&5 && read -r size <&6 && read -r name <&7; do
+    files_list_download_folder="$(while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7; do
         [ -n "${id:+${name}}" ] &&
             printf "%s\n" "${id}|:_//_:|${size}|:_//_:|${name}"
     done)"
@@ -260,7 +260,7 @@ EOF
 $(printf "%s\n" "${folders_name_download_folder}")
 EOF
 
-    folders_list_download_folder="$(while read -r id <&5 && read -r name <&6; do
+    folders_list_download_folder="$(while IFS= read -r id <&5 && read -r name <&6; do
         [ -n "${id:+${name}}" ] &&
             printf "%s\n" "${id}|:_//_:|${name}"
     done)"
@@ -316,7 +316,7 @@ EOF
             error_status_download_folder="$(($(_count < "${TMPFILE}"ERROR)))"
             _clear_line 1 && _newline "\n"
         else
-            while read -r line <&4 && { [ -n "${line}" ] || continue; }; do
+            while IFS= read -r line <&4 && { [ -n "${line}" ] || continue; }; do
                 _download_file_main parse "${line}"
                 : "$((RETURN_STATUS < 2 ? (success_status_download_folder += 1) : (error_status_download_folder += 1)))"
                 if [ -z "${VERBOSE}" ]; then
@@ -335,7 +335,7 @@ EOF
     _newline "\n"
 
     if [ -z "${SKIP_SUBDIRS}" ] && [ -n "${num_of_folders_download_folder}" ]; then
-        while read -r line <&4 && { [ -n "${line}" ] || continue; }; do
+        while IFS= read -r line <&4 && { [ -n "${line}" ] || continue; }; do
             (_download_folder "${line%%"|:_//_:|"*}" "${line##*"|:_//_:|"}" "${parallel:-}")
         done 4<< EOF
 $(printf "%s\n" "${folders_list_download_folder}")

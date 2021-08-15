@@ -29,7 +29,8 @@ _merge() (
                 common-utils.sh \
                 drive-utils.sh \
                 download-utils.sh \
-                help.sh \
+                parser.sh \
+                flags.sh \
                 gdl-common.sh; do
                 sed 1d "common/${script}"
             done

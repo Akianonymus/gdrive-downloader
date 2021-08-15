@@ -56,176 +56,20 @@ _setup_arguments() {
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
     # Internal variables
     # De-initialize if any variables set already.
-    unset LIST_ACCOUNTS UPDATE_DEFAULT_ACCOUNT CUSTOM_ACCOUNT_NAME NEW_ACCOUNT_NAME DELETE_ACCOUNT_NAME ACCOUNT_ONLY_RUN ACCOUNT_NAME
-    unset LOG_FILE_ID OAUTH_ENABLED API_KEY_DOWNLOAD FOLDERNAME SKIP_SUBDIRS NO_OF_PARALLEL_JOBS PARALLEL_DOWNLOAD ALL_HELP
-    unset DEBUG QUIET VERBOSE SKIP_INTERNET_CHECK RETRY SPEED_LIMIT USER_AGENT PROXY
-    unset TOTAL_INPUTS ID_INPUT INCLUDE_FILES EXCLUDE_FILES
-    unset ARIA_FLAGS CURL_FLAGS
+    unset _ALL_HELP
+    unset CURL_FLAGS
     export DOWNLOADER="curl"
-    export USER_AGENT_FLAG="--user-agent" # common for both curl and aria2c
-    # curl and aria2c specific flags
-    export ARIA_SPEED_LIMIT_FLAG="--max-download-limit" \
-        CURL_SPEED_LIMIT_FLAG="--limit-rate" \
-        ARIA_PROXY_FLAG="--all-proxy" \
-        CURL_PROXY_FLAG="--proxy"
     export CURL_PROGRESS="-s" EXTRA_LOG=":"
-    CONFIG="${HOME}/.gdl.conf"
+    export CONFIG="${HOME}/.gdl.conf"
 
     # API
-    unset ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN
-
-    export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk" \
-        API_URL="https://www.googleapis.com"
+    export API_URL="https://www.googleapis.com"
     export API_VERSION="v3" \
         SCOPE="${API_URL}/auth/drive" \
         REDIRECT_URI="urn:ietf:wg:oauth:2.0:oob" \
         TOKEN_URL="https://accounts.google.com/o/oauth2/token"
 
-    _check_longoptions() {
-        [ -z "${2}" ] && {
-            printf "%s\n" "${0##*/}: ${1}: flag requires an argument."
-            printf "\n%s\n" "Help:"
-            printf "%s\n" "    $(_usage "${1}")"
-            exit 1
-        }
-        return 0
-    }
-
-    while [ "${#}" -gt 0 ]; do
-        case "${1}" in
-            -h | --help) _usage "${2}" ;;
-            -D | --debug) DEBUG="true" && export DEBUG ;;
-            -V | --version | --info) _version_info ;;
-            -l | --log)
-                _check_longoptions "${1}" "${2}"
-                export LOG_FILE_ID="${2}" && shift
-                ;;
-            -aria | --aria-flags)
-                command -v aria2c 1>| /dev/null || { printf "%s\n" "Error: aria2c not installed." && exit 1; }
-                DOWNLOADER="aria2c"
-                [ "${1}" = "--aria-flags" ] && {
-                    _check_longoptions "${1}" "${2}"
-                    ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && shift
-                }
-                ;;
-            -o | --oauth) export OAUTH_ENABLED="true" ;;
-            -a | --account)
-                export OAUTH_ENABLED="true"
-                _check_longoptions "${1}" "${2}"
-                export CUSTOM_ACCOUNT_NAME="${2##default=}" && shift
-                [ -z "${2##default=*}" ] && export UPDATE_DEFAULT_ACCOUNT="_update_config"
-                ;;
-            -la | --list-account) export LIST_ACCOUNTS="true" ;;
-            # this flag is preferred over --account
-            -ca | --create-account)
-                export OAUTH_ENABLED="true"
-                _check_longoptions "${1}" "${2}"
-                export NEW_ACCOUNT_NAME="${2}" && shift
-                ;;
-            -da | --delete-account)
-                _check_longoptions "${1}" "${2}"
-                export DELETE_ACCOUNT_NAME="${2}" && shift
-                ;;
-            -k | --key)
-                export API_KEY_DOWNLOAD="true"
-                _API_KEY="${2##default=}"
-                # https://github.com/l4yton/RegHex#Google-Drive-API-Key
-                regex="AIza[0-9A-Za-z_-]{35}"
-                if [ -n "${_API_KEY}" ] && _assert_regex "${regex}" "${_API_KEY}"; then
-                    export API_KEY="${_API_KEY}" && shift
-                    [ -z "${2##default=*}" ] && UPDATE_DEFAULT_API_KEY="_update_config"
-                fi
-                ;;
-            -c | --config)
-                _check_longoptions "${1}" "${2}"
-                CONFIG="${2}" && shift
-                ;;
-            -d | --directory)
-                _check_longoptions "${1}" "${2}"
-                export FOLDERNAME="${2}" && shift
-                ;;
-            -s | --skip-subdirs)
-                export SKIP_SUBDIRS="true"
-                ;;
-            -p | --parallel)
-                _check_longoptions "${1}" "${2}"
-                if [ "${2}" -gt 0 ] 2>| /dev/null 1>&2; then
-                    export NO_OF_PARALLEL_JOBS="${2}"
-                else
-                    printf "\nError: -p/--parallel accepts values between 1 to 10.\n"
-                    exit 1
-                fi
-                export PARALLEL_DOWNLOAD="parallel" && shift
-                ;;
-            --proxy)
-                _check_longoptions "${1}" "${2}"
-                export PROXY="${2}" && shift
-                ;;
-
-            --speed)
-                _check_longoptions "${1}" "${2}"
-                regex='^([0-9]+)([k,K]|[m,M])+$'
-                if _assert_regex "${regex}" "${2}"; then
-                    export SPEED_LIMIT="${2}" && shift
-                else
-                    printf "Error: Wrong speed limit format, supported formats: 1K and 1M.\n" 1>&2
-                    exit 1
-                fi
-                ;;
-            -ua | --user-agent)
-                _check_longoptions "${1}" "${2}"
-                export USER_AGENT="${2}" && shift
-                ;;
-            -R | --retry)
-                _check_longoptions "${1}" "${2}"
-                if [ "$((2))" -gt 0 ] 2>| /dev/null 1>&2; then
-                    export RETRY="${2}" && shift
-                else
-                    printf "Error: -R/--retry only takes positive integers as arguments, min = 1, max = infinity.\n"
-                    exit 1
-                fi
-                ;;
-            -in | --include)
-                _check_longoptions "${1}" "${2}"
-                export INCLUDE_FILES="${INCLUDE_FILES:+${INCLUDE_FILES}|}${2}" && shift
-                ;;
-            -ex | --exclude)
-                _check_longoptions "${1}" "${2}"
-                export EXCLUDE_FILES="${EXCLUDE_FILES:+${EXCLUDE_FILES}|}${2}" && shift
-                ;;
-            -q | --quiet) export QUIET="_print_center_quiet" ;;
-            --verbose) export VERBOSE="true" CURL_PROGRESS="" ;;
-            --skip-internet-check)
-                SKIP_INTERNET_CHECK=":"
-                ;;
-                # just ignore empty inputs
-            '') : ;;
-            -*)
-                # Check if user meant it to be a flag
-                [ "${GDL_INSTALLED_WITH:-}" = script ] && {
-                    case "${1}" in
-                        -u | --update)
-                            _check_debug && _update && { exit 0 || exit 1; }
-                            ;;
-                        --uninstall)
-                            _check_debug && _update uninstall && { exit 0 || exit 1; }
-                            ;;
-                        *) : ;;
-                    esac
-                }
-                printf '%s: %s: Unknown option\nTry '"%s -h/--help"' for more information.\n' "${0##*/}" "${1}" "${0##*/}" && exit 1
-                ;;
-            *)
-                # set ID_INPUT_NUM to the input, where num is rank od input
-                _tmp_id="" && _extract_id "${1}" _tmp_id
-                [ -n "${_tmp_id}" ] &&
-                    # this works well in place of arrays
-                    _set_value d "INPUT_ID_$((TOTAL_INPUTS += 1))" "${_tmp_id}"
-                ;;
-        esac
-        shift
-    done
-
+    _parse_arguments "${@}" || return 1
     _check_debug
 
     [ -n "${QUIET}" ] && export CURL_PROGRESS="-s" ARIA_FLAGS=" ${ARIA_FLAGS} -q "
@@ -252,7 +96,7 @@ _setup_arguments() {
 
     [ -n "${OAUTH_ENABLED}" ] && unset API_KEY_DOWNLOAD
 
-    [ -n "${API_KEY_DOWNLOAD}" ] && "${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY}" "${CONFIG}"
+    [ -n "${API_KEY_DOWNLOAD}" ] && "${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "${CONFIG}"
 
     # handle account related flags here as we want to use the flags independenlty even with no normal valid inputs
     # delete account, --delete-account flag
@@ -311,7 +155,7 @@ _setup_traps() {
                 printf "\n\n%s\n" "Script exited manually."
                 kill "${_SCRIPT_KILL_SIGNAL:--9}" -$$ &
             else
-                { _cleanup_config "${CONFIG}" && [ "${GDL_INSTALLED_WITH}" = script ] && _auto_update; } 1>| /dev/null &
+                { _cleanup_config "${CONFIG}" && [ "${GDL_INSTALLED_WITH:-}" = script ] && _auto_update; } 1>| /dev/null &
             fi
         } 2>| /dev/null || :
         return 0

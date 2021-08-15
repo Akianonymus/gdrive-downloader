@@ -52,7 +52,9 @@ _check_id() {
             esac
             export NAME SIZE FILE_ID FOLDER_ID
         else
-            _clear_line 1 && "${QUIET:-_print_center}" "justify" "Invalid URL/ID" "=" && _newline "\n"
+            _clear_line 1 && "${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="
+            "${QUIET:-_print_center}" "normal" "${id_check_id}" " "
+            _newline "\n"
             return 1
         fi
     else

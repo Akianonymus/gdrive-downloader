@@ -346,7 +346,7 @@ These are the custom flags that are currently implemented:
 
     ---
 
--   <strong>-p | --parallel <no_of_files_to_parallely_download></strong>
+-   <strong>-p | --parallel "num of parallel downloads"</strong>
 
     Download multiple files in parallel.
 

@@ -168,6 +168,22 @@ _get_latest_sha() {
 }
 
 ###################################################
+# check if the given fd is open
+# Arguments:
+#   ${1} = fd number
+# return 1 or 0
+###################################################
+_is_fd_open() {
+    for fd in ${1:?}; do
+        # shellcheck disable=SC3021
+        if ! { true >&"${fd}"; } 2<> /dev/null; then
+            printf "%s\n" "Error: fd ${fd} not open."
+            return 1
+        fi
+    done
+}
+
+###################################################
 # Method to extract specified field data from json
 # Arguments: 2
 #   ${1} - value of field to fetch from json
