@@ -8,7 +8,6 @@
 # Globals: None
 # Arguments: 1
 #   ${1} = config file
-# Result: read description
 ###################################################
 _cleanup_config() {
     config="${1:?Error: Missing config}" && unset values_regex _tmp
@@ -30,23 +29,6 @@ EOF
         printf "%s\n" "$(grep -Ev "^\$${values_regex:+|${values_regex}}" "${config}")" >| "${config}" &&
         chmod "a-w-r-x,u+r" "${config}"
     return 0
-}
-
-###################################################
-# Print info if installed
-###################################################
-_version_info() {
-    export COMMAND_NAME REPO INSTALL_PATH TYPE TYPE_VALUE
-    if command -v "${COMMAND_NAME}" 1> /dev/null && [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
-        for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA CONFIG; do
-            value_version_info=""
-            _set_value i value_version_info "${i}"
-            printf "%s\n" "${i}=${value_version_info}"
-        done | sed -e "s/=/: /g"
-    else
-        printf "%s\n" "gdrive-downloader is not installed system wide."
-    fi
-    exit 0
 }
 
 ##################################################
@@ -72,8 +54,10 @@ _setup_arguments() {
     _parse_arguments "${@}" || return 1
     _check_debug
 
+    # post processing for --quiet flag
     [ -n "${QUIET}" ] && export CURL_PROGRESS="-s" ARIA_FLAGS=" ${ARIA_FLAGS} -q "
 
+    # post processing for --speed, --proxy and --user-agent flag
     # check if extra flags for network requests was given, if present, then add to extra_flags var which later will be suffixed to ARIA_FLAGS and CURL_FLAGS
     ARIA_extra_flags="" CURL_extra_flags=""
     for downloader in CURL ARIA; do
@@ -94,10 +78,13 @@ _setup_arguments() {
     # set CURL_FLAGS which will be used with every curl request, including donwloadind the files
     export CURL_FLAGS="${CURL_FLAGS} ${CURL_extra_flags}"
 
+    # post processing for --oauth flag
     [ -n "${OAUTH_ENABLED}" ] && unset API_KEY_DOWNLOAD
 
+    # post processing for --key flag
     [ -n "${API_KEY_DOWNLOAD}" ] && "${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "${CONFIG}"
 
+    # post processing for --account, --delete-account, --create-acount and --list-accounts
     # handle account related flags here as we want to use the flags independenlty even with no normal valid inputs
     # delete account, --delete-account flag
     # TODO: add support for deleting multiple accounts
@@ -173,10 +160,14 @@ _setup_traps() {
 ###################################################
 _process_arguments() {
     export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" PARALLEL_DOWNLOAD SIZE=""
-    ${FOLDERNAME:+mkdir -p ${FOLDERNAME}}
+
+    # --directory flag
+    [ -n "${FOLDERNAME}" ] && mkdir -p "${FOLDERNAME}"
+
     cd "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
 
     _SEEN="" index_process_arguments=0
+    # TOTAL_INPUTS and INPUT_ID_* is exported in _parser_process_input function, see flags.sh
     TOTAL_INPUTS="$((TOTAL_INPUTS < 0 ? 0 : TOTAL_INPUTS))"
     until [ "${index_process_arguments}" -eq "${TOTAL_INPUTS}" ]; do
         _set_value i FILE_ID "INPUT_ID_$((index_process_arguments += 1))"
@@ -186,6 +177,7 @@ _process_arguments() {
             *) _SEEN="${_SEEN}${FILE_ID}" ;;
         esac
 
+        # _check_id exports FILE_ID, FOLDER_ID, NAME, SIZE
         _check_id "${FILE_ID}" || continue
         if [ -n "${FOLDER_ID}" ]; then
             _download_folder "${FOLDER_ID}" "${NAME}" "${PARALLEL_DOWNLOAD:-}"

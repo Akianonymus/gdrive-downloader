@@ -26,43 +26,68 @@ _api_request_oauth() {
 }
 
 ###################################################
-# Check if the file ID exists and determine it's type [ folder | Files ].
-# Todo: write doc
+# Check if the file ID exists and determine its type ( folder or file)
+# Arguments:
+#   ${1} = file id
+# on success, export FILE_ID, FOLDER_ID, NAME, SIZE
 ###################################################
 _check_id() {
     export EXTRA_LOG API_REQUEST_FUNCTION QUIET
-    [ $# = 0 ] && printf "Missing arguments\n" && return 1
-    "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
-    id_check_id="${1}" json_check_id=""
-    if json_check_id="$("${API_REQUEST_FUNCTION}" "files/${id_check_id}?alt=json&fields=name,size,mimeType")"; then
-        if ! printf "%s\n" "${json_check_id}" | _json_value code 1 1 2>| /dev/null 1>&2; then
-            NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1 || :)"
-            mime_check_id="$(printf "%s\n" "${json_check_id}" | _json_value mimeType 1 1 || :)"
-            _clear_line 1
-            case "${mime_check_id}" in
-                *folder*)
-                    FOLDER_ID="${id_check_id}"
-                    _print_center "justify" "Folder Detected" "=" && _newline "\n"
-                    ;;
-                *)
-                    SIZE="$(printf "%s\n" "${json_check_id}" | _json_value size 1 1 || :)"
-                    FILE_ID="${id_check_id}"
-                    _print_center "justify" "File Detected" "=" && _newline "\n"
-                    ;;
-            esac
-            export NAME SIZE FILE_ID FOLDER_ID
-        else
-            _clear_line 1 && "${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="
-            "${QUIET:-_print_center}" "normal" "${id_check_id}" " "
-            _newline "\n"
-            return 1
-        fi
-    else
+    id_check_id="${1:?_check_id}" json_check_id=""
+
+    __error_check_id() {
         _clear_line 1
-        "${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
-        printf "%s\n" "${json_check_id}"
+        "${QUIET:-_print_center}" "justify" "${1:?__error_check_id}" "="
+        [ -n "${2}" ] && {
+            if [ -n "${3}" ]; then
+                "${QUIET:-_print_center}" "normal" "${2}" " "
+            else
+                printf "%s\n" "${2}"
+            fi
+        }
+        _newline "\n"
+    }
+
+    "${EXTRA_LOG}" "justify" "Validating URL/ID.." "-"
+
+    json_check_id="$("${API_REQUEST_FUNCTION}" "files/${id_check_id}?alt=json&fields=name,size,mimeType")" || {
+        __error_check_id "Error: Cannot validate URL/ID" "${json_check_id}"
         return 1
-    fi
+    }
+
+    printf "%s\n" "${json_check_id}" | _json_value code 1 1 2>| /dev/null 1>&2 &&
+        __error_check_id "Invalid URL/ID" "${id_check_id}" pretty && return 1
+
+    NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1)" || {
+        __error_check_id "Cannot fetch name."
+        return 1
+    }
+
+    mime_check_id="$(printf "%s\n" "${json_check_id}" | _json_value mimeType 1 1)" || {
+        __error_check_id "Cannot fetch mimetype."
+        return 1
+    }
+
+    _clear_line 1
+
+    case "${mime_check_id}" in
+        *folder*)
+            FOLDER_ID="${id_check_id}"
+            _print_center "justify" "Folder Detected" "="
+            ;;
+        *)
+            SIZE="$(printf "%s\n" "${json_check_id}" | _json_value size 1 1)" || {
+                __error_check_id "Cannot fetch size of file."
+            }
+
+            FILE_ID="${id_check_id}"
+            _print_center "justify" "File Detected" "="
+            ;;
+    esac
+
+    _newline "\n"
+
+    export NAME SIZE FILE_ID FOLDER_ID
     return 0
 }
 

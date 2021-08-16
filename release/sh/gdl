@@ -598,37 +598,48 @@ _clear_line 1 1>&2
 }
 _check_id(){
 export EXTRA_LOG API_REQUEST_FUNCTION QUIET
-[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+id_check_id="${1:?_check_id}" json_check_id=""
+__error_check_id(){
+_clear_line 1
+"${QUIET:-_print_center}" "justify" "${1:?__error_check_id}" "="
+[ -n "$2" ]&&{
+if [ -n "$3" ];then
+"${QUIET:-_print_center}" "normal" "$2" " "
+else
+printf "%s\n" "$2"
+fi
+}
+_newline "\n"
+}
 "$EXTRA_LOG" "justify" "Validating URL/ID.." "-"
-id_check_id="$1" json_check_id=""
-if json_check_id="$("$API_REQUEST_FUNCTION" "files/$id_check_id?alt=json&fields=name,size,mimeType")";then
-if ! printf "%s\n" "$json_check_id"|_json_value code 1 1 2>|/dev/null 1>&2;then
-NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1||:)"
-mime_check_id="$(printf "%s\n" "$json_check_id"|_json_value mimeType 1 1||:)"
+json_check_id="$("$API_REQUEST_FUNCTION" "files/$id_check_id?alt=json&fields=name,size,mimeType")"||{
+__error_check_id "Error: Cannot validate URL/ID" "$json_check_id"
+return 1
+}
+printf "%s\n" "$json_check_id"|_json_value code 1 1 2>|/dev/null 1>&2&&__error_check_id "Invalid URL/ID" "$id_check_id" pretty&&return 1
+NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1)"||{
+__error_check_id "Cannot fetch name."
+return 1
+}
+mime_check_id="$(printf "%s\n" "$json_check_id"|_json_value mimeType 1 1)"||{
+__error_check_id "Cannot fetch mimetype."
+return 1
+}
 _clear_line 1
 case "$mime_check_id" in
 *folder*)\
 FOLDER_ID="$id_check_id"
-_print_center "justify" "Folder Detected" "="&&_newline "\n"
+_print_center "justify" "Folder Detected" "="
 ;;
 *)\
-SIZE="$(printf "%s\n" "$json_check_id"|_json_value size 1 1||:)"
+SIZE="$(printf "%s\n" "$json_check_id"|_json_value size 1 1)"||{
+__error_check_id "Cannot fetch size of file."
+}
 FILE_ID="$id_check_id"
-_print_center "justify" "File Detected" "="&&_newline "\n"
+_print_center "justify" "File Detected" "="
 esac
-export NAME SIZE FILE_ID FOLDER_ID
-else
-_clear_line 1&&"${QUIET:-_print_center}" "justify" "Invalid URL/ID" "="
-"${QUIET:-_print_center}" "normal" "$id_check_id" " "
 _newline "\n"
-return 1
-fi
-else
-_clear_line 1
-"${QUIET:-_print_center}" "justify" "Error: Cannot check URL/ID" "="
-printf "%s\n" "$json_check_id"
-return 1
-fi
+export NAME SIZE FILE_ID FOLDER_ID
 return 0
 }
 _extract_id(){
@@ -1338,6 +1349,24 @@ EOF
 _parser_setup_flag "-V --version --info" 0
 _parser_setup_flag_help \
 "Show detailed info, only if script is installed system wide."
+_parser_setup_flag_preprocess 4<<'EOF'
+###################################################
+# Print info if installed
+###################################################
+_version_info() {
+    export COMMAND_NAME REPO INSTALL_PATH TYPE TYPE_VALUE
+    if command -v "${COMMAND_NAME}" 1> /dev/null && [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+        for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA CONFIG; do
+            value_version_info=""
+            _set_value i value_version_info "${i}"
+            printf "%s\n" "${i}=${value_version_info}"
+        done | sed -e "s/=/: /g"
+    else
+        printf "%s\n" "gdrive-downloader is not installed system wide."
+    fi
+    exit 0
+}
+EOF
 _parser_setup_flag_process 4<<'EOF'
 _version_info
 EOF
@@ -1417,19 +1446,6 @@ EOF
 chmod u+w "$config"&&printf "%s\n" "$(grep -Ev "^\$${values_regex:+|$values_regex}" "$config")" >|"$config"&&chmod "a-w-r-x,u+r" "$config"
 return 0
 }
-_version_info(){
-export COMMAND_NAME REPO INSTALL_PATH TYPE TYPE_VALUE
-if command -v "$COMMAND_NAME" 1>/dev/null&&[ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+$TYPE_VALUE}}}}" ];then
-for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA CONFIG;do
-value_version_info=""
-_set_value i value_version_info "$i"
-printf "%s\n" "$i=$value_version_info"
-done|sed -e "s/=/: /g"
-else
-printf "%s\n" "gdrive-downloader is not installed system wide."
-fi
-exit 0
-}
 _setup_arguments(){
 [ $# = 0 ]&&printf "Missing arguments\n"&&return 1
 unset _ALL_HELP
@@ -1505,7 +1521,7 @@ export MAIN_PID="$$"
 }
 _process_arguments(){
 export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" PARALLEL_DOWNLOAD SIZE=""
-${FOLDERNAME:+mkdir -p $FOLDERNAME}
+[ -n "$FOLDERNAME" ]&&mkdir -p "$FOLDERNAME"
 cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
 _SEEN="" index_process_arguments=0
 TOTAL_INPUTS="$((TOTAL_INPUTS<0?0:TOTAL_INPUTS))"

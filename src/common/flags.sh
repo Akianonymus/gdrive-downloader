@@ -403,6 +403,25 @@ EOF
     _parser_setup_flag_help \
         "Show detailed info, only if script is installed system wide."
 
+    _parser_setup_flag_preprocess 4<< 'EOF'
+###################################################
+# Print info if installed
+###################################################
+_version_info() {
+    export COMMAND_NAME REPO INSTALL_PATH TYPE TYPE_VALUE
+    if command -v "${COMMAND_NAME}" 1> /dev/null && [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+        for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA CONFIG; do
+            value_version_info=""
+            _set_value i value_version_info "${i}"
+            printf "%s\n" "${i}=${value_version_info}"
+        done | sed -e "s/=/: /g"
+    else
+        printf "%s\n" "gdrive-downloader is not installed system wide."
+    fi
+    exit 0
+}
+EOF
+
     _parser_setup_flag_process 4<< 'EOF'
 _version_info
 EOF
