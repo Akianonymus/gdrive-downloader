@@ -3,7 +3,6 @@
 <a href="https://github.com/Akianonymus/gdrive-downloader/stargazers"><img src="https://img.shields.io/github/stars/Akianonymus/gdrive-downloader.svg?color=blueviolet&style=for-the-badge" alt="Stars"></a>
 </p>
 <p align="center">
-<a href="https://www.codacy.com/manual/Akianonymus/gdrive-downloader?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Akianonymus/gdrive-downloader&amp;utm_campaign=Badge_Grade"><img alt="Codacy grade" src="https://img.shields.io/codacy/grade/f524510e62654ab5bcd2ec460e9efcf9/master?style=for-the-badge"></a>
 <a href="https://github.com/Akianonymus/gdrive-downloader/actions"><img alt="Github Action Checks" src="https://img.shields.io/github/workflow/status/Akianonymus/gdrive-downloader/Checks/master?label=CI%20Checks&style=for-the-badge"></a>
 </p>
 <p align="center">
