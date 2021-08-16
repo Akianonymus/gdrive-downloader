@@ -11,7 +11,7 @@
 ###################################################
 _account_name_valid() {
     name_account_name_valid="${1:?}" account_name_regex_account_name_valid='^([A-Za-z0-9_])+$'
-    _assert_regex "${account_name_regex_account_name_valid} ""${name_account_name_valid}" || return 1
+    _assert_regex "${account_name_regex_account_name_valid}" "${name_account_name_valid}" || return 1
     return 0
 }
 
@@ -78,7 +78,7 @@ _set_new_account_name() {
                     "${QUIET:-_print_center}" "normal" " Warning: Given account ( ${new_account_name_set_new_account_name} ) already exists, input different name. " "-" 1>&2
                     unset new_account_name_set_new_account_name && continue
                 else
-                    export new_account_name_set_new_account_name="${new_account_name_set_new_account_name}" ACCOUNT_NAME="${new_account_name_set_new_account_name}" &&
+                    export new_account_name_set_new_account_name="${new_account_name_set_new_account_name}" NEW_ACCOUNT_NAME="${new_account_name_set_new_account_name}" &&
                         name_valid_set_new_account_name="true" && continue
                 fi
             else
@@ -256,19 +256,22 @@ _check_account_credentials() {
 _check_client() {
     export CONFIG QUIET
     type_check_client="CLIENT_${1:?Error: ID or SECRET}" account_name_check_client="${2:-}"
-    type_value_check_client="" type_regex_check_client="" &&
-        unset type_name_check_client valid_check_client client_check_client message_check_client
-    export client_id_regex='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com' client_secret_regex='[0-9A-Za-z_-]+'
-    type_name_check_client="${account_name_check_client:+ACCOUNT_${account_name_check_client}_}${type_check_client}"
+    unset type_value_check_client type_name_check_client valid_check_client client_check_client message_check_client regex_check_client
+
+    # set regex for validation
+    if [ "${type_check_client}" = "CLIENT_ID" ]; then
+        regex_check_client='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
+    else
+        regex_check_client='[0-9A-Za-z_-]+'
+    fi
 
     # set the type_value to the actual value of ACCOUNT_${account_name}_[ID|SECRET]
+    type_name_check_client="${account_name_check_client:+ACCOUNT_${account_name_check_client}_}${type_check_client}"
     _set_value indirect type_value_check_client "${type_name_check_client}"
-    # set the type_regex to the actual value of client_id_regex or client_secret_regex
-    _set_value indirect type_regex_check_client "${type_check_client}_regex"
 
     until [ -n "${type_value_check_client}" ] && [ -n "${valid_check_client}" ]; do
         [ -n "${type_value_check_client}" ] && {
-            if _assert_regex "${type_regex_check_client}" "${type_value_check_client}"; then
+            if _assert_regex "${regex_check_client}" "${type_value_check_client}"; then
                 [ -n "${client_check_client}" ] && { _update_config "${type_name_check_client}" "${type_value_check_client}" "${CONFIG}" || return 1; }
                 valid_check_client="true" && continue
             else
