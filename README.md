@@ -313,6 +313,12 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>--oauth-refetch-refresh-token</strong>
+
+    Use this flag to trigger refetching of refresh token if existing refresh token is expired. 
+
+    ---
+
 -   <strong>-k | --key 'custom api key' ( optional argument )</strong>
 
     To download with api key. If api key is not specified, then the predefined api key will be used.

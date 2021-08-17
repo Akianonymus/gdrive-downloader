@@ -82,11 +82,26 @@ Note: If both --oauth and --key flag is used, --oauth flag is preferred."
 
     _parser_setup_flag_preprocess 4<< 'EOF'
 unset OAUTH_ENABLED ACCOUNT_NAME \
-    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN 
+    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN REFETCH_REFRESH_TOKEN
 EOF
 
     _parser_setup_flag_process 4<< 'EOF'
 export OAUTH_ENABLED="true"
+EOF
+
+    ###################################################
+
+    _parser_setup_flag "--oauth-refetch-refresh-token" 0
+    _parser_setup_flag_help \
+        "Use this flag to trigger refetching of refresh token if existing refresh token is expired."
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+unset OAUTH_ENABLED ACCOUNT_NAME \
+    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN REFETCH_REFRESH_TOKEN
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+export OAUTH_ENABLED="true" REFETCH_REFRESH_TOKEN="true"
 EOF
 
     ###################################################

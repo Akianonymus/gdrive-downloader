@@ -288,8 +288,11 @@ export CLIENT_ID CLIENT_SECRET QUIET CONFIG CURL_PROGRESS SCOPE REDIRECT_URI TOK
 [ -z "${CLIENT_ID:+$CLIENT_SECRET}" ]&&return 1
 account_name_check_refresh_token="${1:-}"
 refresh_token_regex='[0-9]//[0-9A-Za-z_-]+' authorization_code_regex='[0-9]/[0-9A-Za-z_-]+'
-refresh_token_name_check_refresh_token="${account_name_check_refresh_token:+ACCOUNT_${account_name_check_refresh_token}_}REFRESH_TOKEN"
-_set_value indirect refresh_token_value_check_refresh_token "$refresh_token_name_check_refresh_token"
+_set_value direct refresh_token_name_check_refresh_token "${account_name_check_refresh_token:+ACCOUNT_${account_name_check_refresh_token}_}REFRESH_TOKEN"
+_set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token:-}"
+[ "${REFETCH_REFRESH_TOKEN:-false}" = "true" ]&&{
+unset refresh_token_value_check_refresh_token
+}
 [ -n "$refresh_token_value_check_refresh_token" ]&&{
 ! _assert_regex "$refresh_token_regex" "$refresh_token_value_check_refresh_token"&&"${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token in config file, follow below steps.. " "-"&&unset refresh_token_value_check_refresh_token
 }
@@ -360,6 +363,7 @@ _update_config "$token_expiry_name_check_access_token" "$token_expiry_value_chec
 else
 "${QUIET:-_print_center}" "justify" "Error: Something went wrong" ", printing error." "=" 1>&2
 printf "%s\n" "$response_check_access_token" 1>&2
+printf "%s\n" "If refresh token has expired, then use --oauth-refetch-refresh-token to refetch refresh token, if the error is not clear make a issue on github repository."
 return 1
 fi
 }
@@ -1133,10 +1137,20 @@ _parser_setup_flag_help \
 Note: If both --oauth and --key flag is used, --oauth flag is preferred."
 _parser_setup_flag_preprocess 4<<'EOF'
 unset OAUTH_ENABLED ACCOUNT_NAME \
-    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN 
+    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN REFETCH_REFRESH_TOKEN
 EOF
 _parser_setup_flag_process 4<<'EOF'
 export OAUTH_ENABLED="true"
+EOF
+_parser_setup_flag "--oauth-refetch-refresh-token" 0
+_parser_setup_flag_help \
+"Use this flag to trigger refetching of refresh token if existing refresh token is expired."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset OAUTH_ENABLED ACCOUNT_NAME \
+    ROOT_FOLDER ROOT_FOLDER_NAME CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN REFETCH_REFRESH_TOKEN
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export OAUTH_ENABLED="true" REFETCH_REFRESH_TOKEN="true"
 EOF
 _parser_setup_flag "-a --account" 1 required "account name"
 _parser_setup_flag_help \

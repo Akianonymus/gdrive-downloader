@@ -306,9 +306,15 @@ _check_refresh_token() {
     [ -z "${CLIENT_ID:+${CLIENT_SECRET}}" ] && return 1
     account_name_check_refresh_token="${1:-}"
     refresh_token_regex='[0-9]//[0-9A-Za-z_-]+' authorization_code_regex='[0-9]/[0-9A-Za-z_-]+'
-    refresh_token_name_check_refresh_token="${account_name_check_refresh_token:+ACCOUNT_${account_name_check_refresh_token}_}REFRESH_TOKEN"
 
-    _set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token}"
+    _set_value direct refresh_token_name_check_refresh_token "${account_name_check_refresh_token:+ACCOUNT_${account_name_check_refresh_token}_}REFRESH_TOKEN"
+    _set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token:-}"
+
+    # check if need to refetch refresh token whether one present or not
+    # checked when --oauth-refetch-refresh-token flag is used
+    [ "${REFETCH_REFRESH_TOKEN:-false}" = "true" ] && {
+        unset refresh_token_value_check_refresh_token
+    }
 
     [ -n "${refresh_token_value_check_refresh_token}" ] && {
         ! _assert_regex "${refresh_token_regex}" "${refresh_token_value_check_refresh_token}" &&
@@ -408,6 +414,7 @@ _check_access_token() {
         else
             "${QUIET:-_print_center}" "justify" "Error: Something went wrong" ", printing error." "=" 1>&2
             printf "%s\n" "${response_check_access_token}" 1>&2
+            printf "%s\n" "If refresh token has expired, then use --oauth-refetch-refresh-token to refetch refresh token, if the error is not clear make a issue on github repository."
             return 1
         fi
     }
