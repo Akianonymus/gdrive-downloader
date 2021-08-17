@@ -8,13 +8,9 @@
 # Result: return 0 or 1
 ###################################################
 _assert_regex() {
-    pattern_assert_regex="${1:?Error: Missing pattern}"
-    string_assert_regex="${2:?Missing string}"
-    if printf "%s\n" "${string_assert_regex}" | grep -qE "${pattern_assert_regex}"; then
-        return 0
-    else
-        return 1
-    fi
+    grep -qE "${1:?Error: Missing pattern}" 0<< EOF
+${2:?Missing string}
+EOF
 }
 
 ###################################################
