@@ -141,7 +141,23 @@ alternatively, you can use the original github url instead of `https://drivedl.c
 curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s
 ```
 
-and done.
+After the scripts have been downloaded, it will ask to add path to shell rc, follow the instructions.
+
+Typically the command look likes this:
+
+```
+echo '[ -f "${HOME}/.gdrive-downloader/gdl" ] && [ -x "${HOME}/.gdrive-downloader/gdl" ] && PATH="${HOME}/.gdrive-downloader:${PATH}"' >> ~/.zshrc
+```
+
+where `.zshrc` can be `.bashrc` / `.profile` or any other file where you want to add.
+
+Alternatively, to install globaly, run below commands:
+
+```shell
+curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sudo sh -s -- --path /usr/local/bin
+```
+
+Note: Here /usr/local/bin can be /usr/bin or some other path.
 
 #### Advanced Method
 
@@ -158,6 +174,10 @@ These are the flags that are available in the install.sh script:
     Custom path where you want to install the script.
 
     Note: For global installs, give path outside of the home dir like /usr/bin and it must be in the executable path already.
+
+    ```shell
+    curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sudo sh -s -- --path /usr/bin
+    ```
 
     ---
 

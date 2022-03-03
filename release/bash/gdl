@@ -1568,7 +1568,7 @@ export TMPFILE
 _setup_traps
 if [ -n "$OAUTH_ENABLED" ];then
 "$EXTRA_LOG" "justify" "Checking credentials.." "-"
-{ _check_credentials&&for _ in 1 2;do _clear_line 1;done;}||{ "${QUIET:-_print_center}" "normal" "[ Error: Credentials checking failed ]" "="&&exit 1;}
+{ _check_credentials&&_clear_line 1;}||{ "${QUIET:-_print_center}" "normal" "[ Error: Credentials checking failed ]" "="&&exit 1;}
 "${QUIET:-_print_center}" "normal" " Account: $ACCOUNT_NAME " "="
 export API_REQUEST_FUNCTION="_api_request_oauth" OAUTH_ENABLED="true"
 else
@@ -1595,7 +1595,7 @@ export COMMON_PATH="${COMMON_UTILS_FILE:-$PWD}/../common"
 }
 export SOURCE_UTILS=""
 [[ ${BASH_VERSINFO:-0} -ge 4 ]]||{ printf "Bash version lower than 4.x not supported.\n"&&return 1;}
-set -o errexit -o noclobber -o pipefail||exit 1
+set -o noclobber -o pipefail||exit 1
 export _SCRIPT_KILL_SIGNAL="--"
 _main_helper "$@"||exit 1
 }

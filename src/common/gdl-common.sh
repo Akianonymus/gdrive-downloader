@@ -201,7 +201,7 @@ _main_helper() {
 
     if [ -n "${OAUTH_ENABLED}" ]; then
         "${EXTRA_LOG}" "justify" "Checking credentials.." "-"
-        { _check_credentials && for _ in 1 2; do _clear_line 1; done; } ||
+        { _check_credentials && _clear_line 1; } ||
             { "${QUIET:-_print_center}" "normal" "[ Error: Credentials checking failed ]" "=" && exit 1; }
         "${QUIET:-_print_center}" "normal" " Account: ${ACCOUNT_NAME} " "="
 

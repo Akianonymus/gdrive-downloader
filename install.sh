@@ -284,6 +284,7 @@ _variables() {
     COMMAND_NAME="gdl"
     INFO_PATH="${HOME}/.gdrive-downloader"
     INSTALL_PATH="${HOME}/.gdrive-downloader"
+    INSTALL_RC_STRING="[ -f \"\${HOME}/.gdrive-downloader/gdl\" ] && [ -x \"\${HOME}/.gdrive-downloader/gdl\" ] && PATH=\"\${HOME}/.gdrive-downloader:\${PATH}\""
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
@@ -373,53 +374,27 @@ _start() {
 
         chmod "a-w-r-x,${PERM_MODE:-u}+x+r" "${INSTALL_PATH}/${COMMAND_NAME}"
 
-        [ "${GLOBAL_INSTALL}" = false ] && {
-            _PATH="PATH=\"${INSTALL_PATH}:\${PATH}\""
-            grep -q "${_PATH}" "${SHELL_RC}" 2>| /dev/null || {
-                (printf "\n%s\n" "${_PATH}" >> "${SHELL_RC}") 2>| /dev/null || {
-                    shell_rc_write="error"
-                    _shell_rc_err_msg() {
-                        "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
-                        "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
-                        "${QUIET:-_print_center}" "normal" " Add below line to your shell rc manually " "-" && printf "\n"
-                        "${QUIET:-_print_center}" "normal" "${_PATH}" " " && printf "\n"
-                    }
-                }
-            }
-        }
-
         for _ in 1 2; do _clear_line 1; done
 
         if [ "${job}" = install ]; then
-            { [ -n "${shell_rc_write}" ] && _shell_rc_err_msg; } || {
-                "${QUIET:-_print_center}" "justify" "Installed Successfully" "="
-                "${QUIET:-_print_center}" "normal" "[ Command name: ${COMMAND_NAME} ]" "="
+            "${QUIET:-_print_center}" "justify" "Installed Successfully" "="
+            "${QUIET:-_print_center}" "normal" "[ Command name: ${COMMAND_NAME} ]" "="
+
+            [ "${GLOBAL_INSTALL}" = false ] && {
+                "${QUIET:-_print_center}" "normal" " Add below line to your shell rc manually " "-" && printf "\n"
+                "${QUIET:-_print_center}" "normal" "${INSTALL_RC_STRING}" " " && printf "\n"
+                "${QUIET:-_print_center}" "normal" "Run below command" " " && printf "\n"
+                printf "%s\n\n" "echo '${INSTALL_RC_STRING}' >> ${SHELL_RC}"
             }
+
             _print_center "justify" "To use the command, do" "-"
             _newline "\n" && _print_center "normal" ". ${SHELL_RC}" " "
             _print_center "normal" "or" " "
             _print_center "normal" "restart your terminal." " "
             _newline "\n" && _print_center "normal" "To update the script in future, just run ${COMMAND_NAME} -u/--update." " "
         else
-            { [ -n "${shell_rc_write}" ] && _shell_rc_err_msg; } ||
-                "${QUIET:-_print_center}" "justify" 'Successfully Updated.' "="
+            "${QUIET:-_print_center}" "justify" 'Successfully Updated.' "="
         fi
-
-        [ -n "${OLD_INSTALLATION_PRESENT}" ] && {
-            rm -f "${INFO_PATH}/bin/common-utils.${INSTALLATION}" \
-                "${INFO_PATH}/bin/download-utils.${INSTALLATION}" \
-                "${INFO_PATH}/gdrive-downloader.info" \
-                "${INFO_PATH}/gdrive-downloader.binpath"
-            __bak="${INFO_PATH}/gdrive-downloader.binpath"
-            { grep -qE "(.|source) ${INFO_PATH}" "${SHELL_RC}" 2>| /dev/null &&
-                ! { [ -w "${SHELL_RC}" ] &&
-                    _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; } &&
-                {
-                    "${QUIET:-_print_center}" "normal" " Successfully updated but manually need to remove below from ${SHELL_RC} " "=" && printf "\n"
-                    "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
-                    "${QUIET:-_print_center}" "normal" ". ${INFO_PATH}" " " && printf "\n"
-                }; } || :
-        }
 
     else
         _clear_line 1
@@ -438,44 +413,16 @@ _start() {
 _uninstall() {
     _print_center "justify" "Uninstalling.." "-"
 
-    _PATH="PATH=\"${INSTALL_PATH}:\${PATH}\""
-
-    _error_message() {
-        "${QUIET:-_print_center}" "justify" 'Error: Uninstall failed.' "="
-        "${QUIET:-_print_center}" "normal" " Cannot edit SHELL RC file " "=" && printf "\n"
-        "${QUIET:-_print_center}" "normal" " ${SHELL_RC} " " " && printf "\n"
-        "${QUIET:-_print_center}" "normal" " Remove below line from your shell rc manually " "-" && printf "\n"
-        "${QUIET:-_print_center}" "normal" " ${_PATH}" " " && printf "\n"
-        return 1
-    }
-
-    [ "${GLOBAL_INSTALL}" = false ] && {
-        grep -q "${_PATH}" "${SHELL_RC}" 2>| /dev/null &&
-            ! { [ -w "${SHELL_RC}" ] &&
-                _new_rc="$(sed -e "s|${_PATH}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; } &&
-            _error_message
-    }
-
-    # just in case old method was present
-    [ -n "${OLD_INSTALLATION_PRESENT}" ] && {
-        rm -f "${INFO_PATH}/bin/common-utils.${INSTALLATION}" \
-            "${INFO_PATH}/bin/drive-utils.${INSTALLATION}" \
-            "${INFO_PATH}/gdrive-downloader.info" \
-            "${INFO_PATH}/gdrive-downloader.binpath"
-        __bak="${INFO_PATH}/gdrive-downloader.binpath"
-        { grep -qE "(.|source) ${INFO_PATH}" "${SHELL_RC}" 2>| /dev/null &&
-            ! { [ -w "${SHELL_RC}" ] &&
-                _new_rc="$(sed -e "s|. ${__bak}||g" -e "s|source ${__bak}||g" "${SHELL_RC}")" && printf "%s\n" "${_new_rc}" >| "${SHELL_RC}"; } &&
-            _error_message ". ${INFO_PATH}"; } || :
-    }
-
     chmod -f u+w "${INSTALL_PATH}/${COMMAND_NAME}"
     rm -f "${INSTALL_PATH:?}/${COMMAND_NAME:?}"
 
     [ "${GLOBAL_INSTALL}" = false ] && [ -z "$(find "${INSTALL_PATH}" -type f 2>| /dev/null)" ] && rm -rf "${INSTALL_PATH:?}"
     [ -z "$(find "${INFO_PATH}" -type f 2>| /dev/null)" ] && rm -rf "${INFO_PATH:?}"
 
-    _clear_line 1
+    "${QUIET:-_print_center}" "normal" " Remove below line from your shell rc manually " "-" && printf "\n"
+    "${QUIET:-_print_center}" "normal" " Shell rc: ${SHELL_RC} " " " && printf "\n"
+    printf "%s\n\n" "${INSTALL_RC_STRING}"
+
     _print_center "justify" "Uninstall complete." "="
     return 0
 }
@@ -547,6 +494,10 @@ _setup_arguments() {
     mkdir -p "${INSTALL_PATH}" 2> /dev/null || :
     INSTALL_PATH="$(cd "${INSTALL_PATH%\/*}" && pwd)/${INSTALL_PATH##*\/}" || exit 1
     { printf "%s\n" "${PATH}" | grep -q -e "${INSTALL_PATH}:" -e "${INSTALL_PATH}/:" && IN_PATH="true"; } || :
+    # modify install string literal if path changed
+    if [ -n "${_INSTALL_PATH}" ]; then
+        INSTALL_RC_STRING="[ -f \"${INSTALL_PATH}/gdl\" ] && [ -x \"${INSTALL_PATH}/gdl\" ] && PATH=\"${INSTALL_PATH}:\${PATH}\""
+    fi
 
     # check if install path outside home dir and running as root
     [ -n "${INSTALL_PATH##"${HOME}"*}" ] && PERM_MODE="a" && GLOBAL_INSTALL="true" && ! [ "$(id -u)" = 0 ] &&
@@ -565,16 +516,13 @@ main() {
     { command -v bash && [ "$(bash -c 'printf "%s\n" ${BASH_VERSINFO:-0}')" -ge 4 ] && INSTALLATION="bash"; } 1>| /dev/null
     _check_dependencies "${?}" && INSTALLATION="${INSTALLATION:-sh}"
 
-    set -o errexit -o noclobber
+    set -o noclobber
 
     _variables && _setup_arguments "${@}"
 
     _check_existing_command() {
         if COMMAND_PATH="$(command -v "${COMMAND_NAME}")"; then
-            if [ -f "${INFO_PATH}/gdrive-downloader.info" ] && [ -f "${INFO_PATH}/gdrive-downloader.binpath" ]; then
-                OLD_INSTALLATION_PRESENT="true" && . "${INFO_PATH}/gdrive-downloader.info"
-                return 0
-            elif SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" "${COMMAND_PATH}" || :)" &&
+            if SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" "${COMMAND_PATH}" || :)" &&
                 eval "${SCRIPT_VALUES}" 2> /dev/null && [ -n "${LATEST_INSTALLED_SHA:+${SELF_SOURCE}}" ]; then
                 return 0
             else

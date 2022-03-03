@@ -28,7 +28,7 @@ main() {
     fi
     eval "${SOURCE_UTILS}" || { printf "Error: Unable to source util files.\n" && exit 1; }
 
-    set -o errexit -o noclobber
+    set -o noclobber
 
     # the kill signal which is used to kill the whole script and children in case of ctrl + c
     export _SCRIPT_KILL_SIGNAL="-9"

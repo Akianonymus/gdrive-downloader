@@ -28,7 +28,7 @@ if command -v shellcheck 1>| /dev/null; then
     for k in . src/common src/sh src/bash; do
         cd "${k}" 2>| /dev/null 1>&2 || exit 1
         for i in *.*sh; do
-            if ! shellcheck -o all "${i}"; then
+            if ! shellcheck -o all -e SC2312 "${i}"; then
                 printf "\n%s\n\n" "${k}/${i}: ERROR"
                 lint_status=1
             else

@@ -26,7 +26,7 @@ main() {
     export SOURCE_UTILS=""
 
     [[ ${BASH_VERSINFO:-0} -ge 4 ]] || { printf "Bash version lower than 4.x not supported.\n" && return 1; }
-    set -o errexit -o noclobber -o pipefail || exit 1
+    set -o noclobber -o pipefail || exit 1
 
     # the kill signal which is used to kill the whole script and children in case of ctrl + c
     export _SCRIPT_KILL_SIGNAL="--"
