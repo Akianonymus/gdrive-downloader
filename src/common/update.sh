@@ -51,12 +51,12 @@ _update() {
 _update_value() {
     command_path="${INSTALL_PATH:?}/${COMMAND_NAME:?}"
     value_name="${1:?}" value="${2:-}"
-    script_without_value_and_shebang="$(grep -v "${value_name}=\".*\".* # added values" "${command_path}" | sed 1d)"
+    script_without_value_and_shebang="$(grep -v "${value_name}=\".*\".* # added values" -- "${command_path}" | sed 1d)"
     new_script="$(
-        sed -n 1p "${command_path}"
+        sed -n 1p -- "${command_path}"
         printf "%s\n" "${value_name}=\"${value}\" # added values"
         printf "%s\n" "${script_without_value_and_shebang}"
     )"
-    chmod u+w "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod "a-w-r-x,${PERM_MODE:-u}+r+x" "${command_path}"
+    chmod u+w -- "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod "a-w-r-x,${PERM_MODE:-u}+r+x" -- "${command_path}"
     return 0
 }

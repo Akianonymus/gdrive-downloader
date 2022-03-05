@@ -72,7 +72,7 @@ _download_with_aria2c() {
 
     if [ "${download_status}" -eq 0 ]; then
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
-        rm -f "${name}.aria2"
+        rm -f -- "${name}.aria2"
     else
         "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
         return 1
@@ -144,7 +144,7 @@ _download_with_curl() {
     if [ "$(_actual_size_in_bytes "${name_download_file}")" -ge "${server_size_download_file}" ]; then
         for _ in 1 2 3; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
-        rm -f "${name}.aria2"
+        rm -f -- "${name}.aria2"
     else
         "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
         return 1
@@ -287,9 +287,9 @@ EOF
 
     if [ -f "${name_download_folder}" ]; then
         name_download_folder="${name_download_folder}$(_epoch)"
-    fi && mkdir -p "${name_download_folder}"
+    fi && mkdir -p -- "${name_download_folder}"
 
-    cd "${name_download_folder}" || exit 1
+    cd -- "${name_download_folder}" || exit 1
 
     if [ -n "${num_of_files_download_folder}" ]; then
         if [ -n "${parallel_download_folder}" ]; then

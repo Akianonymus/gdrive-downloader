@@ -22,12 +22,12 @@ _cleanup_config() {
         [ "${expiry}" -le "$(_epoch)" ] &&
             values_regex="${values_regex:+${values_regex}|}${expiry_value_name}=\".*\"|${token_value_name}=\".*\""
     done 4<< EOF
-$(grep -F ACCESS_TOKEN_EXPIRY "${config}" || :)
+$(grep -F ACCESS_TOKEN_EXPIRY -- "${config}" || :)
 EOF
 
-    chmod u+w "${config}" &&
-        printf "%s\n" "$(grep -Ev "^\$${values_regex:+|${values_regex}}" "${config}")" >| "${config}" &&
-        chmod "a-w-r-x,u+r" "${config}"
+    chmod u+w -- "${config}" &&
+        printf "%s\n" "$(grep -Ev "^\$${values_regex:+|${values_regex}}" -- "${config}")" >| "${config}" &&
+        chmod "a-w-r-x,u+r" -- "${config}"
     return 0
 }
 
@@ -162,9 +162,9 @@ _process_arguments() {
     export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" PARALLEL_DOWNLOAD SIZE=""
 
     # --directory flag
-    [ -n "${FOLDERNAME}" ] && mkdir -p "${FOLDERNAME}"
+    [ -n "${FOLDERNAME}" ] && mkdir -p -- "${FOLDERNAME}"
 
-    cd "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
+    cd -- "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
 
     _SEEN="" index_process_arguments=0
     # TOTAL_INPUTS and INPUT_ID_* is exported in _parser_process_input function, see flags.sh

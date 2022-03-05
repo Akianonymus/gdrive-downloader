@@ -84,11 +84,11 @@ return 0
 _update_value(){
 command_path="${INSTALL_PATH:?}/${COMMAND_NAME:?}"
 value_name="${1:?}" value="${2:-}"
-script_without_value_and_shebang="$(grep -v "$value_name=\".*\".* # added values" "$command_path"|sed 1d)"
-new_script="$(sed -n 1p "$command_path"
+script_without_value_and_shebang="$(grep -v "$value_name=\".*\".* # added values" -- "$command_path"|sed 1d)"
+new_script="$(sed -n 1p -- "$command_path"
 printf "%s\n" "$value_name=\"$value\" # added values"
 printf "%s\n" "$script_without_value_and_shebang")"
-chmod u+w "$command_path"&&printf "%s\n" "$new_script" >|"$command_path"&&chmod "a-w-r-x,${PERM_MODE:-u}+r+x" "$command_path"
+chmod u+w -- "$command_path"&&printf "%s\n" "$new_script" >|"$command_path"&&chmod "a-w-r-x,${PERM_MODE:-u}+r+x" -- "$command_path"
 return 0
 }
 _account_name_valid(){
@@ -112,7 +112,7 @@ COUNT=0
 while read -r account <&4&&[ -n "$account" ];do
 _account_exists "$account"&&{ [ "$COUNT" = 0 ]&&"${QUIET:-_print_center}" "normal" " All available accounts. " "="||:;}&&printf "%b" "$((COUNT+=1)). $account \n"&&_set_value direct "ACC_${COUNT}_ACC" "$account"
 done 4<<EOF
-$(grep -oE '^ACCOUNT_.*_CLIENT_ID' "$CONFIG"|sed -e "s/ACCOUNT_//g" -e "s/_CLIENT_ID//g")
+$(grep -oE '^ACCOUNT_.*_CLIENT_ID' -- "$CONFIG"|sed -e "s/ACCOUNT_//g" -e "s/_CLIENT_ID//g")
 EOF
 { [ "$COUNT" -le 0 ]&&"${QUIET:-_print_center}" "normal" " No accounts configured yet. " "=" 1>&2;}||printf '\n'
 return 0
@@ -157,10 +157,10 @@ export CONFIG QUIET
 account_delete_account="${1:?Error: give account name}"&&unset regex_delete_account config_without_values_delete_account
 if _account_exists "$account_delete_account";then
 regex_delete_account="^ACCOUNT_${account_delete_account}_(CLIENT_ID=|CLIENT_SECRET=|REFRESH_TOKEN=|ROOT_FOLDER=|ROOT_FOLDER_NAME=|ACCESS_TOKEN=|ACCESS_TOKEN_EXPIRY=)|DEFAULT_ACCOUNT=\"$account_delete_account\""
-config_without_values_delete_account="$(grep -vE "$regex_delete_account" "$CONFIG")"
-chmod u+w "$CONFIG"||return 1
+config_without_values_delete_account="$(grep -vE "$regex_delete_account" -- "$CONFIG")"
+chmod u+w -- "$CONFIG"||return 1
 printf "%s\n" "$config_without_values_delete_account" >|"$CONFIG"||return 1
-chmod "a-w-r-x,u+r" "$CONFIG"||return 1
+chmod "a-w-r-x,u+r" -- "$CONFIG"||return 1
 "${QUIET:-_print_center}" "normal" " Successfully deleted account ( $account_delete_account ) from config. " "-"
 else
 "${QUIET:-_print_center}" "normal" " Error: Cannot delete account ( $account_delete_account ) from config. No such account exists " "-" 1>&2
@@ -175,8 +175,8 @@ until ! _account_exists "$account_name_handle_old_config";do
 account_name_handle_old_config="$account_name_handle_old_config$((count_handle_old_config+=1))"
 done
 regex_check_handle_old_config="^(CLIENT_ID=|CLIENT_SECRET=|REFRESH_TOKEN=|ROOT_FOLDER=|ROOT_FOLDER_NAME=|ACCESS_TOKEN=|ACCESS_TOKEN_EXPIRY=)"
-config_without_values_handle_old_config="$(grep -vE "$regex_check_handle_old_config" "$CONFIG")"
-chmod u+w "$CONFIG"||return 1
+config_without_values_handle_old_config="$(grep -vE "$regex_check_handle_old_config" -- "$CONFIG")"
+chmod u+w -- "$CONFIG"||return 1
 printf "%s\n%s\n%s\n%s\n%s\n%s\n" \
 "ACCOUNT_${account_name_handle_old_config}_CLIENT_ID=\"$CLIENT_ID\"" \
 "ACCOUNT_${account_name_handle_old_config}_CLIENT_SECRET=\"$CLIENT_SECRET\"" \
@@ -184,7 +184,7 @@ printf "%s\n%s\n%s\n%s\n%s\n%s\n" \
 "ACCOUNT_${account_name_handle_old_config}_ROOT_FOLDER=\"$ROOT_FOLDER\"" \
 "ACCOUNT_${account_name_handle_old_config}_ROOT_FOLDER_NAME=\"$ROOT_FOLDER_NAME\"" \
 "$config_without_values_handle_old_config" >|"$CONFIG"||return 1
-chmod "a-w-r-x,u+r" "$CONFIG"||return 1
+chmod "a-w-r-x,u+r" -- "$CONFIG"||return 1
 _reload_config||return 1
 }
 return 0
@@ -408,7 +408,7 @@ _token_bg_service
 } 2>|/dev/null 1>&2||:
 _actual_size_in_bytes(){
 file_actual_size_in_bytes="${1:?Error: give filename}"
-{ _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du "$file_actual_size_in_bytes")"&&_tmp="${_tmp%%"$(printf '\t')"*}"&&printf "%s\n" "$((_tmp*512))";}||return 1
+{ _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du -- "$file_actual_size_in_bytes")"&&_tmp="${_tmp%%"$(printf '\t')"*}"&&printf "%s\n" "$((_tmp*512))";}||return 1
 }
 _bytes_to_human(){
 b_bytes_to_human="$(printf "%.0f\n" "${1:-0}")" s_bytes_to_human=0
@@ -576,10 +576,10 @@ _update_config(){
 [ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
 value_name_update_config="$1" value_update_config="$2" config_path_update_config="$3"
 ! [ -f "$config_path_update_config" ]&&: >|"$config_path_update_config"
-chmod u+w "$config_path_update_config"||return 1
-printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name_update_config=" "$config_path_update_config"||:)" \
+chmod u+w -- "$config_path_update_config"||return 1
+printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name_update_config=" -- "$config_path_update_config"||:)" \
 "$value_name_update_config=\"$value_update_config\"" >|"$config_path_update_config"||return 1
-chmod a-w-r-x,u+r "$config_path_update_config"||return 1
+chmod a-w-r-x,u+r -- "$config_path_update_config"||return 1
 return 0
 }
 {
@@ -716,7 +716,7 @@ aria2c $ARIA_FLAGS \
 "$url_download_file" -o "$name_download_file"||download_status=1
 if [ "$download_status" -eq 0 ];then
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
-rm -f "$name.aria2"
+rm -f -- "$name.aria2"
 else
 "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
 return 1
@@ -772,7 +772,7 @@ fi
 if [ "$(_actual_size_in_bytes "$name_download_file")" -ge "$server_size_download_file" ];then
 for _ in 1 2 3;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
-rm -f "$name.aria2"
+rm -f -- "$name.aria2"
 else
 "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
 return 1
@@ -878,8 +878,8 @@ _print_center "justify" \
 "${num_of_files_download_folder:+ | $num_of_files_download_folder files}${num_of_folders_download_folder:+ | $num_of_folders_download_folder sub folders}" "="&&_newline "\n\n"
 if [ -f "$name_download_folder" ];then
 name_download_folder="$name_download_folder$(_epoch)"
-fi&&mkdir -p "$name_download_folder"
-cd "$name_download_folder"||exit 1
+fi&&mkdir -p -- "$name_download_folder"
+cd -- "$name_download_folder"||exit 1
 if [ -n "$num_of_files_download_folder" ];then
 if [ -n "$parallel_download_folder" ];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
@@ -1464,9 +1464,9 @@ token_value_name="${expiry_value_name%%_EXPIRY}"
 _tmp="${line##*=}"&&_tmp="${_tmp%\"}"&&expiry="${_tmp#\"}"
 [ "$expiry" -le "$(_epoch)" ]&&values_regex="${values_regex:+$values_regex|}$expiry_value_name=\".*\"|$token_value_name=\".*\""
 done 4<<EOF
-$(grep -F ACCESS_TOKEN_EXPIRY "$config"||:)
+$(grep -F ACCESS_TOKEN_EXPIRY -- "$config"||:)
 EOF
-chmod u+w "$config"&&printf "%s\n" "$(grep -Ev "^\$${values_regex:+|$values_regex}" "$config")" >|"$config"&&chmod "a-w-r-x,u+r" "$config"
+chmod u+w -- "$config"&&printf "%s\n" "$(grep -Ev "^\$${values_regex:+|$values_regex}" -- "$config")" >|"$config"&&chmod "a-w-r-x,u+r" -- "$config"
 return 0
 }
 _setup_arguments(){
@@ -1544,8 +1544,8 @@ export MAIN_PID="$$"
 }
 _process_arguments(){
 export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" PARALLEL_DOWNLOAD SIZE=""
-[ -n "$FOLDERNAME" ]&&mkdir -p "$FOLDERNAME"
-cd "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
+[ -n "$FOLDERNAME" ]&&mkdir -p -- "$FOLDERNAME"
+cd -- "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
 _SEEN="" index_process_arguments=0
 TOTAL_INPUTS="$((TOTAL_INPUTS<0?0:TOTAL_INPUTS))"
 until [ "$index_process_arguments" -eq "$TOTAL_INPUTS" ];do

@@ -312,7 +312,7 @@ _variables() {
 _download_file() {
     cd "${INSTALL_PATH}" 2>| /dev/null 1>&2 || exit 1
     # make the file writable if present
-    [ -f "${INSTALL_PATH}/${COMMAND_NAME}" ] && chmod u+w "${INSTALL_PATH}/${COMMAND_NAME}"
+    [ -f "${INSTALL_PATH}/${COMMAND_NAME}" ] && chmod u+w -- "${INSTALL_PATH}/${COMMAND_NAME}"
     _print_center "justify" "${COMMAND_NAME}" "-"
     # now download the binary
     if script_download_file="$(curl -Ls --compressed "https://github.com/${REPO}/raw/${LATEST_CURRENT_SHA}/release/${INSTALLATION:-}/gdl")"; then
@@ -330,7 +330,7 @@ _download_file() {
 ###################################################
 _inject_values() {
     shebang="$(sed -n 1p "${INSTALL_PATH}/${COMMAND_NAME}")"
-    script_without_values_and_shebang="$(grep -vE "${VALUES_REGEX}" "${INSTALL_PATH}/${COMMAND_NAME}" | sed 1d)"
+    script_without_values_and_shebang="$(grep -vE "${VALUES_REGEX}" -- "${INSTALL_PATH}/${COMMAND_NAME}" | sed 1d)"
     {
         printf "%s\n" "${shebang}"
         for i in VALUES_LIST ${VALUES_LIST}; do
@@ -372,7 +372,7 @@ _start() {
             exit 1
         fi
 
-        chmod "a-w-r-x,${PERM_MODE:-u}+x+r" "${INSTALL_PATH}/${COMMAND_NAME}"
+        chmod "a-w-r-x,${PERM_MODE:-u}+x+r" -- "${INSTALL_PATH}/${COMMAND_NAME}"
 
         for _ in 1 2; do _clear_line 1; done
 
@@ -413,11 +413,11 @@ _start() {
 _uninstall() {
     _print_center "justify" "Uninstalling.." "-"
 
-    chmod -f u+w "${INSTALL_PATH}/${COMMAND_NAME}"
-    rm -f "${INSTALL_PATH:?}/${COMMAND_NAME:?}"
+    chmod -f u+w -- "${INSTALL_PATH}/${COMMAND_NAME}"
+    rm -f -- "${INSTALL_PATH:?}/${COMMAND_NAME:?}"
 
-    [ "${GLOBAL_INSTALL}" = false ] && [ -z "$(find "${INSTALL_PATH}" -type f 2>| /dev/null)" ] && rm -rf "${INSTALL_PATH:?}"
-    [ -z "$(find "${INFO_PATH}" -type f 2>| /dev/null)" ] && rm -rf "${INFO_PATH:?}"
+    [ "${GLOBAL_INSTALL}" = false ] && [ -z "$(find "${INSTALL_PATH}" -type f 2>| /dev/null)" ] && rm -rf -- "${INSTALL_PATH:?}"
+    [ -z "$(find "${INFO_PATH}" -type f 2>| /dev/null)" ] && rm -rf -- "${INFO_PATH:?}"
 
     "${QUIET:-_print_center}" "normal" " Remove below line from your shell rc manually " "-" && printf "\n"
     "${QUIET:-_print_center}" "normal" " Shell rc: ${SHELL_RC} " " " && printf "\n"
@@ -522,7 +522,7 @@ main() {
 
     _check_existing_command() {
         if COMMAND_PATH="$(command -v "${COMMAND_NAME}")"; then
-            if SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" "${COMMAND_PATH}" || :)" &&
+            if SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" -- "${COMMAND_PATH}" || :)" &&
                 eval "${SCRIPT_VALUES}" 2> /dev/null && [ -n "${LATEST_INSTALLED_SHA:+${SELF_SOURCE}}" ]; then
                 return 0
             else

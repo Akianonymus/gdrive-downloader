@@ -13,7 +13,7 @@ _actual_size_in_bytes() {
     file_actual_size_in_bytes="${1:?Error: give filename}"
     # use block size to 512 because the lowest osx supports is 512
     # multiply with 512 to convert for 1 block size
-    { _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du "${file_actual_size_in_bytes}")" &&
+    { _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du -- "${file_actual_size_in_bytes}")" &&
         _tmp="${_tmp%%"$(printf '\t')"*}" && printf "%s\n" "$((_tmp * 512))"; } || return 1
 }
 
@@ -332,10 +332,10 @@ _update_config() {
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
     value_name_update_config="${1}" value_update_config="${2}" config_path_update_config="${3}"
     ! [ -f "${config_path_update_config}" ] && : >| "${config_path_update_config}" # If config file doesn't exist.
-    chmod u+w "${config_path_update_config}" || return 1
-    printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name_update_config}=" "${config_path_update_config}" || :)" \
+    chmod u+w -- "${config_path_update_config}" || return 1
+    printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name_update_config}=" -- "${config_path_update_config}" || :)" \
         "${value_name_update_config}=\"${value_update_config}\"" >| "${config_path_update_config}" || return 1
-    chmod a-w-r-x,u+r "${config_path_update_config}" || return 1
+    chmod a-w-r-x,u+r -- "${config_path_update_config}" || return 1
     return 0
 }
 
