@@ -13,7 +13,7 @@ Options:\n
       Default command: gdl\n
   -r | --repo <Username/reponame> - Upload script from your custom repo,e.g --repo Akianonymus/gdrive-downloader, make sure your repo file structure is same as official repo.\n
   -b | --branch <branch_name> - Specify branch name for the github repo, applies to custom and default repo both.\n
-  -s | --shell-rc <shell_file> - Specify custom rc file, where PATH is appended, by default script detects .zshrc and .bashrc.\n
+  -s | --shell-rc <shell_file> - Specify custom rc file, where PATH is supposed to be appended, by default script detects .zshrc and .bashrc.\n
   -t | --time 'no of days' - Specify custom auto update time ( given input will taken as number of days ) after which script will try to automatically update itself.\n
   --skip-internet-check - Like the flag says.\n
   --sh | --posix - Force install posix scripts even if system has compatible bash binary present.\n
@@ -297,7 +297,7 @@ _variables() {
     GLOBAL_INSTALL="false" PERM_MODE="u"
     export GDL_INSTALLED_WITH="script"
 
-    export VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE SHELL_RC LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH"
+    export VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH"
 
     VALUES_REGEX="" && for i in VALUES_LIST ${VALUES_LIST}; do
         VALUES_REGEX="${VALUES_REGEX:+${VALUES_REGEX}|}^${i}=\".*\".* # added values"
