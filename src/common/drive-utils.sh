@@ -77,7 +77,7 @@ _check_id() {
             ;;
         *)
             SIZE="$(printf "%s\n" "${json_check_id}" | _json_value size 1 1)" || {
-                __error_check_id "Cannot fetch size of file."
+                printf "\n" && __error_check_id "Cannot fetch size of file." && return 1
             }
 
             FILE_ID="${id_check_id}"
