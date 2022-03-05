@@ -684,11 +684,14 @@ flag_download_file="--referer" flag_value_download_file="https://drive.google.co
 url_download_file="$API_URL/drive/$API_VERSION/files/$file_id_download_file?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=$API_KEY"
 else
 "$EXTRA_LOG" "justify" "Fetching" " cookies.." "-"
-_curl -I $CURL_PROGRESS \
--c "${TMPFILE}_${file_id_download_file}_COOKIE" -o /dev/null \
+_curl $CURL_PROGRESS \
+-c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_confirm_string" \
 "https://drive.google.com/uc?export=download&id=$file_id_download_file"||:
 for _ in 1 2;do _clear_line 1;done
 confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")"&&printf "%s\n" "${_tmp##*"$(printf '\t')"}")"||:
+[ -z "$confirm_string" ]&&{
+confirm_string="$(_tmp="$(grep -Eo "export=download.*$file_id_download_file.*confirm=\w+" "${TMPFILE}_${file_id_download_file}_confirm_string")"&&printf "%s\n" "${_tmp##*=}")"
+}
 flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 [ "$DOWNLOADER" = "aria2c" ]&&{
 cookies_download_file="$(sed -e "s/^\# .*//g" -e "s/^\#HttpOnly_//g" "${TMPFILE}_${file_id_download_file}_COOKIE")"

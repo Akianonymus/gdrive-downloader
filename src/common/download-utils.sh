@@ -21,11 +21,17 @@ _common_stuff() {
         # normal downloading
         "${EXTRA_LOG}" "justify" "Fetching" " cookies.." "-"
         # shellcheck disable=SC2086
-        _curl -I ${CURL_PROGRESS} \
-            -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o /dev/null \
+        _curl ${CURL_PROGRESS} \
+            -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_confirm_string" \
             "https://drive.google.com/uc?export=download&id=${file_id_download_file}" || :
         for _ in 1 2; do _clear_line 1; done
         confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")" && printf "%s\n" "${_tmp##*"$(printf '\t')"}")" || :
+        # https://github.com/Akianonymus/gdrive-downloader/issues/37
+        # sometimes the url doesn't return a proper cookie
+        # so try to parse the html output and get the confirm string
+        [ -z "${confirm_string}" ] && {
+            confirm_string="$(_tmp="$(grep -Eo "export=download.*${file_id_download_file}.*confirm=\w+" "${TMPFILE}_${file_id_download_file}_confirm_string")" && printf "%s\n" "${_tmp##*=}")"
+        }
 
         flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 
