@@ -33,6 +33,12 @@ _update() {
     { [ "${TYPE:-}" != branch ] && type_value_update="$(_get_latest_sha release "${type_value_update}" "${repo_update}")"; } || :
     if script_update="$(curl --compressed -Ls "https://github.com/${repo_update}/raw/${type_value_update}/install.sh")"; then
         _clear_line 1
+
+        # check if the downloaded script has any syntax errors
+        printf "%s\n" "${script_update}" | sh -n || {
+            printf "%s\n" "Install script downloaded but malformed, try again and if the issue persists open an issue on github."
+            return 1
+        }
         # shellcheck disable=SC2248
         printf "%s\n" "${script_update}" | sh -s -- ${job_uninstall:-} --skip-internet-check --cmd "${cmd_update}" --path "${path_update}"
         current_time="$(date +'%s')"
@@ -57,6 +63,11 @@ _update_value() {
         printf "%s\n" "${value_name}=\"${value}\" # added values"
         printf "%s\n" "${script_without_value_and_shebang}"
     )"
+    # check if the downloaded script has any syntax errors
+    printf "%s\n" "${new_script}" | "${INSTALLATION:-bash}" -n || {
+        printf "%s\n" "Update downloaded but malformed, try again and if the issue persists open an issue on github."
+        return 1
+    }
     chmod u+w -- "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod "a-w-r-x,${PERM_MODE:-u}+r+x" -- "${command_path}"
     return 0
 }

@@ -316,6 +316,8 @@ _download_file() {
     _print_center "justify" "${COMMAND_NAME}" "-"
     # now download the binary
     if script_download_file="$(curl -Ls --compressed "https://github.com/${REPO}/raw/${LATEST_CURRENT_SHA}/release/${INSTALLATION:-}/gdl")"; then
+        # check if the downloaded script has any syntax errors, return 2 will be used later
+        printf "%s\n" "${script_download_file}" | "${INSTALLATION}" -n || return 2
         printf "%s\n" "${script_download_file}" >| "${COMMAND_NAME}" || return 1
     else
         return 1
@@ -366,7 +368,9 @@ _start() {
     }
 
     _print_center "justify" "Downloading scripts.." "-"
-    if _download_file; then
+    _download_file
+    status_download_file="${?}"
+    if [ "${status_download_file}" = 0 ]; then
         if ! _inject_values; then
             "${QUIET:-_print_center}" "normal" "Cannot edit installed files" ", check if create a issue on github with proper log." "="
             exit 1
@@ -398,7 +402,12 @@ _start() {
 
     else
         _clear_line 1
-        "${QUIET:-_print_center}" "justify" "Cannot download the scripts." "="
+
+        if [ "${status_download_file}" = 1 ]; then
+            "${QUIET:-_print_center}" "justify" "Cannot download the scripts." "="
+        else
+            printf "%s\n" "Script downloaded but malformed, try again and if the issue persists open an issue on github."
+        fi
         exit 1
     fi
     return 0
