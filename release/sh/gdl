@@ -1312,6 +1312,15 @@ case "${2}" in
 esac
 export DOCUMENT_FORMAT_NAME="${2}" DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
 EOF
+_parser_setup_flag "-dr --dry-run" 0
+_parser_setup_flag_help \
+"Just check if the url can be downloaded and exit the script."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset DRY_RUN
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export DRY_RUN="true"
+EOF
 _parser_setup_flag "-s --skip-subdirs" 0
 _parser_setup_flag_help \
 "Skip downloading of sub folders present in case of folders."
@@ -1619,18 +1628,28 @@ trap '' TSTP
 export MAIN_PID="$$"
 }
 _process_arguments(){
-export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" FILE_MIME_TYPE="" PARALLEL_DOWNLOAD SIZE=""
+export DRY_RUN FOLDERNAME TOTAL_INPUTS PARALLEL_DOWNLOAD
 [ -n "$FOLDERNAME" ]&&mkdir -p -- "$FOLDERNAME"
 cd -- "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
 _SEEN="" index_process_arguments=0
 TOTAL_INPUTS="$((TOTAL_INPUTS<0?0:TOTAL_INPUTS))"
 until [ "$index_process_arguments" -eq "$TOTAL_INPUTS" ];do
+FILE_ID="" FOLDER_ID="" NAME="" FILE_MIME_TYPE="" SIZE=""
 _set_value i FILE_ID "INPUT_ID_$((index_process_arguments+=1))"
 case "$_SEEN" in
 *"$FILE_ID"*)continue;;
 *)_SEEN="$_SEEN$FILE_ID"
 esac
 _check_id "$FILE_ID"||continue
+[ "$DRY_RUN" = "true" ]&&{
+_clear_line 1
+if [ -n "$FOLDER_ID" ];then
+_print_center "justify" "Name: $NAME" " | $FOLDER_ID" "="
+else
+_print_center "justify" "Name: $NAME" " | $FILE_ID | Size: $({ [ -n "$SIZE" ]&&_bytes_to_human "$SIZE";}||printf 'Unknown')" "="
+fi
+printf '\n'&&continue
+}
 if [ -n "$FOLDER_ID" ];then
 _download_folder "$FOLDER_ID" "$NAME" "${PARALLEL_DOWNLOAD:-}"
 else

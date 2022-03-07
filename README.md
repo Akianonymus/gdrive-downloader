@@ -373,6 +373,12 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-dr | --dry-run</strong>
+
+    Just check if the url can be downloaded and exit the script.
+
+    ---
+
 -   <strong>-s | --skip-subdirs</strong>
 
     Skip downloading of sub folders present in case of folders.

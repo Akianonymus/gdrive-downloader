@@ -250,6 +250,20 @@ EOF
 
     ###################################################
 
+    _parser_setup_flag "-dr --dry-run" 0
+    _parser_setup_flag_help \
+        "Just check if the url can be downloaded and exit the script."
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+unset DRY_RUN
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+export DRY_RUN="true"
+EOF
+
+    ###################################################
+
     _parser_setup_flag "-s --skip-subdirs" 0
     _parser_setup_flag_help \
         "Skip downloading of sub folders present in case of folders."
