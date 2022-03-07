@@ -159,7 +159,7 @@ _setup_traps() {
 # Process all the values in "${ID_INPUT_ARRAY}"
 ###################################################
 _process_arguments() {
-    export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" PARALLEL_DOWNLOAD SIZE=""
+    export FOLDERNAME TOTAL_INPUTS FILE_ID="" FOLDER_ID="" NAME="" FILE_MIME_TYPE="" PARALLEL_DOWNLOAD SIZE=""
 
     # --directory flag
     [ -n "${FOLDERNAME}" ] && mkdir -p -- "${FOLDERNAME}"
@@ -182,7 +182,7 @@ _process_arguments() {
         if [ -n "${FOLDER_ID}" ]; then
             _download_folder "${FOLDER_ID}" "${NAME}" "${PARALLEL_DOWNLOAD:-}"
         else
-            _download_file_main noparse "${FILE_ID}" "${NAME}" "${SIZE}"
+            _download_file_main noparse "${FILE_ID}" "${NAME}" "${FILE_MIME_TYPE}" "${SIZE}"
         fi
     done
     return 0

@@ -365,6 +365,14 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-df | --document-format 'document type'</strong>
+
+    Can be used for documents to be downloaded in different format, default is docx.
+
+    Available formats are: rtf, odt, html, pdf, epub, zip, docx and txt.
+
+    ---
+
 -   <strong>-s | --skip-subdirs</strong>
 
     Skip downloading of sub folders present in case of folders.

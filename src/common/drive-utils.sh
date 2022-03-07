@@ -71,23 +71,27 @@ _check_id() {
     _clear_line 1
 
     case "${mime_check_id}" in
-        *folder*)
+        "application/vnd.google-apps.folder")
             FOLDER_ID="${id_check_id}"
             _print_center "justify" "Folder Detected" "="
+            ;;
+        "application/vnd.google-apps.document")
+            FILE_ID="${id_check_id}" FILE_MIME_TYPE="${mime_check_id}"
+            _print_center "justify" "Document Detected" "="
             ;;
         *)
             SIZE="$(printf "%s\n" "${json_check_id}" | _json_value size 1 1)" || {
                 printf "\n" && __error_check_id "Cannot fetch size of file." && return 1
             }
 
-            FILE_ID="${id_check_id}"
+            FILE_ID="${id_check_id}" FILE_MIME_TYPE="${mime_check_id}"
             _print_center "justify" "File Detected" "="
             ;;
     esac
 
     _newline "\n"
 
-    export NAME SIZE FILE_ID FOLDER_ID
+    export NAME SIZE FILE_ID FILE_MIME_TYPE FOLDER_ID
     return 0
 }
 
