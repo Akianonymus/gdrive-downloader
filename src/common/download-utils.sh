@@ -279,7 +279,9 @@ _download_folder() {
     # do the first request with pagesize 1000, and fetch nextPageToken
     if json_search_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name")"; then
         # fetch next page jsons till nextPageToken is available
-        until ! next_page_token="$(printf "%s\n" "${json_search_fragment_download_folder:-${json_search_download_folder}}" | _json_value nextPageToken 1 1)"; do
+        while :; do
+            next_page_token="$(printf "%s\n" "${json_search_fragment_download_folder:-${json_search_download_folder}}" | _json_value nextPageToken 1 1 || :)"
+            [ -z "${next_page_token}" ] && break
             json_search_fragment_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name&pageToken=${next_page_token}")" ||
                 _search_error_message_download_folder "${json_search_fragment_download_folder}"
 
