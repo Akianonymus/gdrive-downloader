@@ -1,40 +1,86 @@
 #!/usr/bin/env sh
 # shellcheck source=/dev/null
 
+# a wrapper function to handle cookies for unauthenticated downloads and to fetch document size all
+_cookies_and_document_stuff() {
+    "${EXTRA_LOG}" "justify" "Fetching" " ${1:?}.." "-"
+    # shellcheck disable=SC2086
+    _curl --compressed ${CURL_PROGRESS} ${3:-} \
+        "${4:---header}" "${5:-}" \
+        -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_misc" \
+        "${2:?}" || return 1
+    for _ in 1 2; do _clear_line 1; done
+}
+
 ###################################################
 # common stuff in both curl and aria2c function
 # uses file_id var
 # Todo: write doc
 ###################################################
 _common_stuff() {
-    export OAUTH_ENABLED TMPFILE ACCESS_TOKEN API_URL API_VERSION API_KEY API_KEY_DOWNLOAD EXTRA_LOG CURL_PROGRESS DOWNLOADER
+    export OAUTH_ENABLED TMPFILE ACCESS_TOKEN API_URL API_VERSION API_KEY API_KEY_DOWNLOAD EXTRA_LOG CURL_PROGRESS DOWNLOADER DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED
     # download with oauth creds if enabled
-    if [ -n "${OAUTH_ENABLED}" ]; then
-        . "${TMPFILE}_ACCESS_TOKEN"
-        flag_download_file="--header" flag_value_download_file="Authorization: Bearer ${ACCESS_TOKEN}"
-        url_download_file="${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true"
-    elif [ -n "${API_KEY_DOWNLOAD}" ]; then
-        # download with api key
-        flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
-        url_download_file="${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}?alt=media&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${API_KEY}"
-    else
-        # normal downloading
-        "${EXTRA_LOG}" "justify" "Fetching" " cookies.." "-"
-        # shellcheck disable=SC2086
-        _curl ${CURL_PROGRESS} \
-            -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_confirm_string" \
-            "https://drive.google.com/uc?export=download&id=${file_id_download_file}" || :
-        for _ in 1 2; do _clear_line 1; done
-        confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")" && printf "%s\n" "${_tmp##*"$(printf '\t')"}")" || :
-        # https://github.com/Akianonymus/gdrive-downloader/issues/37
-        # sometimes the url doesn't return a proper cookie
-        # so try to parse the html output and get the confirm string
-        [ -z "${confirm_string}" ] && {
-            confirm_string="$(_tmp="$(grep -Eo "export=download.*${file_id_download_file}.*confirm=\w+" "${TMPFILE}_${file_id_download_file}_confirm_string")" && printf "%s\n" "${_tmp##*=}")"
-        }
+    if [ -n "${OAUTH_ENABLED:-${API_KEY_DOWNLOAD}}" ]; then
+        url_download_file="${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}$(
+            case "${mime_download_file}" in
+                "application/vnd.google-apps.document") printf "%s" "/export?mimeType=${DOCUMENT_FORMAT_ESCAPED}" ;;
+                *) printf "?alt=media" ;;
+            esac
+        )&supportsAllDrives=true&includeItemsFromAllDrives=true"
 
+        if [ -n "${OAUTH_ENABLED}" ]; then
+            . "${TMPFILE}_ACCESS_TOKEN"
+            flag_download_file="--header" flag_value_download_file="Authorization: Bearer ${ACCESS_TOKEN}"
+        elif [ -n "${API_KEY_DOWNLOAD}" ]; then
+            # download with api key
+            flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
+            url_download_file="${url_download_file}&key=${API_KEY}"
+        fi
+
+        case "${mime_download_file}" in
+            "application/vnd.google-apps.document")
+                _cookies_and_document_stuff "document size" "${url_download_file}" "-LI" "${flag_download_file}" "${flag_value_download_file}" || return 1
+                server_size_download_file="$(($(_tmp="$(grep -F 'content-length' "${TMPFILE}_${file_id_download_file}_misc")" && _tmp="${_tmp##content-length: }" && printf "%s\n" "${_tmp%"$(printf '\r')"}")))"
+                server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}" 2>| /dev/null)"
+
+                _clear_line 1
+                _print_center "justify" "${name_download_file}" " | ${server_size_readable_download_file}" "="
+                ;;
+            *) : ;;
+        esac
+    else
         flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 
+        case "${mime_download_file}" in
+            "application/vnd.google-apps.document")
+                # fetch the export links
+                json_common_stuff="$("${API_REQUEST_FUNCTION}" "files/${file_id_download_file}?alt=json&fields=exportLinks")" || return 1
+                url_download_file="$(printf "%s\n" "${json_common_stuff}" | _json_value "${DOCUMENT_FORMAT}" 1 1)" || return 0
+
+                _cookies_and_document_stuff "cookies and document size" "${url_download_file}" "-LI" || return 1
+
+                server_size_download_file="$(($(_tmp="$(grep -F 'content-length' "${TMPFILE}_${file_id_download_file}_misc")" && _tmp="${_tmp##content-length: }" && printf "%s\n" "${_tmp%"$(printf '\r')"}")))"
+
+                server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}" 2>| /dev/null)"
+                _clear_line 1
+                _print_center "justify" "${name_download_file}" " | ${server_size_readable_download_file}" "="
+                ;;
+            *) # normal downloading
+                url_download_file="https://drive.google.com/uc?export=download&id=${file_id_download_file}"
+
+                _cookies_and_document_stuff "cookies" "${url_download_file}" "-L" || return 1
+
+                confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")" && printf "%s\n" "${_tmp##*"$(printf '\t')"}")" || :
+                # https://github.com/Akianonymus/gdrive-downloader/issues/37
+                # sometimes the url doesn't return a proper cookie
+                # so try to parse the html output and get the confirm string
+                [ -z "${confirm_string}" ] && {
+                    confirm_string="$(_tmp="$(grep -Eo "export=download.*${file_id_download_file}.*confirm=\w+" "${TMPFILE}_${file_id_download_file}_misc")" && printf "%s\n" "${_tmp##*=}")"
+                }
+
+                url_download_file="${url_download_file}${confirm_string:+&confirm=${confirm_string}}"
+                ;;
+        esac
         # aria need some elements removed from cookies when it is generated by curl
         [ "${DOWNLOADER}" = "aria2c" ] && {
             cookies_download_file="$(sed -e "s/^\# .*//g" -e "s/^\#HttpOnly_//g" "${TMPFILE}_${file_id_download_file}_COOKIE")"
@@ -42,8 +88,8 @@ _common_stuff() {
             flag_download_file="--load-cookies"
         }
 
-        url_download_file="https://drive.google.com/uc?export=download&id=${file_id_download_file}${confirm_string:+&confirm=${confirm_string}}"
     fi
+
     return 0
 }
 
@@ -54,15 +100,15 @@ _common_stuff() {
 _download_with_aria2c() {
     export ARIA_FLAGS QUIET
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
-    file_id_download_file="${1}" name_download_file="${2}" server_size_download_file="${3}" parallel_download_file="${4}"
+    file_id_download_file="${1}" name_download_file="${2}" mime_download_file="${3}" server_size_download_file="${4}" parallel_download_file="${5}"
     unset flag_download_file flag_value_download_file url_download_file cookies_download_file
 
-    server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}")"
-    _print_center "justify" "${name_download_file}" " | ${server_size_download_file:+${server_size_readable_download_file}}" "="
+    server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}" 2>| /dev/null)"
+    _print_center "justify" "${name_download_file}" " | ${server_size_readable_download_file}" "="
 
     # flag_download_file, flag_value_download_file and url_download_file var is modified by this function and later used
     # also setup the cookies in no auth or no api key download
-    _common_stuff
+    _common_stuff || return 1
     download_status=0
 
     # shellcheck disable=SC2086
@@ -88,30 +134,41 @@ _download_with_aria2c() {
 _download_with_curl() {
     export QUIET
     [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
-    file_id_download_file="${1}" name_download_file="${2}" server_size_download_file="${3}" parallel_download_file="${4}"
+    file_id_download_file="${1}" name_download_file="${2}" mime_download_file="${3}" server_size_download_file="${4}" parallel_download_file="${5}"
     unset range_download_file downloaded_download_file old_downloaded_download_file left_download_file speed_download_file eta_download_file \
         flag_download_file flag_value_download_file url_download_file cookies_download_file
 
-    server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}")"
-    _print_center "justify" "${name_download_file}" " | ${server_size_download_file:+${server_size_readable_download_file}}" "="
+    server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}" 2>| /dev/null)"
+    _print_center "justify" "${name_download_file}" " | ${server_size_readable_download_file}" "="
 
-    if [ -s "${name_download_file}" ]; then
-        local_size_download_file="$(_actual_size_in_bytes "${name_download_file}")"
+    __check_for_resume_download_with_curl() {
+        if [ -s "${name_download_file}" ]; then
+            local_size_download_file="$(_actual_size_in_bytes "${name_download_file}")"
 
-        if [ "${local_size_download_file}" -ge "${server_size_download_file}" ]; then
-            "${QUIET:-_print_center}" "justify" "File already present" "=" && _newline "\n"
-            _log_in_file
-            return 0
+            if [ "${local_size_download_file}" -ge "$((server_size_download_file))" ]; then
+                "${QUIET:-_print_center}" "justify" "File already present" "=" && _newline "\n"
+                _log_in_file
+                return 1
+            else
+                _print_center "justify" "File is partially" " present, resuming.." "-"
+                range_download_file="Range: bytes=${local_size_download_file}-${server_size_download_file}"
+            fi
         else
-            _print_center "justify" "File is partially" " present, resuming.." "-"
-            range_download_file="Range: bytes=${local_size_download_file}-${server_size_download_file}"
+            [ "$((server_size_download_file))" -gt 0 ] && range_download_file="Range: bytes=0-${server_size_download_file}"
+            _print_center "justify" "Downloading file.." "-"
         fi
-    else
-        [ "${server_size_download_file}" -gt 0 ] && range_download_file="Range: bytes=0-${server_size_download_file}"
-        _print_center "justify" "Downloading file.." "-"
-    fi
+    }
 
-    _common_stuff
+    case "${mime_download_file}" in
+        "application/vnd.google-apps.document")
+            _common_stuff || return 1
+            __check_for_resume_download_with_curl || return 0
+            ;;
+        *)
+            __check_for_resume_download_with_curl || return 0
+            _common_stuff || return 1
+            ;;
+    esac
 
     # shellcheck disable=SC2086
     _curl -Ls \
@@ -141,7 +198,7 @@ _download_with_curl() {
         done
     fi
 
-    if [ "$(_actual_size_in_bytes "${name_download_file}")" -ge "${server_size_download_file}" ]; then
+    if [ "$(_actual_size_in_bytes "${name_download_file}")" -ge "$((server_size_download_file))" ]; then
         for _ in 1 2 3; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f -- "${name}.aria2"
@@ -159,31 +216,37 @@ _download_with_curl() {
 # Todo: write doc
 ###################################################
 _download_file_main() {
-    export DOWNLOADER
+    export DOWNLOADER DOCUMENT_FORMAT_NAME
     [ $# -lt 2 ] && printf "Missing arguments\n" && return 1
-    unset line_download_file_main fileid_download_file_main name_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main && retry_download_file_main="${RETRY:-0}"
+    unset line_download_file_main fileid_download_file_main name_download_file_main mime_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main && retry_download_file_main="${RETRY:-0}"
 
     if [ "${1}" = parse ]; then
+        line_download_file_main="${2:?}"
         parallel_download_file_main="${3}"
-        line_download_file_main="${2}"
         fileid_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
-        name_download_file_main="${line_download_file_main##*"|:_//_:|"}"
-        size_download_file_main="$(_tmp="${line_download_file_main#*"|:_//_:|"}" && printf "%s\n" "${_tmp%"|:_//_:|"*}")"
+        name_download_file_main="${line_download_file_main##"${fileid_download_file_main}""|:_//_:|"}" name_download_file_main="${name_download_file_main%%"|:_//_:|"*}"
+        mime_download_file_main="${line_download_file_main##*"|:_//_:|"}"
+        size_download_file_main="${line_download_file_main##*"${name_download_file_main}""|:_//_:|"}" size_download_file_main="${size_download_file_main%%"|:_//_:|"*}"
     else
-        fileid_download_file_main="${2}"
-        name_download_file_main="${3}"
-        size_download_file_main="${4}"
-        parallel_download_file_main="${5}"
+        fileid_download_file_main="${2:?}"
+        name_download_file_main="${3:?}"
+        mime_download_file_main="${4}"
+        size_download_file_main="${5}" size_download_file_main="$((size_download_file_main))"
     fi
 
     # just return if fileid or name is empty
     [ -z "${fileid_download_file_main:+${name_download_file_main}}" ] && return 0
 
+    case "${mime_download_file_main}" in
+        "application/vnd.google-apps.document") name_download_file_main="${name_download_file_main}.${DOCUMENT_FORMAT_NAME}" ;;
+        *) : ;;
+    esac
+
     unset RETURN_STATUS && until [ "${retry_download_file_main}" -le 0 ] && [ -n "${RETURN_STATUS}" ]; do
         if [ -n "${parallel_download_file_main}" ]; then
-            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
+            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
         else
-            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${size_download_file_main}" && RETURN_STATUS=1 && break
+            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" && RETURN_STATUS=1 && break
         fi
         sleep "$((sleep_download_file_main += 1))" # on every retry, sleep the times of retry it is, e.g for 1st, sleep 1, for 2nd, sleep 2
         RETURN_STATUS=2 retry_download_file_main="$((retry_download_file_main - 1))" && continue
@@ -231,9 +294,11 @@ ${json_search_fragment_download_folder}"
 
     # parse the fetched json and make a list containing files size, name and id
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    files_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"size":' -B3 | _json_value id all all)" || :
-    files_size_download_folder="$(printf "%s\n" "${json_search_download_folder}" | _json_value size all all)" || :
-    files_name_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep size -B2 | _json_value name all all)" || :
+    info_files_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"size":' -B3)"
+    files_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value id all all)" || :
+    files_size_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value size all all)" || :
+    files_name_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value name all all)" || :
+    files_mime_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value mimeType all all)" || :
 
     exec 5<< EOF
 $(printf "%s\n" "${files_download_folder}")
@@ -244,11 +309,14 @@ EOF
     exec 7<< EOF
 $(printf "%s\n" "${files_name_download_folder}")
 EOF
-    files_list_download_folder="$(while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7; do
+    exec 8<< EOF
+$(printf "%s\n" "${files_mime_download_folder}")
+EOF
+    files_list_download_folder="$(while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7 && read -r mime <&8; do
         [ -n "${id:+${name}}" ] &&
-            printf "%s\n" "${id}|:_//_:|${size}|:_//_:|${name}"
+            printf "%s\n" "${id}|:_//_:|${name}|:_//_:|$((size))|:_//_:|${mime}"
     done)"
-    exec 5<&- && exec 6<&- && exec 7<&-
+    exec 5<&- && exec 6<&- && exec 7<&- && exec 8<&-
     _clear_line 1
 
     # include or exlude the files if -in or -ex flag was used, use grep

@@ -3,6 +3,7 @@ set -e
 
 # gdrive IDs
 FILE_ID="14eh2_N3rGeGzUMamk2uyoU_CF9O7YUkA"
+DOCUMENT_ID="1Dziv2X5_UCMQ2weMI9duSUT6iayMikqRdoftJCwq_vg"
 FOLDER_ID="1AC0UsKfLZfflIkO7Ork78et5VzIvFSDM"
 
 _test() (
@@ -45,6 +46,10 @@ _test() (
 
     # Do a check for log message when trying to download an existing file
     ./gdl --skip-internet-check "https://docs.google.com/file/d/${FILE_ID}/edit" -d Test "${use_key:-}" || _error
+    _success
+
+    ### Document ###
+    ./gdl --skip-internet-check "https://docs.google.com/document/d/${DOCUMENT_ID}/edit?usp=sharing" -d Test "${use_key:-}" || _error
     _success
 
     rm -rf Test/

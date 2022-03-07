@@ -221,6 +221,35 @@ EOF
 
     ###################################################
 
+    _parser_setup_flag "-df --document-format" 1 required "document type"
+    _parser_setup_flag_help \
+        "Can be used for documents to be downloaded in different format, default is docx.
+
+Available formats are: rtf, odt, html, pdf, epub, zip, docx, txt"
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+DOCUMENT_FORMAT_NAME="docx"
+DOCUMENT_FORMAT="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document"
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+case "${2}" in 
+    rtf) DOCUMENT_FORMAT="application/rtf" DOCUMENT_FORMAT_ESCAPED="application%2Frtf" ;;
+    odt) DOCUMENT_FORMAT="application/vnd.oasis.opendocument.text" DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.oasis.opendocument.text" ;;
+    html) DOCUMENT_FORMAT="text/html" DOCUMENT_FORMAT_ESCAPED="text%2Fhtml" ;;
+    pdf) DOCUMENT_FORMAT="application/pdf" DOCUMENT_FORMAT_ESCAPED="application%2Fpdf" ;;
+    epub) DOCUMENT_FORMAT="application/epub+zip" DOCUMENT_FORMAT_ESCAPED="application%2Fepub%2Bzip" ;;
+    zip) DOCUMENT_FORMAT="application/zip" DOCUMENT_FORMAT_ESCAPED="application%2Fzip" ;;
+    docx) DOCUMENT_FORMAT="application/vnd.openxmlformats-officedocument.wordprocessingml.document" DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document" ;;
+    txt) DOCUMENT_FORMAT="text/plain" DOCUMENT_FORMAT_ESCAPED="text%2Fplain" ;;
+    *) printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt" && return 1 ;;
+esac
+export DOCUMENT_FORMAT_NAME="${2}" DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
+EOF
+
+    ###################################################
+
     _parser_setup_flag "-s --skip-subdirs" 0
     _parser_setup_flag_help \
         "Skip downloading of sub folders present in case of folders."
