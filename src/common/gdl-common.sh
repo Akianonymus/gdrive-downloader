@@ -191,7 +191,7 @@ _process_arguments() {
         }
 
         if [ -n "${FOLDER_ID}" ]; then
-            _download_folder "${FOLDER_ID}" "${NAME}" "${PARALLEL_DOWNLOAD:-}"
+            _download_folder "${DOWNLOAD_METHOD:-alt}" "${FOLDER_ID}" "${NAME}" "${PWD}" "${PARALLEL_DOWNLOAD:-}"
         else
             _download_file_main noparse "${FILE_ID}" "${NAME}" "${FILE_MIME_TYPE}" "${SIZE}"
         fi
