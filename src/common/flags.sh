@@ -30,6 +30,24 @@ EOF
 
     ###################################################
 
+    _parser_setup_flag "-am --alternate-method" 0
+    _parser_setup_flag_help \
+        "Use this flag to use alternate method of downloading.
+
+In default mode, all the folder information if fetched recursively and then download is started.
+
+In alternate mode, downloading is done one folder at a time."
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+export DOWNLOAD_METHOD="alt"
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+export DOWNLOAD_METHOD="noalt"
+EOF
+
+    ###################################################
+
     _parser_setup_flag "-aria" 0
     _parser_setup_flag_help \
         "Use aria2c to download. To use custom flags for aria, see --aria-flags option."

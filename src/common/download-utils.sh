@@ -223,15 +223,27 @@ _download_file_main() {
     if [ "${1}" = parse ]; then
         line_download_file_main="${2:?}"
         parallel_download_file_main="${3}"
-        fileid_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
-        name_download_file_main="${line_download_file_main##"${fileid_download_file_main}""|:_//_:|"}" name_download_file_main="${name_download_file_main%%"|:_//_:|"*}"
+
+        # "root_folder_name|:_//_:|id|:_//_:|name|:_//_:|size|:_//_:|mime"
+        root_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
+
+        fileid_download_file_main="${line_download_file_main##"${root_download_file_main}""|:_//_:|"}"
+        fileid_download_file_main="${fileid_download_file_main%%"|:_//_:|"*}"
+
+        name_download_file_main="${line_download_file_main##*"${fileid_download_file_main}""|:_//_:|"}"
+        name_download_file_main="${name_download_file_main%%"|:_//_:|"*}"
+
+        size_download_file_main="${line_download_file_main##*"${name_download_file_main}""|:_//_:|"}"
+        size_download_file_main="${size_download_file_main%%"|:_//_:|"*}"
+
         mime_download_file_main="${line_download_file_main##*"|:_//_:|"}"
-        size_download_file_main="${line_download_file_main##*"${name_download_file_main}""|:_//_:|"}" size_download_file_main="${size_download_file_main%%"|:_//_:|"*}"
     else
         fileid_download_file_main="${2:?}"
         name_download_file_main="${3:?}"
         mime_download_file_main="${4}"
-        size_download_file_main="${5}" size_download_file_main="$((size_download_file_main))"
+
+        size_download_file_main="${5}"
+        size_download_file_main="$((size_download_file_main))"
     fi
 
     # just return if fileid or name is empty
@@ -244,9 +256,15 @@ _download_file_main() {
 
     unset RETURN_STATUS && until [ "${retry_download_file_main}" -le 0 ] && [ -n "${RETURN_STATUS}" ]; do
         if [ -n "${parallel_download_file_main}" ]; then
-            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2 && RETURN_STATUS=1 && break
+            (
+                [ "${1}" = parse ] && { cd -- "${root_download_file_main}" || return 1; }
+                "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2
+            ) && RETURN_STATUS=1 && break
         else
-            "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" && RETURN_STATUS=1 && break
+            (
+                [ "${1}" = parse ] && { cd -- "${root_download_file_main}" || return 1; }
+                "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}"
+            ) && RETURN_STATUS=1 && break
         fi
         sleep "$((sleep_download_file_main += 1))" # on every retry, sleep the times of retry it is, e.g for 1st, sleep 1, for 2nd, sleep 2
         RETURN_STATUS=2 retry_download_file_main="$((retry_download_file_main - 1))" && continue
@@ -256,112 +274,184 @@ _download_file_main() {
 }
 
 ###################################################
-# Download a gdrive folder along with sub folders
-# File IDs are fetched inside the folder, and then downloaded seperately.
+# Fetch folder info
+# Recursively or single level
 # Todo: write doc
 ###################################################
-_download_folder() {
-    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS
-    [ $# = 0 ] && printf "Missing arguments\n" && return 1
-    folder_id_download_folder="${1}" name_download_folder="${2}" parallel_download_folder="${3}"
-    unset json_search_download_folder json_search_fragment_download_folder next_page_token \
-        error_status_download_folder success_status_download_folder \
-        files_download_folder folders_download_folder files_size_download_folder files_name_download_folder folders_name_download_folder \
-        num_of_files_download_folder num_of_folders_download_folder
-    _newline "\n"
-    "${EXTRA_LOG}" "justify" "${name_download_folder}" "="
+_fetch_folderinfo() {
+    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS
+    parse_fetch_folderinfo="${1:?}"
+
+    unset json_search_fetch_folderinfo json_search_fragment_fetch_folderinfo next_page_token_fetch_folderinfo \
+        error_status_fetch_folderinfo success_status_fetch_folderinfo \
+        files_id_fetch_folderinfo folders_id_fetch_folderinfo files_size_fetch_folderinfo \
+        files_name_fetch_folderinfo folders_name_fetch_folderinfo files_mime_fetch_folderinfo \
+        num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
+
+    if [ "${parse_fetch_folderinfo}" = "true" ]; then
+        mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
+        line_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
+        files_list_fetch_folderinfo="${4:?_fetch_folderinfo: 4}" folders_list_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
+        # parallel_fetch_folderinfo="${6}"
+        # extracting data from this format "folder_id_fetch_folderinfo|:_//_:|folder_name|:_//_:|id|:_//_:|name"
+        name_fetch_folderinfo="${line_fetch_folderinfo##*"|:_//_:|"}"
+
+        _tmp_root_fetch_folderinfo="${line_fetch_folderinfo%"|:_//_:|"*}"
+        _tmp_root_fetch_folderinfo="${_tmp_root_fetch_folderinfo%"|:_//_:|"*}"
+        root_name_fetch_folderinfo="${_tmp_root_fetch_folderinfo#*"|:_//_:|"}"
+
+        _tmp_id_fetch_folderinfo="${line_fetch_folderinfo%%"|:_//_:|""${name_fetch_folderinfo}"}"
+        folder_id_fetch_folderinfo="${_tmp_id_fetch_folderinfo##*"|:_//_:|"}"
+    else
+        mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
+        folder_id_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
+        name_fetch_folderinfo="${4:?_fetch_folderinfo: 4}" root_name_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
+        files_list_fetch_folderinfo="${6:?_fetch_folderinfo: 6}" folders_list_fetch_folderinfo="${7:?_fetch_folderinfo: 7}"
+        # parallel_fetch_folderinfo="${8}"
+    fi
+
+    if [ "${root_name_fetch_folderinfo}" = "${PWD}" ]; then
+        _newline "\n"
+    else
+        "${EXTRA_LOG}" "justify" "Root folder name: ${root_name_fetch_folderinfo##"${PWD}"/}" "="
+    fi
+
+    "${EXTRA_LOG}" "justify" "${name_fetch_folderinfo}" "="
     "${EXTRA_LOG}" "justify" "Fetching folder" " details.." "-"
-    _search_error_message_download_folder() {
+    _search_error_message_fetch_folderinfo() {
         "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
-        printf "%s\n" "${1:?}" && return 1
+        printf "%s\n" "${1:-}" && return 1
     }
 
     # do the first request with pagesize 1000, and fetch nextPageToken
-    if json_search_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name")"; then
-        # fetch next page jsons till nextPageToken is available
+    if json_search_fetch_folderinfo="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_fetch_folderinfo}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name")"; then
+        # fetch next page jsons till next_page_token_fetch_folderinfo is available
         while :; do
-            next_page_token="$(printf "%s\n" "${json_search_fragment_download_folder:-${json_search_download_folder}}" | _json_value nextPageToken 1 1 || :)"
-            [ -z "${next_page_token}" ] && break
-            json_search_fragment_download_folder="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_download_folder}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name&pageToken=${next_page_token}")" ||
-                _search_error_message_download_folder "${json_search_fragment_download_folder}"
+            next_page_token_fetch_folderinfo="$(printf "%s\n" "${json_search_fragment_fetch_folderinfo:-${json_search_fetch_folderinfo}}" | _json_value nextPageToken 1 1 || :)"
+            [ -z "${next_page_token_fetch_folderinfo}" ] && break
+            json_search_fragment_fetch_folderinfo="$("${API_REQUEST_FUNCTION}" "files?q=%27${folder_id_fetch_folderinfo}%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name&pageToken=${next_page_token_fetch_folderinfo}")" ||
+                _search_error_message_fetch_folderinfo "${json_search_fragment_fetch_folderinfo}"
 
             # append the new fetched json to initial json
-            json_search_download_folder="${json_search_download_folder}
-${json_search_fragment_download_folder}"
+            json_search_fetch_folderinfo="${json_search_fetch_folderinfo}
+${json_search_fragment_fetch_folderinfo}"
         done
     else
         # error message in case some thing goes wrong
-        _search_error_message_download_folder "${json_search_download_folder}"
+        _search_error_message_fetch_folderinfo "${json_search_fetch_folderinfo}"
     fi && _clear_line 1
 
-    # parse the fetched json and make a list containing files size, name and id
+    # parse the fetched json and make a list containing files size, name, id and mimeType
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    info_files_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"size":' -B3)"
-    files_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value id all all)" || :
-    files_size_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value size all all)" || :
-    files_name_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value name all all)" || :
-    files_mime_download_folder="$(printf "%s\n" "${info_files_download_folder}" | _json_value mimeType all all)" || :
+    _tmp_info_files_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep '"size":' -B3)"
+    files_id_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value id all all)" || :
+    files_size_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value size all all)" || :
+    files_name_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value name all all)" || :
+    files_mime_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value mimeType all all)" || :
 
+    chmod +w+r -- "${files_list_fetch_folderinfo}"
     exec 5<< EOF
-$(printf "%s\n" "${files_download_folder}")
+$(printf "%s\n" "${files_id_fetch_folderinfo}")
 EOF
     exec 6<< EOF
-$(printf "%s\n" "${files_size_download_folder}")
+$(printf "%s\n" "${files_size_fetch_folderinfo}")
 EOF
     exec 7<< EOF
-$(printf "%s\n" "${files_name_download_folder}")
+$(printf "%s\n" "${files_name_fetch_folderinfo}")
 EOF
     exec 8<< EOF
-$(printf "%s\n" "${files_mime_download_folder}")
+$(printf "%s\n" "${files_mime_fetch_folderinfo}")
 EOF
-    files_list_download_folder="$(while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7 && read -r mime <&8; do
+    while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7 && read -r mime <&8; do
         [ -n "${id:+${name}}" ] &&
-            printf "%s\n" "${id}|:_//_:|${name}|:_//_:|$((size))|:_//_:|${mime}"
-    done)"
+            printf "%s\n" "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}|:_//_:|${id}|:_//_:|${name}|:_//_:|$((size))|:_//_:|${mime}"
+    done >> "${files_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&- && exec 7<&- && exec 8<&-
     _clear_line 1
+    chmod -w+r -- "${files_list_fetch_folderinfo}"
 
-    # include or exlude the files if -in or -ex flag was used, use grep
-    [ -n "${INCLUDE_FILES}" ] && files_list_download_folder="$(printf "%s\n" "${files_list_download_folder}" | grep -E "${INCLUDE_FILES}")"
-    [ -n "${EXCLUDE_FILES}" ] && files_list_download_folder="$(printf "%s\n" "${files_list_download_folder}" | grep -Ev "${EXCLUDE_FILES}")"
+    if [ -f "${name_fetch_folderinfo}" ]; then
+        name_fetch_folderinfo="${name_fetch_folderinfo}$(_epoch)"
+    fi
+    mkdir -p -- "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}"
 
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
-    folders_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
-    folders_name_download_folder="$(printf "%s\n" "${json_search_download_folder}" | grep '"mimeType":.*folder.*' -B1 | _json_value name all all)" || :
+    folders_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
+    folders_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep '"mimeType":.*folder.*' -B1 | _json_value name all all)" || :
+
+    chmod +w+r -- "${folders_list_fetch_folderinfo}"
     exec 5<< EOF
-$(printf "%s\n" "${folders_download_folder}")
+$(printf "%s\n" "${folders_id_fetch_folderinfo}")
 EOF
     exec 6<< EOF
-$(printf "%s\n" "${folders_name_download_folder}")
+$(printf "%s\n" "${folders_name_fetch_folderinfo}")
 EOF
-
-    folders_list_download_folder="$(while IFS= read -r id <&5 && read -r name <&6; do
+    _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5 && read -r name <&6; do
         [ -n "${id:+${name}}" ] &&
-            printf "%s\n" "${id}|:_//_:|${name}"
+            printf "%s\n" "${folder_id_fetch_folderinfo}|:_//_:|${root_name_fetch_folderinfo}/${name_fetch_folderinfo}|:_//_:|${id}|:_//_:|${name}"
     done)"
+    printf "%s\n" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&-
+    chmod -w+r -- "${folders_list_fetch_folderinfo}"
     _clear_line 1
 
-    if [ -z "${files_list_download_folder:-${folders_download_folder}}" ]; then
-        for _ in 1 2; do _clear_line 1; done && _print_center "justify" "${name_download_folder}" " | Empty Folder" "=" && _newline "\n" && return 0
-    fi
-    [ -n "${files_list_download_folder}" ] && num_of_files_download_folder="$(($(printf "%s\n" "${files_list_download_folder}" | _count)))"
-    [ -n "${folders_download_folder}" ] && num_of_folders_download_folder="$(($(printf "%s\n" "${folders_download_folder}" | _count)))"
-
     for _ in 1 2; do _clear_line 1; done
+
+    [ "${mode_fetch_folderinfo}" = "alt" ] || return 0
+
+    if [ -z "${SKIP_SUBDIRS}" ] && [ -n "${folders_list_fetch_folderinfo}" ]; then
+        while IFS= read -r line <&4 && { [ -n "${line}" ] || continue; }; do
+            _fetch_folderinfo true "${mode_fetch_folderinfo}" "${line}" "${files_list_fetch_folderinfo}" "${folders_list_fetch_folderinfo}"
+        done 4<< EOF
+$(printf "%s\n" "${_tmp_folders_list_fetch_folderinfo}")
+EOF
+    fi
+
+    return 0
+}
+
+_download_folder() {
+    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS
+    [ $# = 4 ] && printf "Missing arguments\n" && return 1
+    mode_download_folder="${1}" folder_id_download_folder="${2}" name_download_folder="${3}" root_download_folder="${4:-${PWD}}" parallel_download_folder="${5}"
+    unset error_status_download_folder success_status_download_folder num_of_files_download_folder num_of_folders_download_folder
+
+    if [ "${mode_download_folder}" = "alt" ]; then
+        files_list_download_folder="${TMPFILE}_files_list"
+        folders_list_download_folder="${TMPFILE}_folders_list"
+    else
+        files_list_download_folder="${TMPFILE}_files_list_${folder_id_download_folder}"
+        folders_list_download_folder="${TMPFILE}_folders_list_${folder_id_download_folder}"
+    fi
+
+    printf '' >| "${files_list_download_folder}"
+    printf '' >| "${folders_list_download_folder}"
+
+    _fetch_folderinfo false "${mode_download_folder}" "${folder_id_download_folder}" "${name_download_folder}" "${root_download_folder}" \
+        "${files_list_download_folder}" "${folders_list_download_folder}" "${parallel_download_folder}"
+
+    chmod +w+r -- "${files_list_download_folder}" "${folders_list_download_folder}"
+    # include or exlude the files if -in or -ex flag was used, use grep
+    [ -n "${INCLUDE_FILES}" ] && _tmp_filesinfo="$(grep -E "${INCLUDE_FILES}" "${files_list_download_folder}")" &&
+        printf "%s\n" "${_tmp_filesinfo}" >> "${files_list_download_folder}"
+    [ -n "${EXCLUDE_FILES}" ] && _tmp_filesinfo="$(grep -Ev "${EXCLUDE_FILES}" "${files_list_download_folder}")" &&
+        printf "%s\n" "${_tmp_filesinfo}" >> "${files_list_download_folder}"
+    chmod -w+r -- "${files_list_download_folder}" "${folders_list_download_folder}"
+
+    num_of_files_download_folder="$(_count < "${files_list_download_folder}")"
+    num_of_folders_download_folder="$(_count < "${folders_list_download_folder}")"
+
+    { [ "${mode_download_folder}" = "alt" ] && _tmp_sum_download_folder="$((num_of_files_download_folder))"; } || _tmp_sum_download_folder="$((num_of_files_download_folder + num_of_folders_download_folder))"
+    [ "$((_tmp_sum_download_folder))" -eq 0 ] &&
+        for _ in 1 2; do _clear_line 1; done && _print_center "justify" "${name_download_folder}" " | Empty Folder" "=" && _newline "\n" && return 0
+
     _print_center "justify" \
         "${name_download_folder}" \
-        "${num_of_files_download_folder:+ | ${num_of_files_download_folder} files}${num_of_folders_download_folder:+ | ${num_of_folders_download_folder} sub folders}" "=" &&
-        _newline "\n\n"
+        "${num_of_files_download_folder:+ | ${num_of_files_download_folder} files}${num_of_folders_download_folder:+ | ${num_of_folders_download_folder} sub folders}" "="
+    _newline "\n\n"
 
-    if [ -f "${name_download_folder}" ]; then
-        name_download_folder="${name_download_folder}$(_epoch)"
-    fi && mkdir -p -- "${name_download_folder}"
-
-    cd -- "${name_download_folder}" || exit 1
-
-    if [ -n "${num_of_files_download_folder}" ]; then
+    if [ "$((num_of_files_download_folder))" -gt 0 ]; then
         if [ -n "${parallel_download_folder}" ]; then
             NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS > num_of_files_download_folder ? num_of_files_download_folder : NO_OF_PARALLEL_JOBS))"
 
@@ -369,10 +459,10 @@ EOF
             [ -f "${TMPFILE}"ERROR ] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (printf "%s\n" "${files_list_download_folder}" | xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 "${_SHELL:-sh}" -c '
+            (xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 "${_SHELL:-sh}" -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
-             ' 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
+            ' < "${files_list_download_folder}" 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
             pid="${!}"
 
             until [ -f "${TMPFILE}"SUCCESS ] || [ -f "${TMPFILE}"ERROR ]; do sleep 0.5; done
@@ -399,27 +489,35 @@ EOF
                     for _ in 1 2 3 4; do _clear_line 1; done
                 fi
                 _print_center "justify" "Status" ": ${success_status_download_folder:-0} Downloaded | ${error_status_download_folder:-0} Failed" "="
-            done 4<< EOF
-$(printf "%s\n" "${files_list_download_folder}")
-EOF
+            done 4< "${files_list_download_folder}"
         fi
     fi
 
     for _ in 1 2; do _clear_line 1; done
-    [ "${success_status_download_folder}" -gt 0 ] && "${QUIET:-_print_center}" "justify" "Downloaded" ": ${success_status_download_folder}" "="
-    [ "${error_status_download_folder:-0}" -gt 0 ] && "${QUIET:-_print_center}" "justify" "Failed" ": ${error_status_download_folder}" "="
+    [ "$((success_status_download_folder))" -gt 0 ] && "${QUIET:-_print_center}" "justify" "Downloaded" ": $((success_status_download_folder))" "="
+    [ "$((error_status_download_folder))" -gt 0 ] && "${QUIET:-_print_center}" "justify" "Failed" ": $((error_status_download_folder))" "="
     _newline "\n"
 
-    if [ -z "${SKIP_SUBDIRS}" ] && [ -n "${num_of_folders_download_folder}" ]; then
+    [ "${mode_download_folder}" = "alt" ] && return 0
+
+    if [ -z "${SKIP_SUBDIRS}" ] && [ "$((num_of_folders_download_folder))" -gt 0 ]; then
         while IFS= read -r line <&4 && { [ -n "${line}" ] || continue; }; do
-            (_download_folder "${line%%"|:_//_:|"*}" "${line##*"|:_//_:|"}" "${parallel:-}")
-        done 4<< EOF
-$(printf "%s\n" "${folders_list_download_folder}")
-EOF
+            #  "folder_id|:_//_:|root_name|:_//_:|id|:_//_:|name"
+            (
+                id="${line%"|:_//_:|"*}"
+                id="${id##*"|:_//_:|"}"
+
+                name="${line##*"|:_//_:|"}"
+
+                root="${line#*"|:_//_:|"}"
+                root="${root%%"|:_//_:|"*}"
+
+                _download_folder "${mode_download_folder}" "${id}" "${name}" "${root}" "${parallel:-}"
+            )
+        done 4< "${folders_list_download_folder}"
     fi
 
-    cd - 2>| /dev/null 1>&2 || exit 1
-
+    (rm -f -- "${files_list_download_folder}" "${folders_list_download_folder}") &
     return 0
 }
 
@@ -444,9 +542,11 @@ _log_in_file() {
     # shellcheck disable=SC2163
     [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
         export "${tmp?}" _common_stuff \
+            _cookies_and_document_stuff \
             _download_with_aria2c \
             _download_with_curl \
             _download_file_main \
             _download_folder \
+            _fetch_folderinfo \
             _log_in_file
 } 2>| /dev/null 1>&2 || :

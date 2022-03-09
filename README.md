@@ -311,6 +311,16 @@ Now, we have covered the basics, move on to the next section for extra features 
 
 These are the custom flags that are currently implemented:
 
+-   <strong>-am | --alternate-method</strong>
+
+    Use this flag to use alternate method of downloading.
+
+    In default mode, all the folder information if fetched recursively and then download is started.
+
+    In alternate mode, downloading is done one folder at a time.
+
+    ---
+
 -   <strong>-aria | --aria-flags 'flags'</strong>
 
     Use aria2c to download. "-aria" doesn't take arguments.
