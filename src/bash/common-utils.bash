@@ -39,29 +39,6 @@ _epoch() {
 }
 
 ###################################################
-# set or get flag varianle which contains the individual help contents
-# if ${1} = set then
-#    ${2} = flags seperated by space
-#    ${3} = flag help content
-# if ${1} = get
-#    ${2} = var name which will be set to help contents of the flag
-#    ${3} = flag name
-###################################################
-_flag_help() {
-    case "${1}" in
-        set)
-            for f in ${2}; do
-                _set_value d "help_${f//-/}" "${3}"
-            done
-            ;;
-        get)
-            _set_value i "${2}" "help_${3//-/}"
-            ;;
-        *) return 1 ;;
-    esac
-}
-
-###################################################
 # fetch column size and check if greater than the num ( see in function)
 # set trap on sigwinch to update COLUMNS variable
 # return 1 or 0

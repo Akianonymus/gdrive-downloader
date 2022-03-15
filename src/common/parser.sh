@@ -2,6 +2,33 @@
 # shellcheck source=/dev/null
 
 ###################################################
+# check if the given fd is open
+# Arguments:
+#   ${1} = fd number
+# return 1 or 0
+###################################################
+_is_fd_open() {
+    for fd in ${1:?}; do
+        # shellcheck disable=SC3021
+        if ! { true >&"${fd}"; } 2<> /dev/null; then
+            printf "%s\n" "Error: fd ${fd} not open."
+            return 1
+        fi
+    done
+}
+
+###################################################
+# append help text to all the help variable
+###################################################
+_parser_add_help() {
+    # append current flag help content to _PARSER_ALL_HELP
+    _PARSER_ALL_HELP="${_PARSER_ALL_HELP}
+${__PARSER_BAR:-}
+${1:-}" 2>| /dev/null
+    # redirect to /dev/null as this will spam horribly in -x mode
+}
+
+###################################################
 # check whether the given flag has been provided the required num of arguments
 # to be used within flag functions
 # Arguments:
@@ -65,29 +92,62 @@ _flag_help() {
 
 ###################################################
 # parse the given arguments as flags or normal input
+# Arguments:
+#   ${1} = function which will be executed to setup the flags
+#   ${@} = the inputs to process
+# example: _parse_arguments setup_flags 1 2 3
 ###################################################
 _parse_arguments() {
-    # to set COLUMNS varibale
-    DEBUG="" _check_debug
-    # just a variable containing a newline
     __NEWLINE="
 "
-    # export a __BAR variable which is used in _add_flag function
-    __BAR="$(_print_center "normal" "_" "_")"
-    __BAR="${__BAR:+${__BAR}${__NEWLINE}}"
+
+    # Check if script terminal supports ansi escapes | Result: return 1 or 0
+    _parse_support_ansi_escapes() {
+        case "${TERM}" in
+            xterm* | rxvt* | urxvt* | linux* | vt* | screen*) { [ -t 2 ] && return 0; } || return 1 ;;
+            *) : ;;
+        esac
+        { [ -t 2 ] && return 0; } || return 1
+    }
+    # fetch column size and check if greater than the num ( see in function) | return 1 or 0
+    _parser_required_column_size() {
+        COLUMNS="$({ command -v bash 1>| /dev/null && bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1'; } ||
+            { command -v zsh 1>| /dev/null && zsh -c 'printf "%s\n" "${COLUMNS}"'; } ||
+            { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
+            { command -v tput 1>| /dev/null && tput cols; })" || :
+
+        [ "$((COLUMNS))" -gt 45 ] && return 0
+    }
+
+    # check if running in terminal and support ansi escape sequences
+    _parse_support_ansi_escapes &&
+        _parser_required_column_size &&
+        __PARSER_BAR="$(
+            filler='' symbol='_'
+            i=1 && while [ "${i}" -le "${COLUMNS}" ]; do
+                filler="${filler}${symbol}" && i="$((i + 1))"
+            done
+            printf "%s\n" "${filler}"
+        )"
+
+    # export a __PARSER_BAR variable which is used in _add_flag function
+    __PARSER_BAR="${__PARSER_BAR:+${__PARSER_BAR}${__NEWLINE}}"
+    # just a variable containing a newline
 
     ##########################
     # these global variables are actually used when _parser_setup_flags is running
-    # _ALL_HELP contains all the help
+    # _PARSER_ALL_HELP contains all the help
     # _PARSER_ARGS_SHIFT contains the num of shift to be done for each arg
     # _PARSER_PREPROCESS_FUNCTION contains preprocess function contents
-    unset _ALL_HELP _PARSER_ARGS_SHIFT _PARSER_PREPROCESS_FUNCTION
+    unset _PARSER_ALL_HELP _PARSER_ARGS_SHIFT _PARSER_PREPROCESS_FUNCTION
     # these flags are exported in _parser_setup_flag
     unset _PARSER_FLAGS _PARSER_CURRENT_FLAGS _PARSER_CURRENT_NARGS _PARSER_CURRENT_ARGS _PARSER_CURRENT_ARGS_TYPE
     ##########################
 
     # this will initialize help text and flag functions
-    _parser_setup_flags || return 1
+    "${1:?_parse_arguments - 1: Missing funtion name to setup flags}" || return 1
+    shift 2>| /dev/null
+
     # run the code required to run before parsing the arguments
     _parser_run_preprocess || return 1
 
@@ -206,9 +266,9 @@ EOF
     # don't add to help of when given flag is input
     [ "${_PARSER_FLAGS}" = input ] && return 0
 
-    # append current flag help content to _ALL_HELP
-    _ALL_HELP="${_ALL_HELP}
-${__BAR:-}
+    # append current flag help content to _PARSER_ALL_HELP
+    _PARSER_ALL_HELP="${_PARSER_ALL_HELP}
+${__PARSER_BAR:-}
 ${all_setup_help_flag}" 2>| /dev/null
     # redirect to /dev/null as this will spam horribly in -x mode
 }
@@ -300,4 +360,50 @@ _parser_shift() {
 _short_help() {
     printf "No valid arguments provided, use -h/--help flag to see usage.\n"
     exit 0
+}
+
+###################################################
+# Evaluates value1=value2
+# Arguments: 3
+#   ${1} = direct ( d ) or indirect ( i ) - ( evaluation mode )
+#   ${2} = var name
+#   ${3} = var value
+# Result: export value1=value2
+###################################################
+_set_value() {
+    case "${1:?}" in
+        d | direct) export "${2:?}=${3}" ;;
+        i | indirect) eval export "${2}"=\"\$"${3}"\" ;;
+        *) return 1 ;;
+    esac
+}
+
+###################################################
+# remove the given character from the given string
+# 1st arg - character
+# 2nd arg - string
+# 3rd arg - var where to save the output
+# print trimmed string if 3rd arg empty else set
+# Reference: https://stackoverflow.com/a/65350253
+###################################################
+_trim() {
+    char_trim="${1}" str_trim="${2}" var_trim="${3}"
+    # Disable globbing.
+    # This ensures that the word-splitting is safe.
+    set -f
+    # store old ifs, restore it later.
+    old_ifs="${IFS}"
+    IFS="${char_trim}"
+    # shellcheck disable=SC2086
+    set -- ${str_trim}
+    IFS=
+    if [ -n "${var_trim}" ]; then
+        _set_value d "${var_trim}" "$*"
+    else
+        printf "%s" "$*"
+    fi
+    # Restore the value of 'IFS'.
+    IFS="${old_ifs}"
+    # re enable globbing
+    set +f
 }

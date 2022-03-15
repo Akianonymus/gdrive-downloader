@@ -6,6 +6,14 @@
 # todo: maybe post processing too
 ###################################################
 _parser_setup_flags() {
+    # add initial help text which will appear at start
+    _parser_add_help "
+The script can be used to download file/directory from google drive.
+
+Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
+
+Options:"
+
     ###################################################
 
     # not a flag exactly, but will be used to process any arguments which is not a flag
@@ -533,18 +541,18 @@ To see help for a specific flag, --help flag_name ( with or without dashes )
 ###################################################
 _usage() {
     [ -n "${1}" ] && {
-        tmp_help_usage=""
-        _flag_help "${1}" tmp_help_usage
+        help_usage_usage=""
+        _flag_help "${1}" help_usage_usage
 
-        if [ -z "${tmp_help_usage}" ]; then
+        if [ -z "${help_usage_usage}" ]; then
             printf "%s\n" "Error: No help found for ${1}"
         else
-            printf "%s\n%s\n%s\n" "${__BAR}" "${tmp_help_usage}" "${__BAR}"
+            printf "%s\n%s\n%s\n" "${__PARSER_BAR}" "${help_usage_usage}" "${__PARSER_BAR}"
         fi
         exit 0
     }
 
-    printf "%s\n" "${_ALL_HELP}"
+    printf "%s\n" "${_PARSER_ALL_HELP}"
     exit 0
 }
 EOF
@@ -552,7 +560,6 @@ EOF
     _parser_setup_flag_process 4<< 'EOF'
 _usage "${2}"
 EOF
-
     ###################################################
 
     # should be only available if installed using install script
@@ -577,11 +584,5 @@ EOF
     }
 
     ###################################################
-
-    _ALL_HELP="
-The script can be used to download file/directory from google drive.
-
-Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
-
-Options:${_ALL_HELP}"
+    return 0
 }

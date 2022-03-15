@@ -51,7 +51,7 @@ _setup_arguments() {
         REDIRECT_URI="urn:ietf:wg:oauth:2.0:oob" \
         TOKEN_URL="https://accounts.google.com/o/oauth2/token"
 
-    _parse_arguments "${@}" || return 1
+    _parse_arguments "_parser_setup_flags" "${@}" || return 1
     _check_debug
 
     # post processing for --quiet flag

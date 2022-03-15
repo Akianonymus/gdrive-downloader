@@ -1074,6 +1074,19 @@ _download_folder \
 _fetch_folderinfo \
 _log_in_file
 } 2>|/dev/null 1>&2||:
+_is_fd_open(){
+for fd in ${1:?};do
+if ! { true >&"$fd";} 2<>/dev/null;then
+printf "%s\n" "Error: fd $fd not open."
+return 1
+fi
+done
+}
+_parser_add_help(){
+_PARSER_ALL_HELP="$_PARSER_ALL_HELP
+${__PARSER_BAR:-}
+${1:-}" 2>|/dev/null
+}
 _parser_check_arguments(){
 nargs_parser_check_arguments="$((${1:?_parser_check_arguments}))"
 num_parser_check_arguments=$(($#-2))
@@ -1098,14 +1111,31 @@ _set_value i "${2:?_flag_help}" "_parser__help_$flag_flag_help"
 _set_value d "${3:-_}" "$flag_flag_help"
 }
 _parse_arguments(){
-DEBUG="" _check_debug
 __NEWLINE="
 "
-__BAR="$(_print_center "normal" "_" "_")"
-__BAR="${__BAR:+$__BAR$__NEWLINE}"
-unset _ALL_HELP _PARSER_ARGS_SHIFT _PARSER_PREPROCESS_FUNCTION
+_parse_support_ansi_escapes(){
+case "$TERM" in
+xterm*|rxvt*|urxvt*|linux*|vt*|screen*){ [ -t 2 ]&&return 0;}||return 1;;
+*):
+esac
+{ [ -t 2 ]&&return 0;}||return 1
+}
+_parser_required_column_size(){
+COLUMNS="$({ command -v bash 1>|/dev/null&&bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1';}||{ command -v zsh 1>|/dev/null&&zsh -c 'printf "%s\n" "${COLUMNS}"';}||{ command -v stty 1>|/dev/null&&_tmp="$(stty size)"&&printf "%s\n" "${_tmp##* }";}||{ command -v tput 1>|/dev/null&&tput cols;})"||:
+[ "$((COLUMNS))" -gt 45 ]&&return 0
+}
+_parse_support_ansi_escapes&&_parser_required_column_size&&__PARSER_BAR="$(\
+filler='' \
+symbol='_'
+i=1&&while [ "$i" -le "$COLUMNS" ];do
+filler="$filler$symbol"&&i="$((i+1))"
+done
+printf "%s\n" "$filler")"
+__PARSER_BAR="${__PARSER_BAR:+$__PARSER_BAR$__NEWLINE}"
+unset _PARSER_ALL_HELP _PARSER_ARGS_SHIFT _PARSER_PREPROCESS_FUNCTION
 unset _PARSER_FLAGS _PARSER_CURRENT_FLAGS _PARSER_CURRENT_NARGS _PARSER_CURRENT_ARGS _PARSER_CURRENT_ARGS_TYPE
-_parser_setup_flags||return 1
+"${1:?_parse_arguments - 1: Missing funtion name to setup flags}"||return 1
+shift 2>|/dev/null
 _parser_run_preprocess||return 1
 while [ "$#" -gt 0 ];do
 case "$1" in
@@ -1168,8 +1198,8 @@ for f in $flags_parser_setup_flag_help;do
 _set_value d "_parser__help_$f" "$all_setup_help_flag"
 done
 [ "$_PARSER_FLAGS" = input ]&&return 0
-_ALL_HELP="$_ALL_HELP
-${__BAR:-}
+_PARSER_ALL_HELP="$_PARSER_ALL_HELP
+${__PARSER_BAR:-}
 $all_setup_help_flag" 2>|/dev/null
 }
 _parser_setup_flag_preprocess(){
@@ -1206,7 +1236,35 @@ _short_help(){
 printf "No valid arguments provided, use -h/--help flag to see usage.\n"
 exit 0
 }
+_set_value(){
+case "${1:?}" in
+d|direct)export "${2:?}=$3";;
+i|indirect)eval export "$2"=\"\$"$3"\";;
+*)return 1
+esac
+}
+_trim(){
+char_trim="$1" str_trim="$2" var_trim="$3"
+set -f
+old_ifs="$IFS"
+IFS="$char_trim"
+set -- $str_trim
+IFS=
+if [ -n "$var_trim" ];then
+_set_value d "$var_trim" "$*"
+else
+printf "%s" "$*"
+fi
+IFS="$old_ifs"
+set +f
+}
 _parser_setup_flags(){
+_parser_add_help "
+The script can be used to download file/directory from google drive.
+
+Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
+
+Options:"
 _parser_setup_flag "input" 0
 _parser_setup_flag_help \
 "Drive urls or id to process."
@@ -1587,18 +1645,18 @@ _parser_setup_flag_preprocess 4<<'EOF'
 ###################################################
 _usage() {
     [ -n "${1}" ] && {
-        tmp_help_usage=""
-        _flag_help "${1}" tmp_help_usage
+        help_usage_usage=""
+        _flag_help "${1}" help_usage_usage
 
-        if [ -z "${tmp_help_usage}" ]; then
+        if [ -z "${help_usage_usage}" ]; then
             printf "%s\n" "Error: No help found for ${1}"
         else
-            printf "%s\n%s\n%s\n" "${__BAR}" "${tmp_help_usage}" "${__BAR}"
+            printf "%s\n%s\n%s\n" "${__PARSER_BAR}" "${help_usage_usage}" "${__PARSER_BAR}"
         fi
         exit 0
     }
 
-    printf "%s\n" "${_ALL_HELP}"
+    printf "%s\n" "${_PARSER_ALL_HELP}"
     exit 0
 }
 EOF
@@ -1619,12 +1677,7 @@ _parser_setup_flag_process 4<<'EOF'
 _check_debug && _update uninstall && { exit 0 || exit 1; }
 EOF
 }
-_ALL_HELP="
-The script can be used to download file/directory from google drive.
-
-Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
-
-Options:$_ALL_HELP"
+return 0
 }
 _cleanup_config(){
 config="${1:?Error: Missing config}"&&unset values_regex _tmp
@@ -1652,7 +1705,7 @@ export API_VERSION="v3" \
 SCOPE="$API_URL/auth/drive" \
 REDIRECT_URI="urn:ietf:wg:oauth:2.0:oob" \
 TOKEN_URL="https://accounts.google.com/o/oauth2/token"
-_parse_arguments "$@"||return 1
+_parse_arguments "_parser_setup_flags" "$@"||return 1
 _check_debug
 [ -n "$QUIET" ]&&export CURL_PROGRESS="-s" ARIA_FLAGS=" $ARIA_FLAGS -q "
 ARIA_extra_flags="" CURL_extra_flags=""
