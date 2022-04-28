@@ -338,18 +338,3 @@ _update_config() {
     chmod a-w-r-x,u+r -- "${config_path_update_config}" || return 1
     return 0
 }
-
-# export the required functions when sourced from bash scripts
-{
-    # shellcheck disable=SC2163
-    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
-        export "${tmp?}" _actual_size_in_bytes \
-            _bytes_to_human \
-            _clear_line \
-            _curl \
-            _json_value \
-            _move_cursor \
-            _print_center \
-            _print_center_quiet \
-            _update_config
-} 2>| /dev/null 1>&2 || :

@@ -22,18 +22,21 @@ _merge() (
         printf "%s\n" 'SELF_SOURCE="true"'
         # shellcheck disable=SC2086
         {
+            # this is to export the functions so that can used in parallel functions
+            echo 'set -a'
             sed 1d "${shell}/common-utils.${shell}"
             for script in \
                 update.sh \
+                parser.sh \
+                flags.sh \
                 auth-utils.sh \
                 common-utils.sh \
                 drive-utils.sh \
                 download-utils.sh \
-                parser.sh \
-                flags.sh \
                 gdl-common.sh; do
                 sed 1d "common/${script}"
             done
+            echo 'set +a'
             sed 1d "${shell}/gdl.${shell}"
         } | shfmt -mn ${flag}
     } >| "${release_path}"

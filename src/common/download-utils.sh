@@ -536,17 +536,3 @@ _log_in_file() {
         printf "%s\n\n" "ID: ${3}"
     } >> "${LOG_FILE_ID}"
 }
-
-# export the required functions when sourced from bash scripts
-{
-    # shellcheck disable=SC2163
-    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
-        export "${tmp?}" _common_stuff \
-            _cookies_and_document_stuff \
-            _download_with_aria2c \
-            _download_with_curl \
-            _download_file_main \
-            _download_folder \
-            _fetch_folderinfo \
-            _log_in_file
-} 2>| /dev/null 1>&2 || :

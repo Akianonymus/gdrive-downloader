@@ -470,11 +470,3 @@ _token_bg_service() {
     export ACCESS_TOKEN_SERVICE_PID="${!}"
     return 0
 }
-
-# export the required functions when sourced from bash scripts
-{
-    # shellcheck disable=SC2163
-    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
-        export "${tmp?}" _check_access_token \
-            _token_bg_service
-} 2>| /dev/null 1>&2 || :

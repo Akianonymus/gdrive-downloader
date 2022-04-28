@@ -84,6 +84,3 @@ _trim() {
         printf "%s" "${str//${char}/}"
     fi
 }
-
-export -f _count \
-    _set_value

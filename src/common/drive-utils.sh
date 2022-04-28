@@ -117,13 +117,3 @@ _extract_id() {
         printf "%b" "${id_extract_id:+${id_extract_id}\n}"
     fi
 }
-
-# export the required functions when sourced from bash scripts
-{
-    # shellcheck disable=SC2163
-    [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
-        export "${tmp?}" _api_request \
-            _api_request_oauth \
-            _check_id \
-            _extract_id
-} 2>| /dev/null 1>&2 || :
