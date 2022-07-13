@@ -528,7 +528,7 @@ Now, it will ask for following credentials:
 **Client Secret:** Copy and paste from credentials.json
 
 **Refresh Token:** If you have previously generated a refresh token authenticated to your account, then enter it, otherwise leave blank.
-If you don't have refresh token, script outputs a URL on the terminal script, open that url in a web browser and tap on allow. Copy the code and paste in the terminal.
+If you don't have refresh token, script outputs a URL on the terminal script, open that url in a web browser and tap on allow. Go back to terminal and press enter.
 
 If everything went fine, all the required credentials have been set.
 
