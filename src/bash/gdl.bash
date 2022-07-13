@@ -8,7 +8,6 @@ main() {
         exit 0
     }
 
-    export _SHELL="bash"
     [[ -z ${SELF_SOURCE} ]] && {
         export UTILS_FOLDER="${UTILS_FOLDER:-${PWD}}"
         export COMMON_PATH="${COMMON_UTILS_FILE:-${PWD}}/../common"

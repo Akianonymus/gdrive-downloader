@@ -284,7 +284,7 @@ _variables() {
     COMMAND_NAME="gdl"
     INFO_PATH="${HOME}/.gdrive-downloader"
     INSTALL_PATH="${HOME}/.gdrive-downloader"
-    INSTALL_RC_STRING="[ -f \"\${HOME}/.gdrive-downloader/gdl\" ] && [ -x \"\${HOME}/.gdrive-downloader/gdl\" ] && PATH=\"\${HOME}/.gdrive-downloader:\${PATH}\""
+    INSTALL_RC_STRING="[ -f \"\${HOME}/.gdrive-downloader/${COMMAND_NAME}\" ] && [ -x \"\${HOME}/.gdrive-downloader/${COMMAND_NAME}\" ] && PATH=\"\${HOME}/.gdrive-downloader:\${PATH}\""
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
@@ -505,7 +505,7 @@ _setup_arguments() {
     { printf "%s\n" "${PATH}" | grep -q -e "${INSTALL_PATH}:" -e "${INSTALL_PATH}/:" && IN_PATH="true"; } || :
     # modify install string literal if path changed
     if [ -n "${_INSTALL_PATH}" ]; then
-        INSTALL_RC_STRING="[ -f \"${INSTALL_PATH}/gdl\" ] && [ -x \"${INSTALL_PATH}/gdl\" ] && PATH=\"${INSTALL_PATH}:\${PATH}\""
+        INSTALL_RC_STRING="[ -f \"${INSTALL_PATH}/${COMMAND_NAME}\" ] && [ -x \"${INSTALL_PATH}/${COMMAND_NAME}\" ] && PATH=\"${INSTALL_PATH}:\${PATH}\""
     fi
 
     # check if install path outside home dir and running as root

@@ -156,6 +156,12 @@ _parser_run_preprocess||return 1
 while [ "$#" -gt 0 ];do
 case "$1" in
 ''):;;
+--)shift
+while [ "$#" -gt 0 ];do
+_parser_process_input "$@"||return 1
+shift
+done
+;;
 -*)\
 flag_parse_arguments=""
 if _flag_exists "$1" flag_parse_arguments;then
@@ -1665,7 +1671,6 @@ return 0
 }
 _setup_arguments(){
 [ $# = 0 ]&&printf "Missing arguments\n"&&return 1
-unset _ALL_HELP
 unset CURL_FLAGS
 export DOWNLOADER="curl"
 export CURL_PROGRESS="-s" EXTRA_LOG=":"

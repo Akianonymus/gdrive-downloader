@@ -156,6 +156,13 @@ _parse_arguments() {
         case "${1}" in
             # just ignore empty inputs
             '') : ;;
+            --)
+                shift
+                while [ "${#}" -gt 0 ]; do
+                    _parser_process_input "${@}" || return 1
+                    shift
+                done
+                ;;
             -*)
                 flag_parse_arguments=""
                 if _flag_exists "${1}" flag_parse_arguments; then

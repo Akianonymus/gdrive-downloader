@@ -38,7 +38,6 @@ _setup_arguments() {
     [ $# = 0 ] && printf "Missing arguments\n" && return 1
     # Internal variables
     # De-initialize if any variables set already.
-    unset _ALL_HELP
     unset CURL_FLAGS
     export DOWNLOADER="curl"
     export CURL_PROGRESS="-s" EXTRA_LOG=":"
