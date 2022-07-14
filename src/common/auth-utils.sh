@@ -4,7 +4,6 @@
 
 ###################################################
 # Check if account name is valid by a regex expression
-# Globals: None
 # Arguments: 1
 #   ${1} = Account name
 # Result: read description and return 1 or 0
@@ -18,8 +17,6 @@ _account_name_valid() {
 ###################################################
 # Check if account exists
 # First check if the given account is in correct format
-# Globals: 2 functions
-#   _set_value, _account_name_valid
 # Arguments: 1
 #   ${1} = Account name
 # Result: read description and return 1 or 0
@@ -100,7 +97,6 @@ _set_new_account_name() {
 
 ###################################################
 # Delete a account from config file
-# Arguments: None
 # Result: check if account exists and delete from config, else print error message
 ###################################################
 _delete_account() {
@@ -158,7 +154,7 @@ _handle_old_config() {
 # Result: read description and start access token check in bg if required
 ###################################################
 _check_credentials() {
-    export CONFIG CONFIG_INFO DEFAULT_ACCOUNT NEW_ACCOUNT_NAME CUSTOM_ACCOUNT_NAME QUIET DEFAULT_ACCOUNT COUNT
+    export CONFIG CONFIG_INFO DEFAULT_ACCOUNT NEW_ACCOUNT_NAME CUSTOM_ACCOUNT_NAME QUIET COUNT
     { _reload_config && _handle_old_config; } || return 1
 
     # set account name to default account name
@@ -478,7 +474,7 @@ _check_access_token() {
 ###################################################
 _reload_config() {
     export CONFIG
-    { [ -r "${CONFIG}" ] && . "${CONFIG}"; } || { printf "" >> "${CONFIG}" || return 1; }
+    { [ -r "${CONFIG}" ] && _parse_config "${CONFIG}"; } || { printf "" >> "${CONFIG}" || return 1; }
     return 0
 }
 

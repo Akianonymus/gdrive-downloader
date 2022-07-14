@@ -214,6 +214,56 @@ _move_cursor() {
 }
 
 ###################################################
+# Function to parse config in format a=b
+# Arguments: 2
+#   ${1} - path to config file
+#   ${2} - optional, if true will print the config
+# Input: file
+#   _parse_config file
+# Result: all the values in the config file will be exported as variables
+###################################################
+_parse_config() {
+    _config_file_parse_config="${1:?Error: Profile config file}"
+    print_parse_config="${2:-false}"
+
+    # check if the config file accessible
+    [ -r "${_config_file_parse_config}" ] || {
+        printf "%s\n" "Error: Given config file ( ${_config_file_parse_config} ) is not readable."
+        return 1
+    }
+
+    # Setting 'IFS' tells 'read' where to split the string.
+    while IFS='=' read -r key val; do
+        # Skip Lines starting with '#'
+        # Also skip lines if key and val variable is empty
+        { [ -n "${key}" ] && [ -n "${val}" ] && [ -n "${key##\#*}" ]; } || continue
+
+        # trim all leading white space
+        key="${key#"${key%%[![:space:]]*}"}"
+        val="${val#"${val%%[![:space:]]*}"}"
+
+        # trim all trailing white space
+        key="${key%"${key##*[![:space:]]}"}"
+        val="${val%"${val##*[![:space:]]}"}"
+
+        # trim the first and last qoute if present on both sides
+        case "${val}" in
+            \"*\") val="${val#\"}" val="${val%\"}" ;;
+            \'*\') val="${val#\'}" val="${val%\'}" ;;
+            *) : ;;
+        esac
+
+        # '$key' stores the key and '$val' stores the value.
+        # Throw a warning if cannot export the variable
+        export "${key}=${val}" 2> /dev/null || printf "%s\n" "Warning: ${key} is not a valid variable name."
+
+        [ "${print_parse_config}" = true ] && echo "${key}=${val}"
+    done < "${_config_file_parse_config}"
+
+    return 0
+}
+
+###################################################
 # Print a text to center interactively and fill the rest of the line with text specified.
 # This function is fine-tuned to this script functionality, so may appear unusual.
 # Arguments: 4

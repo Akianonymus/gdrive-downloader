@@ -800,7 +800,7 @@ _reload_config||return 1
 return 0
 }
 _check_credentials(){
-export CONFIG CONFIG_INFO DEFAULT_ACCOUNT NEW_ACCOUNT_NAME CUSTOM_ACCOUNT_NAME QUIET DEFAULT_ACCOUNT COUNT
+export CONFIG CONFIG_INFO DEFAULT_ACCOUNT NEW_ACCOUNT_NAME CUSTOM_ACCOUNT_NAME QUIET COUNT
 { _reload_config&&_handle_old_config;}||return 1
 ACCOUNT_NAME="$DEFAULT_ACCOUNT"
 if [ -n "$NEW_ACCOUNT_NAME" ];then
@@ -1016,7 +1016,7 @@ return 0
 }
 _reload_config(){
 export CONFIG
-{ [ -r "$CONFIG" ]&&. "$CONFIG";}||{ printf "" >>"$CONFIG"||return 1;}
+{ [ -r "$CONFIG" ]&&_parse_config "$CONFIG";}||{ printf "" >>"$CONFIG"||return 1;}
 return 0
 }
 _token_bg_service(){
@@ -1149,6 +1149,29 @@ return 0
 }
 _move_cursor(){
 printf "\033[%sA" "${1:?Error: Num of line}"
+}
+_parse_config(){
+_config_file_parse_config="${1:?Error: Profile config file}"
+print_parse_config="${2:-false}"
+[ -r "$_config_file_parse_config" ]||{
+printf "%s\n" "Error: Given config file ( $_config_file_parse_config ) is not readable."
+return 1
+}
+while IFS='=' read -r key val;do
+{ [ -n "$key" ]&&[ -n "$val" ]&&[ -n "${key##\#*}" ];}||continue
+key="${key#"${key%%[![:space:]]*}"}"
+val="${val#"${val%%[![:space:]]*}"}"
+key="${key%"${key##*[![:space:]]}"}"
+val="${val%"${val##*[![:space:]]}"}"
+case "$val" in
+\"*\")val="${val#\"}" val="${val%\"}";;
+\'*\')val="${val#\'}" val="${val%\'}";;
+*):
+esac
+export "$key=$val" 2>/dev/null||printf "%s\n" "Warning: $key is not a valid variable name."
+[ "$print_parse_config" = true ]&&echo "$key=$val"
+done <"$_config_file_parse_config"
+return 0
 }
 _print_center(){
 [ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
