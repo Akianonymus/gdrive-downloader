@@ -341,7 +341,18 @@ _check_refresh_token() {
         fi
 
         server_string_check_refresh_token='Now go back to command line..'
-        server_port_check_refresh_token='6969'
+        server_port_check_refresh_token='8079'
+        # run a loop until an open port has been found
+        # check for 50 ports
+        while :; do
+            : "$((server_port_check_refresh_token += 1))"
+            if [ "${server_port_check_refresh_token}" -gt 8130 ]; then
+                "${QUIET:-_print_center}" "normal" "Error: No open ports found ( 8080 to 8130 )." "-"
+                return 1
+            fi
+            { curl -Is "http://localhost:${server_port_check_refresh_token}" && continue; } || break
+        done
+
         # https://docs.python.org/3/library/http.server.html
         if command -v python 1> /dev/null && python -V | grep -q 'Python 3'; then
             python << EOF 1> "${TMPFILE}.code" 2>&1 &
