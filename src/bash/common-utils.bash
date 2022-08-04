@@ -8,7 +8,7 @@
 # Result: return 0 or 1
 ###################################################
 _assert_regex() {
-    declare pattern="${1:?Error: Missing pattern}" string="${2:?Missing string}"
+    declare pattern="${1:-}" string="${2:-}"
     if [[ ${string} =~ ${pattern} ]]; then
         return 0
     else

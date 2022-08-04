@@ -2,7 +2,7 @@
 SELF_SOURCE="true"
 set -a
 _assert_regex(){
-declare pattern="${1:?Error: Missing pattern}" string="${2:?Missing string}"
+declare pattern="${1:-}" string="${2:-}"
 if [[ $string =~ $pattern ]];then
 return 0
 else

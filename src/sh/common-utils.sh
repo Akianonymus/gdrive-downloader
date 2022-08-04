@@ -8,8 +8,8 @@
 # Result: return 0 or 1
 ###################################################
 _assert_regex() {
-    grep -qE "${1:?Error: Missing pattern}" 0<< EOF
-${2:?Missing string}
+    grep -qE "${1:-}" 0<< EOF
+${2:-}
 EOF
 }
 
