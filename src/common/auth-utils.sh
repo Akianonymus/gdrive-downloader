@@ -363,7 +363,7 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(bytes(message, "utf8"))
 
 with HTTPServer(('', ${server_port_check_refresh_token}), handler) as server:
-    server.serve_forever()
+    server.handle_request()
 EOF
             _tmp_server_pid="${!}"
         elif command -v nc 1> /dev/null; then
@@ -384,7 +384,7 @@ EOF
 
             "${QUIET:-_print_center}" "normal" " Press enter if you have completed the process in browser" "-"
             read -r _
-            kill "${_tmp_server_pid}"
+            kill "${_tmp_server_pid}" 1>| /dev/null 2>&1 || :
 
             if ! authorization_code="$(grep -m1 'GET.*code.*HTTP/1.1' < "${TMPFILE}.code" | sed -e 's/.*GET.*code=//' -e 's/\&.*//')" &&
                 _assert_regex "${authorization_code_regex}" "${authorization_code}"; then
@@ -403,7 +403,7 @@ EOF
             _clear_line 1 1>&2
 
             refresh_token_value_check_refresh_token="$(printf "%s\n" "${response_check_refresh_token}" | _json_value refresh_token 1 1)" ||
-                { printf "%s\n" "Error: Cannot fetch refresh token, make sure the authorization code was correct." && printf "%s\n" "${response_check_refresh_token}" && return 1; }
+                { printf "%s\n" "Error: Code was not fetched properly , here is some info that maybe helpful.." && printf "%s\n" "${response_check_refresh_token}" && return 1; }
 
             _set_value direct REFRESH_TOKEN "${refresh_token_value_check_refresh_token}"
             { _check_access_token "${account_name_check_refresh_token}" skip_check "${response_check_refresh_token}" &&
