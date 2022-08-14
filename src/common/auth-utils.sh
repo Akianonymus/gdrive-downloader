@@ -350,8 +350,8 @@ _check_refresh_token() {
         done
 
         # https://docs.python.org/3/library/http.server.html
-        if command -v python 1> /dev/null && python -V | grep -q 'Python 3'; then
-            python << EOF 1> "${TMPFILE}.code" 2>&1 &
+        if command -v python3 1> /dev/null && python -V | grep -q 'Python 3'; then
+            python3 -u << EOF 1> "${TMPFILE}.code" 2>&1 &
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class handler(BaseHTTPRequestHandler):
