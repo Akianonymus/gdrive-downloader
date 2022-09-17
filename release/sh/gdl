@@ -1147,7 +1147,7 @@ done
 _json_value(){
 { [ "$2" -gt 0 ] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
 { [ "$3" -gt 0 ] 2>|/dev/null&&num_json_value="$3";}||{ ! [ "$3" = all ]&&num_json_value=1;}
-_tmp="$(grep -o "\"$1\"\:.*" ${no_of_lines_json_value:+-m} $no_of_lines_json_value)"||return 1
+_tmp="$(grep -o "\"$1\":.*" ${no_of_lines_json_value:+-m} $no_of_lines_json_value)"||return 1
 printf "%s\n" "$_tmp"|sed -e 's|.*"'"$1""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "$num_json_value"p||:
 return 0
 }
@@ -1566,7 +1566,7 @@ else
 _search_error_message_fetch_folderinfo "$json_search_fetch_folderinfo"
 fi&&_clear_line 1
 "$EXTRA_LOG" "justify" "Preparing files list.." "="
-_tmp_info_files_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|grep '"size":' -B3)"
+_tmp_info_files_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|grep -F '"size":' -B3)"
 files_id_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value id all all)"||:
 files_size_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value size all all)"||:
 files_name_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value name all all)"||:

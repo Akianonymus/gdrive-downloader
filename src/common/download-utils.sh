@@ -343,7 +343,7 @@ ${json_search_fragment_fetch_folderinfo}"
 
     # parse the fetched json and make a list containing files size, name, id and mimeType
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    _tmp_info_files_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep '"size":' -B3)"
+    _tmp_info_files_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep -F '"size":' -B3)"
     files_id_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value id all all)" || :
     files_size_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value size all all)" || :
     files_name_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value name all all)" || :
