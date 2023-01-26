@@ -75,7 +75,7 @@ _set_new_account_name() {
                     "${QUIET:-_print_center}" "normal" " Warning: Given account ( ${new_account_name_set_new_account_name} ) already exists, input different name. " "-" 1>&2
                     unset new_account_name_set_new_account_name && continue
                 else
-                    export new_account_name_set_new_account_name="${new_account_name_set_new_account_name}" NEW_ACCOUNT_NAME="${new_account_name_set_new_account_name}" &&
+                    export NEW_ACCOUNT_NAME="${new_account_name_set_new_account_name}" &&
                         name_valid_set_new_account_name="true" && continue
                 fi
             else

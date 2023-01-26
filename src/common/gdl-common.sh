@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # helper functions related to main script
 # shellcheck source=/dev/null
+# shellcheck disable=SC2317
 
 ###################################################
 # Function to cleanup config file

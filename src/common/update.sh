@@ -39,7 +39,7 @@ _update() {
             printf "%s\n" "Install script downloaded but malformed, try again and if the issue persists open an issue on github."
             return 1
         }
-        # shellcheck disable=SC2248
+        # shellcheck disable=SC2248,SC2086
         printf "%s\n" "${script_update}" | sh -s -- ${job_uninstall:-} --skip-internet-check --cmd "${cmd_update}" --path "${path_update}"
         current_time="$(date +'%s')"
         [ -z "${job_uninstall}" ] && _update_value LAST_UPDATE_TIME "${current_time}"

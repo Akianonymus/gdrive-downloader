@@ -2,8 +2,8 @@
 SELF_SOURCE="true"
 set -a
 _assert_regex(){
-grep -qE "${1:-}" 0<<EOF
-${2:-}
+grep -qE "${1-}" 0<<EOF
+${2-}
 EOF
 }
 _count(){
@@ -55,18 +55,18 @@ return 0
 }
 _update(){
 job_update="${1:-update}"
-[ "${GLOBAL_INSTALL:-}" = true ]&&! [ "$(id -u)" = 0 ]&&printf "%s\n" "Error: Need root access to update."&&return 0
+[ "${GLOBAL_INSTALL-}" = true ]&&! [ "$(id -u)" = 0 ]&&printf "%s\n" "Error: Need root access to update."&&return 0
 [ "$job_update" = uninstall ]&&job_uninstall="--uninstall"
 _print_center "justify" "Fetching $job_update script.." "-"
 repo_update="${REPO:-akianonymus/gdrive-downloader}" type_value_update="${TYPE_VALUE:-latest}" cmd_update="${COMMAND_NAME:-gupload}" path_update="${INSTALL_PATH:-$HOME/.gdrive-downloader/bin}"
-{ [ "${TYPE:-}" != branch ]&&type_value_update="$(_get_latest_sha release "$type_value_update" "$repo_update")";}||:
+{ [ "${TYPE-}" != branch ]&&type_value_update="$(_get_latest_sha release "$type_value_update" "$repo_update")";}||:
 if script_update="$(curl --compressed -Ls "https://github.com/$repo_update/raw/$type_value_update/install.sh")";then
 _clear_line 1
 printf "%s\n" "$script_update"|sh -n||{
 printf "%s\n" "Install script downloaded but malformed, try again and if the issue persists open an issue on github."
 return 1
 }
-printf "%s\n" "$script_update"|sh -s -- ${job_uninstall:-} --skip-internet-check --cmd "$cmd_update" --path "$path_update"
+printf "%s\n" "$script_update"|sh -s -- ${job_uninstall-} --skip-internet-check --cmd "$cmd_update" --path "$path_update"
 current_time="$(date +'%s')"
 [ -z "$job_uninstall" ]&&_update_value LAST_UPDATE_TIME "$current_time"
 else
@@ -78,7 +78,7 @@ return 0
 }
 _update_value(){
 command_path="${INSTALL_PATH:?}/${COMMAND_NAME:?}"
-value_name="${1:?}" value="${2:-}"
+value_name="${1:?}" value="${2-}"
 script_without_value_and_shebang="$(grep -v "$value_name=\".*\".* # added values" -- "$command_path"|sed 1d)"
 new_script="$(sed -n 1p -- "$command_path"
 printf "%s\n" "$value_name=\"$value\" # added values"
@@ -100,8 +100,8 @@ done
 }
 _parser_add_help(){
 _PARSER_ALL_HELP="$_PARSER_ALL_HELP
-${__PARSER_BAR:-}
-${1:-}" 2>|/dev/null
+${__PARSER_BAR-}
+${1-}" 2>|/dev/null
 }
 _parser_check_arguments(){
 nargs_parser_check_arguments="$((${1:?_parser_check_arguments}))"
@@ -221,7 +221,7 @@ _set_value d "_parser__help_$f" "$all_setup_help_flag"
 done
 [ "$_PARSER_FLAGS" = input ]&&return 0
 _PARSER_ALL_HELP="$_PARSER_ALL_HELP
-${__PARSER_BAR:-}
+${__PARSER_BAR-}
 $all_setup_help_flag" 2>|/dev/null
 }
 _parser_setup_flag_preprocess(){
@@ -689,7 +689,7 @@ EOF
 _parser_setup_flag_process 4<<'EOF'
 shift 1 && _usage "${@}"
 EOF
-[ "${GDL_INSTALLED_WITH:-}" = script ]&&{
+[ "${GDL_INSTALLED_WITH-}" = script ]&&{
 _parser_setup_flag "-u --update" 0
 _parser_setup_flag_help \
 "Update the installed script in your system."
@@ -711,7 +711,7 @@ _assert_regex "$account_name_regex_account_name_valid" "$name_account_name_valid
 return 0
 }
 _account_exists(){
-name_account_exists="${1:-}" client_id_account_exists="" client_secret_account_exists="" refresh_token_account_exists=""
+name_account_exists="${1-}" client_id_account_exists="" client_secret_account_exists="" refresh_token_account_exists=""
 _account_name_valid "$name_account_exists"||return 1
 _set_value indirect client_id_account_exists "ACCOUNT_${name_account_exists}_CLIENT_ID"
 _set_value indirect client_secret_account_exists "ACCOUNT_${name_account_exists}_CLIENT_SECRET"
@@ -734,7 +734,7 @@ return 0
 _set_new_account_name(){
 export QUIET NEW_ACCOUNT_NAME
 _reload_config||return 1
-new_account_name_set_new_account_name="${1:-}"&&unset name_valid_set_new_account_name
+new_account_name_set_new_account_name="${1-}"&&unset name_valid_set_new_account_name
 [ -z "$new_account_name_set_new_account_name" ]&&{
 _all_accounts 2>|/dev/null
 "${QUIET:-_print_center}" "normal" " New account name: " "="
@@ -747,7 +747,7 @@ if _account_exists "$new_account_name_set_new_account_name";then
 "${QUIET:-_print_center}" "normal" " Warning: Given account ( $new_account_name_set_new_account_name ) already exists, input different name. " "-" 1>&2
 unset new_account_name_set_new_account_name&&continue
 else
-export new_account_name_set_new_account_name="$new_account_name_set_new_account_name" NEW_ACCOUNT_NAME="$new_account_name_set_new_account_name"&&name_valid_set_new_account_name="true"&&continue
+export NEW_ACCOUNT_NAME="$new_account_name_set_new_account_name"&&name_valid_set_new_account_name="true"&&continue
 fi
 else
 "${QUIET:-_print_center}" "normal" " Warning: Given account name ( $new_account_name_set_new_account_name ) invalid, input different name. " "-"
@@ -868,7 +868,7 @@ return 0
 }
 _check_client(){
 export CONFIG QUIET
-type_check_client="CLIENT_${1:?Error: ID or SECRET}" account_name_check_client="${2:-}"
+type_check_client="CLIENT_${1:?Error: ID or SECRET}" account_name_check_client="${2-}"
 unset type_value_check_client type_name_check_client valid_check_client client_check_client message_check_client regex_check_client
 if [ "$type_check_client" = "CLIENT_ID" ];then
 regex_check_client='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
@@ -900,10 +900,10 @@ return 0
 _check_refresh_token(){
 export CLIENT_ID CLIENT_SECRET QUIET CONFIG CURL_PROGRESS SCOPE REDIRECT_URI TOKEN_URL
 [ -z "${CLIENT_ID:+$CLIENT_SECRET}" ]&&return 1
-account_name_check_refresh_token="${1:-}"
+account_name_check_refresh_token="${1-}"
 refresh_token_regex='[0-9]//[0-9A-Za-z_-]+' authorization_code_regex='[0-9]/[0-9A-Za-z_-]+'
 _set_value direct refresh_token_name_check_refresh_token "${account_name_check_refresh_token:+ACCOUNT_${account_name_check_refresh_token}_}REFRESH_TOKEN"
-_set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token:-}"
+_set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token-}"
 [ "${REFETCH_REFRESH_TOKEN:-false}" = "true" ]&&{
 unset refresh_token_value_check_refresh_token
 }
@@ -992,7 +992,7 @@ return 0
 _check_access_token(){
 export CLIENT_ID CLIENT_SECRET REFRESH_TOKEN CONFIG QUIET
 [ -z "${CLIENT_ID:+${CLIENT_SECRET:+$REFRESH_TOKEN}}" ]&&return 1
-account_name_check_access_token="${1:-}" no_check_check_access_token="${2:-false}" response_json_check_access_token="${3:-}"
+account_name_check_access_token="${1-}" no_check_check_access_token="${2:-false}" response_json_check_access_token="${3-}"
 unset token_name_check_access_token token_expiry_name_check_access_token token_value_check_access_token token_expiry_value_check_access_token response_check_access_token
 access_token_regex='ya29\.[0-9A-Za-z_-]+'
 token_name_check_access_token="${account_name_check_access_token:+ACCOUNT_${account_name_check_access_token}_}ACCESS_TOKEN"
@@ -1069,8 +1069,16 @@ _check_debug(){
 export DEBUG QUIET
 if [ -n "$DEBUG" ];then
 set -x&&PS4='-> '
-_print_center(){ { [ $# = 3 ]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";};}
-_clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
+_print_center(){
+if [ $# = 3 ];then
+printf "%s\n" "$2"
+else
+printf "%s%s\n" "$2" "$3"
+fi
+}
+_clear_line(){ :;}
+_move_cursor(){ :;}
+_newline(){ :;}
 else
 if [ -z "$QUIET" ];then
 if _support_ansi_escapes;then
@@ -1089,14 +1097,14 @@ fi
 set +x
 fi
 {
-[ "${_SHELL:-}" = "bash" ]&&tmp="-f"&&export "${tmp?}" _newline \
+[ "${_SHELL-}" = "bash" ]&&tmp="-f"&&export "${tmp?}" _newline \
 _print_center \
 _clear_line
 } 2>|/dev/null 1>&2||:
 }
 _check_internet(){
-"${EXTRA_LOG:-}" "justify" "Checking Internet Connection.." "-"
-if ! _timeout 10 _curl -Is google.com --compressed;then
+"${EXTRA_LOG-}" "justify" "Checking Internet Connection.." "-"
+if ! _timeout 10 _curl -Is https://google.com --compressed;then
 _clear_line 1
 "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
 return 1
@@ -1107,7 +1115,7 @@ _clear_line(){
 printf "\033[%sA\033[2K" "$1"
 }
 _curl(){
-curl ${CURL_FLAGS:-} "$@"||return 1
+curl ${CURL_FLAGS-} "$@"||return 1
 }
 _display_time(){
 t_display_time="$1" day_display_time="$((t_display_time/60/60/24))"
@@ -1179,7 +1187,7 @@ return 0
 }
 _print_center(){
 [ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
-term_cols_print_center="${COLUMNS:-}"
+term_cols_print_center="${COLUMNS-}"
 type_print_center="$1" filler_print_center=""
 case "$type_print_center" in
 normal)out_print_center="$2"&&symbol_print_center="$3";;
@@ -1218,7 +1226,7 @@ _print_center_quiet(){
 }
 _support_ansi_escapes(){
 unset ansi_escapes
-case "${TERM:-}" in
+case "${TERM-}" in
 xterm*|rxvt*|urxvt*|linux*|vt*|screen*)ansi_escapes="true";;
 *):
 esac
@@ -1248,14 +1256,14 @@ chmod a-w-r-x,u+r -- "$config_path_update_config"||return 1
 return 0
 }
 _api_request(){
-_curl --compressed ${CURL_PROGRESS:-} \
+_curl --compressed ${CURL_PROGRESS-} \
 -e "https://drive.google.com" \
 "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
 }
 _api_request_oauth(){
 . "${TMPFILE:?}_ACCESS_TOKEN"
-_curl --compressed ${CURL_PROGRESS:-} \
+_curl --compressed ${CURL_PROGRESS-} \
 -H "Authorization: Bearer ${ACCESS_TOKEN:?}" \
 "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
@@ -1328,8 +1336,8 @@ fi
 }
 _cookies_and_document_stuff(){
 "$EXTRA_LOG" "justify" "Fetching" " ${1:?}.." "-"
-_curl --compressed $CURL_PROGRESS ${3:-} \
-"${4:---header}" "${5:-}" \
+_curl --compressed $CURL_PROGRESS ${3-} \
+"${4:---header}" "${5-}" \
 -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_misc" \
 "${2:?}"||return 1
 for _ in 1 2;do _clear_line 1;done
@@ -1552,7 +1560,7 @@ fi
 "$EXTRA_LOG" "justify" "Fetching folder" " details.." "-"
 _search_error_message_fetch_folderinfo(){
 "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
-printf "%s\n" "${1:-}"&&return 1
+printf "%s\n" "${1-}"&&return 1
 }
 if json_search_fetch_folderinfo="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id_fetch_folderinfo%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name")";then
 while :;do
@@ -1699,7 +1707,7 @@ id="${id##*"|:_//_:|"}"
 name="${line##*"|:_//_:|"}"
 root="${line#*"|:_//_:|"}"
 root="${root%%"|:_//_:|"*}"
-_download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel:-}")
+_download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel-}")
 done 4<"$folders_list_download_folder"
 fi
 (rm -f -- "$files_list_download_folder" "$folders_list_download_folder")&
@@ -1757,12 +1765,12 @@ done
 export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $ARIA_extra_flags"
 export CURL_FLAGS="$CURL_FLAGS $CURL_extra_flags"
 [ -n "$OAUTH_ENABLED" ]&&unset API_KEY_DOWNLOAD
-[ -n "$API_KEY_DOWNLOAD" ]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "$CONFIG"
+[ -n "$API_KEY_DOWNLOAD" ]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY-}" "$CONFIG"
 [ -n "$DELETE_ACCOUNT_NAME" ]&&_delete_account "$DELETE_ACCOUNT_NAME"
 [ -n "$LIST_ACCOUNTS" ]&&_all_accounts
 [ -z "$INPUT_ID_1" ]&&{
 [ -z "${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS:-$NEW_ACCOUNT_NAME}}" ]&&_short_help
-[ -n "${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS:-}}" ]&&exit 0
+[ -n "${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS-}}" ]&&exit 0
 [ -n "$NEW_ACCOUNT_NAME" ]&&CONTINUE_WITH_NO_INPUT="true"
 }
 return 0
@@ -1790,7 +1798,7 @@ export abnormal_exit&&if [ -n "$abnormal_exit" ];then
 printf "\n\n%s\n" "Script exited manually."
 kill "${_SCRIPT_KILL_SIGNAL:--9}" -$$&
 else
-{ _cleanup_config "$CONFIG"&&[ "${GDL_INSTALLED_WITH:-}" = script ]&&_auto_update;} 1>|/dev/null&
+{ _cleanup_config "$CONFIG"&&[ "${GDL_INSTALLED_WITH-}" = script ]&&_auto_update;} 1>|/dev/null&
 fi
 } 2>|/dev/null||:
 return 0
@@ -1824,7 +1832,7 @@ fi
 printf '\n'&&continue
 }
 if [ -n "$FOLDER_ID" ];then
-_download_folder "${DOWNLOAD_METHOD:-alt}" "$FOLDER_ID" "$NAME" "$PWD" "${PARALLEL_DOWNLOAD:-}"
+_download_folder "${DOWNLOAD_METHOD:-alt}" "$FOLDER_ID" "$NAME" "$PWD" "${PARALLEL_DOWNLOAD-}"
 else
 _download_file_main noparse "$FILE_ID" "$NAME" "$FILE_MIME_TYPE" "$SIZE"
 fi

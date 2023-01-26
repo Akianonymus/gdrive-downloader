@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # Common fucntions which will be used in both bash and posix scripts
 # shellcheck source=/dev/null
+# shellcheck disable=SC2317
 
 ###################################################
 # Print actual size of a file ( apparant size )
@@ -51,8 +52,16 @@ _check_debug() {
     export DEBUG QUIET
     if [ -n "${DEBUG}" ]; then
         set -x && PS4='-> '
-        _print_center() { { [ $# = 3 ] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
-        _clear_line() { :; } && _move_cursor() { :; } && _newline() { :; }
+        _print_center() {
+            if [ $# = 3 ]; then
+                printf "%s\n" "${2}"
+            else
+                printf "%s%s\n" "${2}" "${3}"
+            fi
+        }
+        _clear_line() { :; }
+        _move_cursor() { :; }
+        _newline() { :; }
     else
         if [ -z "${QUIET}" ]; then
             # check if running in terminal and support ansi escape sequences
@@ -91,7 +100,7 @@ _check_debug() {
 ###################################################
 _check_internet() {
     "${EXTRA_LOG:-}" "justify" "Checking Internet Connection.." "-"
-    if ! _timeout 10 _curl -Is google.com --compressed; then
+    if ! _timeout 10 _curl -Is https://google.com --compressed; then
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
         return 1
