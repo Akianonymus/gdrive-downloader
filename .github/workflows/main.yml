@@ -36,10 +36,27 @@ jobs:
       - name: 'Format, lint ( shellcheck ) and release test'
         run: |
           set -e
-          { command -v apt-get && sudo apt-get install aria2 snapd -yqq && sudo snap install shfmt ;} ||
-            { command -v brew && brew install shfmt aria2 ;}
+          { command -v apt-get && sudo apt-get install aria2 ;} ||
+            { command -v brew && brew install aria2 ;}
+          shellcheck_v="0.9.0"
+          shfmt_v="3.6.0"
+          PATH="${HOME}/.bin:${PATH}"
+          mkdir -p "${HOME}/.bin"
+          case "$(uname -s)" in
+              Darwin)
+                  wget -q https://github.com/koalaman/shellcheck/releases/download/v${shellcheck_v}/shellcheck-v${shellcheck_v}.darwin.x86_64.tar.xz -O shl.xz
+                  wget -q https://github.com/mvdan/sh/releases/download/v${shfmt_v}/shfmt_v${shfmt_v}_darwin_amd64 -O "${HOME}/.bin/shfmt"
+                  ;;
+              Linux)
+                  wget -q https://github.com/koalaman/shellcheck/releases/download/v${shellcheck_v}/shellcheck-v${shellcheck_v}.linux.x86_64.tar.xz -O shl.xz
+                  wget -q https://github.com/mvdan/sh/releases/download/v3.6.0/shfmt_v${shfmt_v}_linux_amd64 -O "${HOME}/.bin/shfmt"
+                  ;;
+          esac
+          tar -xf shl.xz
+          mv shellcheck*/shellcheck "${HOME}/.bin/"
+          rm -rf shl.xz shellcheck*
+          chmod +x "${HOME}/.bin/"*
 
-          brew install shellcheck
           # merge test
           bash release.sh
           { [ -n "$(git diff)" ] && printf "%s\n" "Error: Run release.sh before pushing the commits" && git diff && exit 1 ;} || :

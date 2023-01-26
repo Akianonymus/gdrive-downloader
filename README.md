@@ -3,7 +3,7 @@
 <a href="https://github.com/Akianonymus/gdrive-downloader/stargazers"><img src="https://img.shields.io/github/stars/Akianonymus/gdrive-downloader.svg?color=blueviolet&style=for-the-badge" alt="Stars"></a>
 </p>
 <p align="center">
-<a href="https://github.com/Akianonymus/gdrive-downloader/actions"><img alt="Github Action Checks" src="https://img.shields.io/github/workflow/status/Akianonymus/gdrive-downloader/Checks/master?label=CI%20Checks&style=for-the-badge"></a>
+<a href="https://github.com/Akianonymus/gdrive-downloader/actions"><img alt="Github Action Checks" src="https://img.shields.io/github/actions/workflow/status/Akianonymus/gdrive-downloader/.github/workflows/main.yml?branch=master&label=CI%20Checks&style=for-the-badge"></a>
 </p>
 <p align="center">
 <a href="https://github.com/Akianonymus/gdrive-downloader/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Akianonymus/gdrive-downloader.svg?style=for-the-badge" alt="License"></a>
