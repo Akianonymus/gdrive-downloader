@@ -23,7 +23,7 @@ _common_stuff() {
     if [ -n "${OAUTH_ENABLED:-${API_KEY_DOWNLOAD}}" ]; then
         url_download_file="${API_URL}/drive/${API_VERSION}/files/${file_id_download_file}$(
             case "${mime_download_file}" in
-                "application/vnd.google-apps.document") printf "%s" "/export?mimeType=${DOCUMENT_FORMAT_ESCAPED}" ;;
+                "application/vnd.google-apps."*) printf "%s" "/export?mimeType=${DOCUMENT_FORMAT_ESCAPED}" ;;
                 *) printf "?alt=media" ;;
             esac
         )&supportsAllDrives=true&includeItemsFromAllDrives=true"
@@ -38,7 +38,7 @@ _common_stuff() {
         fi
 
         case "${mime_download_file}" in
-            "application/vnd.google-apps.document")
+            "application/vnd.google-apps."*)
                 _cookies_and_document_stuff "document size" "${url_download_file}" "-LI" "${flag_download_file}" "${flag_value_download_file}" || return 1
                 server_size_download_file="$(($(_tmp="$(grep -F 'content-length' "${TMPFILE}_${file_id_download_file}_misc")" && _tmp="${_tmp##content-length: }" && printf "%s\n" "${_tmp%"$(printf '\r')"}")))"
                 server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}" 2>| /dev/null)"
@@ -52,10 +52,10 @@ _common_stuff() {
         flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 
         case "${mime_download_file}" in
-            "application/vnd.google-apps.document")
+            "application/vnd.google-apps."*)
                 # fetch the export links
                 json_common_stuff="$("${API_REQUEST_FUNCTION}" "files/${file_id_download_file}?alt=json&fields=exportLinks")" || return 1
-                url_download_file="$(printf "%s\n" "${json_common_stuff}" | _json_value "${DOCUMENT_FORMAT}" 1 1)" || return 0
+                url_download_file="$(printf "%s\n" "${json_common_stuff}" | _json_value "${DOCUMENT_FORMAT_ESCAPED}" 1 1)" || return 0
 
                 _cookies_and_document_stuff "cookies and document size" "${url_download_file}" "-LI" || return 1
 
@@ -216,7 +216,7 @@ _download_with_curl() {
 # Todo: write doc
 ###################################################
 _download_file_main() {
-    export DOWNLOADER DOCUMENT_FORMAT_NAME
+    export DOWNLOADER DOCUMENT_FORMAT
     [ $# -lt 2 ] && printf "Missing arguments\n" && return 1
     unset line_download_file_main fileid_download_file_main name_download_file_main mime_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main && retry_download_file_main="${RETRY:-0}"
 
@@ -250,7 +250,13 @@ _download_file_main() {
     [ -z "${fileid_download_file_main:+${name_download_file_main}}" ] && return 0
 
     case "${mime_download_file_main}" in
-        "application/vnd.google-apps.document") name_download_file_main="${name_download_file_main}.${DOCUMENT_FORMAT_NAME}" ;;
+        "application/vnd.google-apps."*)
+            if [ -z "${DOCUMENT_FORMAT:+${DOCUMENT_FORMAT_ESCAPED}}" ]; then
+                DOCUMENT_FORMAT="$(_get_export_mime ext "${mime_download_file_main}")"
+                DOCUMENT_FORMAT_ESCAPED="$(_get_export_mime mime "${mime_download_file_main}")"
+            fi
+            name_download_file_main="${name_download_file_main}.${DOCUMENT_FORMAT}"
+            ;;
         *) : ;;
     esac
 
@@ -343,11 +349,10 @@ ${json_search_fragment_fetch_folderinfo}"
 
     # parse the fetched json and make a list containing files size, name, id and mimeType
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    _tmp_info_files_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep -F '"size":' -B3)"
-    files_id_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value id all all)" || :
-    files_size_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value size all all)" || :
-    files_name_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value name all all)" || :
-    files_mime_fetch_folderinfo="$(printf "%s\n" "${_tmp_info_files_fetch_folderinfo}" | _json_value mimeType all all)" || :
+    files_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value id all all)" || :
+    files_size_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value size all all)" || :
+    files_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value name all all)" || :
+    files_mime_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value mimeType all all)" || :
 
     chmod +w+r -- "${files_list_fetch_folderinfo}"
     exec 5<< EOF
@@ -391,7 +396,7 @@ EOF
         [ -n "${id:+${name}}" ] &&
             printf "%s\n" "${folder_id_fetch_folderinfo}|:_//_:|${root_name_fetch_folderinfo}/${name_fetch_folderinfo}|:_//_:|${id}|:_//_:|${name}"
     done)"
-    printf "%s\n" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
+    printf "%s" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&-
     chmod -w+r -- "${folders_list_fetch_folderinfo}"
     _clear_line 1

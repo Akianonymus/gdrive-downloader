@@ -117,3 +117,42 @@ _extract_id() {
         printf "%b" "${id_extract_id:+${id_extract_id}\n}"
     fi
 }
+
+###################################################
+# Get mimetype for document format url escaped.
+# Arguments: 1
+#   ${1} = format.
+###################################################
+_get_export_mime() {
+    [ $# = 0 ] && printf "Missing arguments\n" && return 1
+    type_get_export_mime="${1}"
+    given_format_get_export_mime="${2}"
+    ext_get_export_mime=""
+    format_get_export_mime=""
+    case "${given_format_get_export_mime}" in
+        docx | application/vnd.google-apps.document | application/vnd.openxmlformats-officedocument.wordprocessingml.document) format_get_export_mime="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document" ext_get_export_mime="docx" ;;
+        odt | application/vnd.oasis.opendocument.text) format_get_export_mime="application%2Fvnd.oasis.opendocument.text" ext_get_export_mime="odt" ;;
+        rtf | application/rtf) format_get_export_mime="application%2Frtf" ext_get_export_mime="rtf" ;;
+        pdf | application/pdf) format_get_export_mime="application%2Fpdf" ext_get_export_mime="pdf" ;;
+        txt | text/plain) format_get_export_mime="text%2Fplain" ext_get_export_mime="plain" ;;
+        zip | application/zip) format_get_export_mime="application%2Fzip" ext_get_export_mime="zip" ;;
+        epub | "application/epub+zip") format_get_export_mime="application%2Fepub%2Bzip" ext_get_export_mime="epub" ;;
+        xlsx | application/vnd.google-apps.spreadsheet | application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) format_get_export_mime="application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet" ext_get_export_mime="xlsx" ;;
+        ods | application/x-vnd.oasis.opendocument.spreadsheet) format_get_export_mime="application%2Fx-vnd.oasis.opendocument.spreadsheet" ext_get_export_mime="ods" ;;
+        csv | text/csv) format_get_export_mime="text%2Fcsv" ext_get_export_mime="csv" ;;
+        tsv | text/tab-separated-values) format_get_export_mime="text%2Ftab-separated-values" ext_get_export_mime="tsv" ;;
+        pptx | application/vnd.openxmlformats-officedocument.presentationml.presentation) format_get_export_mime="application%2Fvnd.openxmlformats-officedocument.presentationml.presentation" ext_get_export_mime="pptx" ;;
+        odp | application/vnd.oasis.opendocument.presentation) format_get_export_mime="application%2Fvnd.oasis.opendocument.presentation" ext_get_export_mime="odp" ;;
+        jpg | image/jpeg) format_get_export_mime="image%2Fjpeg" ext_get_export_mime="jpg" ;;
+        png | image/png) format_get_export_mime="image%2Fpng" ext_get_export_mime="png" ;;
+        svg | image/svg+xml) format_get_export_mime="image%2Fsvg%2Bxml" ext_get_export_mime="svg" ;;
+        json | application/vnd.google-apps.script+json) format_get_export_mime="application%2Fvnd.google-apps.script%2Bjson" ext_get_export_mime="json" ;;
+        *) format_get_export_mime="" ext_get_export_mime="" ;;
+    esac
+
+    if [ "${type_get_export_mime}" = "ext" ]; then
+        printf "%s" "${ext_get_export_mime}"
+    elif [ "${type_get_export_mime}" = "mime" ]; then
+        printf "%s" "${format_get_export_mime}"
+    fi
+}

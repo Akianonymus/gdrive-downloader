@@ -377,9 +377,9 @@ These are the custom flags that are currently implemented:
 
 -   <strong>-df | --document-format 'document type'</strong>
 
-    Can be used for documents to be downloaded in different format, default is docx.
+    Can be used for documents to be downloaded in different formats.
 
-    Available formats are: rtf, odt, html, pdf, epub, zip, docx and txt.
+    Available formats are: docx, odt, rtf, pdf, txt, zip, epub, xlsx, ods, csv, tsv, pptx, odp, jpg, png, svg, json
 
     ---
 

@@ -452,27 +452,20 @@ export FOLDERNAME="${2}" && _parser_shift
 EOF
 _parser_setup_flag "-df --document-format" 1 required "document type"
 _parser_setup_flag_help \
-"Can be used for documents to be downloaded in different format, default is docx.
+"Can be used for documents to be downloaded in different format like docx, pdf, zip, epub, etc.
 
-Available formats are: rtf, odt, html, pdf, epub, zip, docx, txt"
+Available formats are: docx, odt, rtf, pdf, txt, zip, epub, xlsx, ods, csv, tsv, pptx, odp, jpg, png, svg, json"
 _parser_setup_flag_preprocess 4<<'EOF'
-DOCUMENT_FORMAT_NAME="docx"
-DOCUMENT_FORMAT="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document"
+DOCUMENT_FORMAT=""
+DOCUMENT_FORMAT_ESCAPED=""
 EOF
 _parser_setup_flag_process 4<<'EOF'
-case "${2}" in 
-    rtf) DOCUMENT_FORMAT="application/rtf" DOCUMENT_FORMAT_ESCAPED="application%2Frtf" ;;
-    odt) DOCUMENT_FORMAT="application/vnd.oasis.opendocument.text" DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.oasis.opendocument.text" ;;
-    html) DOCUMENT_FORMAT="text/html" DOCUMENT_FORMAT_ESCAPED="text%2Fhtml" ;;
-    pdf) DOCUMENT_FORMAT="application/pdf" DOCUMENT_FORMAT_ESCAPED="application%2Fpdf" ;;
-    epub) DOCUMENT_FORMAT="application/epub+zip" DOCUMENT_FORMAT_ESCAPED="application%2Fepub%2Bzip" ;;
-    zip) DOCUMENT_FORMAT="application/zip" DOCUMENT_FORMAT_ESCAPED="application%2Fzip" ;;
-    docx) DOCUMENT_FORMAT="application/vnd.openxmlformats-officedocument.wordprocessingml.document" DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document" ;;
-    txt) DOCUMENT_FORMAT="text/plain" DOCUMENT_FORMAT_ESCAPED="text%2Fplain" ;;
-    *) printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt" && return 1 ;;
-esac
-export DOCUMENT_FORMAT_NAME="${2}" DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
+DOCUMENT_FORMAT="${2}"
+DOCUMENT_FORMAT_ESCAPED="${_get_export_mime "${DOCUMENT_FORMAT}"}"
+if [ -z "${DOCUMENT_FORMAT_ESCAPED}" ]; then
+    printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt, etc. See help" && return 1
+fi
+export DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
 EOF
 _parser_setup_flag "-dr --dry-run" 0
 _parser_setup_flag_help \
@@ -1330,6 +1323,38 @@ else
 printf "%b" "${id_extract_id:+$id_extract_id\n}"
 fi
 }
+_get_export_mime(){
+[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+type_get_export_mime="$1"
+given_format_get_export_mime="$2"
+ext_get_export_mime=""
+format_get_export_mime=""
+case "$given_format_get_export_mime" in
+docx|application/vnd.google-apps.document|application/vnd.openxmlformats-officedocument.wordprocessingml.document)format_get_export_mime="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document" ext_get_export_mime="docx";;
+odt|application/vnd.oasis.opendocument.text)format_get_export_mime="application%2Fvnd.oasis.opendocument.text" ext_get_export_mime="odt";;
+rtf|application/rtf)format_get_export_mime="application%2Frtf" ext_get_export_mime="rtf";;
+pdf|application/pdf)format_get_export_mime="application%2Fpdf" ext_get_export_mime="pdf";;
+txt|text/plain)format_get_export_mime="text%2Fplain" ext_get_export_mime="plain";;
+zip|application/zip)format_get_export_mime="application%2Fzip" ext_get_export_mime="zip";;
+epub|"application/epub+zip")format_get_export_mime="application%2Fepub%2Bzip" ext_get_export_mime="epub";;
+xlsx|application/vnd.google-apps.spreadsheet|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)format_get_export_mime="application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet" ext_get_export_mime="xlsx";;
+ods|application/x-vnd.oasis.opendocument.spreadsheet)format_get_export_mime="application%2Fx-vnd.oasis.opendocument.spreadsheet" ext_get_export_mime="ods";;
+csv|text/csv)format_get_export_mime="text%2Fcsv" ext_get_export_mime="csv";;
+tsv|text/tab-separated-values)format_get_export_mime="text%2Ftab-separated-values" ext_get_export_mime="tsv";;
+pptx|application/vnd.openxmlformats-officedocument.presentationml.presentation)format_get_export_mime="application%2Fvnd.openxmlformats-officedocument.presentationml.presentation" ext_get_export_mime="pptx";;
+odp|application/vnd.oasis.opendocument.presentation)format_get_export_mime="application%2Fvnd.oasis.opendocument.presentation" ext_get_export_mime="odp";;
+jpg|image/jpeg)format_get_export_mime="image%2Fjpeg" ext_get_export_mime="jpg";;
+png|image/png)format_get_export_mime="image%2Fpng" ext_get_export_mime="png";;
+svg|image/svg+xml)format_get_export_mime="image%2Fsvg%2Bxml" ext_get_export_mime="svg";;
+json|application/vnd.google-apps.script+json)format_get_export_mime="application%2Fvnd.google-apps.script%2Bjson" ext_get_export_mime="json";;
+*)format_get_export_mime="" ext_get_export_mime=""
+esac
+if [ "$type_get_export_mime" = "ext" ];then
+printf "%s" "$ext_get_export_mime"
+elif [ "$type_get_export_mime" = "mime" ];then
+printf "%s" "$format_get_export_mime"
+fi
+}
 _cookies_and_document_stuff(){
 "$EXTRA_LOG" "justify" "Fetching" " ${1:?}.." "-"
 _curl --compressed $CURL_PROGRESS ${3-} \
@@ -1342,7 +1367,7 @@ _common_stuff(){
 export OAUTH_ENABLED TMPFILE ACCESS_TOKEN API_URL API_VERSION API_KEY API_KEY_DOWNLOAD EXTRA_LOG CURL_PROGRESS DOWNLOADER DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED
 if [ -n "${OAUTH_ENABLED:-$API_KEY_DOWNLOAD}" ];then
 url_download_file="$API_URL/drive/$API_VERSION/files/$file_id_download_file$(case "$mime_download_file" in
-"application/vnd.google-apps.document")printf "%s" "/export?mimeType=$DOCUMENT_FORMAT_ESCAPED";;
+"application/vnd.google-apps."*)printf "%s" "/export?mimeType=$DOCUMENT_FORMAT_ESCAPED";;
 *)printf "?alt=media"
 esac)&supportsAllDrives=true&includeItemsFromAllDrives=true"
 if [ -n "$OAUTH_ENABLED" ];then
@@ -1353,7 +1378,7 @@ flag_download_file="--referer" flag_value_download_file="https://drive.google.co
 url_download_file="$url_download_file&key=$API_KEY"
 fi
 case "$mime_download_file" in
-"application/vnd.google-apps.document")_cookies_and_document_stuff "document size" "$url_download_file" "-LI" "$flag_download_file" "$flag_value_download_file"||return 1
+"application/vnd.google-apps."*)_cookies_and_document_stuff "document size" "$url_download_file" "-LI" "$flag_download_file" "$flag_value_download_file"||return 1
 server_size_download_file="$(($(_tmp="$(grep -F 'content-length' "${TMPFILE}_${file_id_download_file}_misc")"&&_tmp="${_tmp##content-length: }"&&printf "%s\n" "${_tmp%"$(printf '\r')"}")))"
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file" 2>|/dev/null)"
 _clear_line 1
@@ -1364,9 +1389,9 @@ esac
 else
 flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 case "$mime_download_file" in
-"application/vnd.google-apps.document")\
+"application/vnd.google-apps."*)\
 json_common_stuff="$("$API_REQUEST_FUNCTION" "files/$file_id_download_file?alt=json&fields=exportLinks")"||return 1
-url_download_file="$(printf "%s\n" "$json_common_stuff"|_json_value "$DOCUMENT_FORMAT" 1 1)"||return 0
+url_download_file="$(printf "%s\n" "$json_common_stuff"|_json_value "$DOCUMENT_FORMAT_ESCAPED" 1 1)"||return 0
 _cookies_and_document_stuff "cookies and document size" "$url_download_file" "-LI"||return 1
 server_size_download_file="$(($(_tmp="$(grep -F 'content-length' "${TMPFILE}_${file_id_download_file}_misc")"&&_tmp="${_tmp##content-length: }"&&printf "%s\n" "${_tmp%"$(printf '\r')"}")))"
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file" 2>|/dev/null)"
@@ -1477,7 +1502,7 @@ _log_in_file "$name_download_file" "$server_size_readable_download_file" "$file_
 return 0
 }
 _download_file_main(){
-export DOWNLOADER DOCUMENT_FORMAT_NAME
+export DOWNLOADER DOCUMENT_FORMAT
 [ $# -lt 2 ]&&printf "Missing arguments\n"&&return 1
 unset line_download_file_main fileid_download_file_main name_download_file_main mime_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main&&retry_download_file_main="${RETRY:-0}"
 if [ "$1" = parse ];then
@@ -1500,7 +1525,14 @@ size_download_file_main="$((size_download_file_main))"
 fi
 [ -z "${fileid_download_file_main:+$name_download_file_main}" ]&&return 0
 case "$mime_download_file_main" in
-"application/vnd.google-apps.document")name_download_file_main="$name_download_file_main.$DOCUMENT_FORMAT_NAME";;
+"application/vnd.google-apps."*)if
+[ -z "${DOCUMENT_FORMAT:+$DOCUMENT_FORMAT_ESCAPED}" ]
+then
+DOCUMENT_FORMAT="$(_get_export_mime ext "$mime_download_file_main")"
+DOCUMENT_FORMAT_ESCAPED="$(_get_export_mime mime "$mime_download_file_main")"
+fi
+name_download_file_main="$name_download_file_main.$DOCUMENT_FORMAT"
+;;
 *):
 esac
 unset RETURN_STATUS&&until [ "$retry_download_file_main" -le 0 ]&&[ -n "$RETURN_STATUS" ];do
@@ -1570,11 +1602,10 @@ else
 _search_error_message_fetch_folderinfo "$json_search_fetch_folderinfo"
 fi&&_clear_line 1
 "$EXTRA_LOG" "justify" "Preparing files list.." "="
-_tmp_info_files_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|grep -F '"size":' -B3)"
-files_id_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value id all all)"||:
-files_size_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value size all all)"||:
-files_name_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value name all all)"||:
-files_mime_fetch_folderinfo="$(printf "%s\n" "$_tmp_info_files_fetch_folderinfo"|_json_value mimeType all all)"||:
+files_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value id all all)"||:
+files_size_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value size all all)"||:
+files_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value name all all)"||:
+files_mime_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value mimeType all all)"||:
 chmod +w+r -- "$files_list_fetch_folderinfo"
 exec 5<<EOF
 $(printf "%s\n" "$files_id_fetch_folderinfo")
@@ -1611,7 +1642,7 @@ EOF
 _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5&&read -r name <&6;do
 [ -n "${id:+$name}" ]&&printf "%s\n" "$folder_id_fetch_folderinfo|:_//_:|$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name"
 done)"
-printf "%s\n" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
+printf "%s" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-
 chmod -w+r -- "$folders_list_fetch_folderinfo"
 _clear_line 1

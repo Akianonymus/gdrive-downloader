@@ -249,29 +249,22 @@ EOF
 
     _parser_setup_flag "-df --document-format" 1 required "document type"
     _parser_setup_flag_help \
-        "Can be used for documents to be downloaded in different format, default is docx.
+        "Can be used for documents to be downloaded in different format like docx, pdf, zip, epub, etc.
 
-Available formats are: rtf, odt, html, pdf, epub, zip, docx, txt"
+Available formats are: docx, odt, rtf, pdf, txt, zip, epub, xlsx, ods, csv, tsv, pptx, odp, jpg, png, svg, json"
 
     _parser_setup_flag_preprocess 4<< 'EOF'
-DOCUMENT_FORMAT_NAME="docx"
-DOCUMENT_FORMAT="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document"
+DOCUMENT_FORMAT=""
+DOCUMENT_FORMAT_ESCAPED=""
 EOF
 
     _parser_setup_flag_process 4<< 'EOF'
-case "${2}" in 
-    rtf) DOCUMENT_FORMAT="application/rtf" DOCUMENT_FORMAT_ESCAPED="application%2Frtf" ;;
-    odt) DOCUMENT_FORMAT="application/vnd.oasis.opendocument.text" DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.oasis.opendocument.text" ;;
-    html) DOCUMENT_FORMAT="text/html" DOCUMENT_FORMAT_ESCAPED="text%2Fhtml" ;;
-    pdf) DOCUMENT_FORMAT="application/pdf" DOCUMENT_FORMAT_ESCAPED="application%2Fpdf" ;;
-    epub) DOCUMENT_FORMAT="application/epub+zip" DOCUMENT_FORMAT_ESCAPED="application%2Fepub%2Bzip" ;;
-    zip) DOCUMENT_FORMAT="application/zip" DOCUMENT_FORMAT_ESCAPED="application%2Fzip" ;;
-    docx) DOCUMENT_FORMAT="application/vnd.openxmlformats-officedocument.wordprocessingml.document" DOCUMENT_FORMAT_ESCAPED="application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document" ;;
-    txt) DOCUMENT_FORMAT="text/plain" DOCUMENT_FORMAT_ESCAPED="text%2Fplain" ;;
-    *) printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt" && return 1 ;;
-esac
-export DOCUMENT_FORMAT_NAME="${2}" DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
+DOCUMENT_FORMAT="${2}"
+DOCUMENT_FORMAT_ESCAPED="${_get_export_mime "${DOCUMENT_FORMAT}"}"
+if [ -z "${DOCUMENT_FORMAT_ESCAPED}" ]; then
+    printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt, etc. See help" && return 1
+fi
+export DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
 EOF
 
     ###################################################
