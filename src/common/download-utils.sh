@@ -9,6 +9,8 @@ _cookies_and_document_stuff() {
         "${4:---header}" "${5:-}" \
         -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_misc" \
         "${2:?}" || return 1
+    # ensure that the file is created
+    print '' >> "${TMPFILE}_${file_id_download_file}_misc"
     for _ in 1 2; do _clear_line 1; done
 }
 
