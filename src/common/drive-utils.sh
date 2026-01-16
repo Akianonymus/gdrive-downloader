@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # shellcheck source=/dev/null
 
 ###################################################
@@ -38,8 +38,8 @@ _check_id() {
     __error_check_id() {
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "${1:?__error_check_id}" "="
-        [ -n "${2}" ] && {
-            if [ -n "${3}" ]; then
+        [[ -n "${2}" ]] && {
+            if [[ -n "${3}" ]]; then
                 "${QUIET:-_print_center}" "normal" "${2}" " "
             else
                 printf "%s\n" "${2}"
@@ -103,7 +103,7 @@ _check_id() {
 # Result: print extracted ID if ${2} not present, else set ${2} = extracted id
 ###################################################
 _extract_id() {
-    [ $# = 0 ] && printf "Missing arguments\n" && return 1
+    [[ $# = 0 ]] && printf "Missing arguments\n" && return 1
     id_extract_id="${1}"
     case "${id_extract_id}" in
         *'drive.google.com'*'id='*) _tmp="${id_extract_id##*id=}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
@@ -111,7 +111,7 @@ _extract_id() {
         *'drive.google.com'*'drive'*'folders'*) _tmp="${id_extract_id##*\/folders\/}" && _tmp="${_tmp%%\?*}" && id_extract_id="${_tmp%%\&*}" ;;
         *) : ;;
     esac
-    if [ -n "${2}" ]; then
+    if [[ -n "${2}" ]]; then
         _set_value d "${2}" "${id_extract_id}"
     else
         printf "%b" "${id_extract_id:+${id_extract_id}\n}"
@@ -124,7 +124,7 @@ _extract_id() {
 #   ${1} = format.
 ###################################################
 _get_export_mime() {
-    [ $# = 0 ] && printf "Missing arguments\n" && return 1
+    [[ $# = 0 ]] && printf "Missing arguments\n" && return 1
     type_get_export_mime="${1}"
     given_format_get_export_mime="${2}"
     ext_get_export_mime=""
@@ -150,9 +150,9 @@ _get_export_mime() {
         *) format_get_export_mime="" ext_get_export_mime="" ;;
     esac
 
-    if [ "${type_get_export_mime}" = "ext" ]; then
+    if [[ "${type_get_export_mime}" = "ext" ]]; then
         printf "%s" "${ext_get_export_mime}"
-    elif [ "${type_get_export_mime}" = "mime" ]; then
+    elif [[ "${type_get_export_mime}" = "mime" ]]; then
         printf "%s" "${format_get_export_mime}"
     fi
 }

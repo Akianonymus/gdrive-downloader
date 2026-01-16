@@ -509,7 +509,7 @@ _setup_arguments() {
     fi
 
     # check if install path outside home dir and running as root
-    [ -n "${INSTALL_PATH##"${HOME}"*}" ] && PERM_MODE="a" && GLOBAL_INSTALL="true" && ! [ "$(id -u)" = 0 ] &&
+    [ -n "${INSTALL_PATH##"${HOME}"*}" ] && PERM_MODE="a" && GLOBAL_INSTALL="true" && [ "$(id -u)" != 0 ] &&
         printf "%s\n" "Error: Need root access to run the script for given install path ( ${INSTALL_PATH} )." && exit 1
 
     # global dir must be in executable path

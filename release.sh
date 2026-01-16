@@ -11,20 +11,17 @@ _PARENT_DIR="${PWD}"
 cd src || exit 1
 
 _merge() (
-    shell="${1:?Error: give folder name.}"
-    { [ "${shell}" = "sh" ] && flag="-p"; } || flag=""
-
-    mkdir -p "${_PARENT_DIR}/release/${shell}"
-    release_path="${_PARENT_DIR}/release/${shell}/gdl"
+    mkdir -p "${_PARENT_DIR}/release"
+    release_path="${_PARENT_DIR}/release/gdl"
 
     {
-        sed -n 1p "${shell}/gdl.${shell}"
+        sed -n 1p gdl.sh
         printf "%s\n" 'SELF_SOURCE="true"'
         # shellcheck disable=SC2086
         {
             # this is to export the functions so that can used in parallel functions
             echo 'set -a'
-            sed 1d "${shell}/common-utils.${shell}"
+            sed 1d common/common-utils.sh
             for script in \
                 update.sh \
                 parser.sh \
@@ -37,13 +34,12 @@ _merge() (
                 sed 1d "common/${script}"
             done
             echo 'set +a'
-            sed 1d "${shell}/gdl.${shell}"
-        } | shfmt -mn ${flag}
+            sed 1d gdl.sh
+        } | shfmt -mn
     } >| "${release_path}"
     chmod +x "${release_path}"
 
     printf "%s\n" "${release_path} done."
 )
 
-_merge sh
-_merge bash
+_merge

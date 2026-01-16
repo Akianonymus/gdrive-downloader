@@ -1,5 +1,5 @@
-#!/usr/bin/env sh
-# Common fucntions which will be used in both bash and posix scripts
+#!/usr/bin/env bash
+# Common functions for bash scripts
 # shellcheck source=/dev/null
 # shellcheck disable=SC2317
 
@@ -29,12 +29,12 @@ _actual_size_in_bytes() {
 _bytes_to_human() {
     b_bytes_to_human="$(printf "%.0f\n" "${1:-0}")" s_bytes_to_human=0
     d_bytes_to_human='' type_bytes_to_human=''
-    while [ "${b_bytes_to_human}" -gt 1024 ]; do
+    while [[ "${b_bytes_to_human}" -gt 1024 ]]; do
         d_bytes_to_human="$(printf ".%02d" $((b_bytes_to_human % 1024 * 100 / 1024)))"
         b_bytes_to_human=$((b_bytes_to_human / 1024)) && s_bytes_to_human=$((s_bytes_to_human += 1))
     done
     j=0 && for i in B KB MB GB TB PB EB YB ZB; do
-        j="$((j += 1))" && [ "$((j - 1))" = "${s_bytes_to_human}" ] && type_bytes_to_human="${i}" && break
+        j="$((j += 1))" && [[ "$((j - 1))" = "${s_bytes_to_human}" ]] && type_bytes_to_human="${i}" && break
         continue
     done
     printf "%s\n" "${b_bytes_to_human}${d_bytes_to_human} ${type_bytes_to_human}"
@@ -46,14 +46,14 @@ _bytes_to_human() {
 # Result: If DEBUG
 #   Present - Enable command trace and change print functions to avoid spamming.
 #   Absent  - Disable command trace
-#             Check QUIET, then check terminal size and enable print functions accordingly.
+#   Check QUIET, then check terminal size and enable print functions accordingly.
 ###################################################
 _check_debug() {
     export DEBUG QUIET
-    if [ -n "${DEBUG}" ]; then
+    if [[ -n "${DEBUG}" ]]; then
         set -x && PS4='-> '
         _print_center() {
-            if [ $# = 3 ]; then
+            if [[ $# = 3 ]]; then
                 printf "%s\n" "${2}"
             else
                 printf "%s%s\n" "${2}" "${3}"
@@ -63,16 +63,16 @@ _check_debug() {
         _move_cursor() { :; }
         _newline() { :; }
     else
-        if [ -z "${QUIET}" ]; then
+        if [[ -z "${QUIET}" ]]; then
             # check if running in terminal and support ansi escape sequences
             if _support_ansi_escapes; then
                 if ! _required_column_size; then
-                    _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+                    _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
 
                 fi
                 export EXTRA_LOG="_print_center" CURL_PROGRESS="-#" SUPPORT_ANSI_ESCAPES="true"
             else
-                _print_center() { { [ $# = 3 ] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
+                _print_center() { { [[ $# = 3 ]] && printf "%s\n" "[ ${2} ]"; } || { printf "%s\n" "[ ${2}${3} ]"; }; }
                 _clear_line() { :; } && _move_cursor() { :; }
             fi
             _newline() { printf "%b" "${1}"; }
@@ -81,13 +81,6 @@ _check_debug() {
         fi
         set +x
     fi
-    # export the required functions when sourced from bash scripts
-    {
-        [ "${_SHELL:-}" = "bash" ] && tmp="-f" &&
-            export "${tmp?}" _newline \
-                _print_center \
-                _clear_line
-    } 2>| /dev/null 1>&2 || :
 }
 
 ###################################################
@@ -138,10 +131,10 @@ _curl() {
 _display_time() {
     t_display_time="${1}" day_display_time="$((t_display_time / 60 / 60 / 24))"
     hr_display_time="$((t_display_time / 60 / 60 % 24))" min_display_time="$((t_display_time / 60 % 60))" sec_display_time="$((t_display_time % 60))"
-    [ "${day_display_time}" -gt 0 ] && printf '%d days ' "${day_display_time}"
-    [ "${hr_display_time}" -gt 0 ] && printf '%d hrs ' "${hr_display_time}"
-    [ "${min_display_time}" -gt 0 ] && printf '%d minute(s) ' "${min_display_time}"
-    [ "${day_display_time}" -gt 0 ] || [ "${hr_display_time}" -gt 0 ] || [ "${min_display_time}" -gt 0 ] && printf 'and '
+    [[ "${day_display_time}" -gt 0 ]] && printf '%d days ' "${day_display_time}"
+    [[ "${hr_display_time}" -gt 0 ]] && printf '%d hrs ' "${hr_display_time}"
+    [[ "${min_display_time}" -gt 0 ]] && printf '%d minute(s) ' "${min_display_time}"
+    [[ "${day_display_time}" -gt 0 ]] || [[ "${hr_display_time}" -gt 0 ]] || [[ "${min_display_time}" -gt 0 ]] && printf 'and '
     printf '%d seconds\n' "${sec_display_time}"
 }
 
@@ -204,8 +197,8 @@ _is_fd_open() {
 # Result: print extracted value
 ###################################################
 _json_value() {
-    { [ "${2}" -gt 0 ] 2>| /dev/null && no_of_lines_json_value="${2}"; } || :
-    { [ "${3}" -gt 0 ] 2>| /dev/null && num_json_value="${3}"; } || { ! [ "${3}" = all ] && num_json_value=1; }
+    { [[ "${2}" -gt 0 ]] 2>| /dev/null && no_of_lines_json_value="${2}"; } || :
+    { [[ "${3}" -gt 0 ]] 2>| /dev/null && num_json_value="${3}"; } || { [[ "${3}" != all ]] && num_json_value=1; }
     # shellcheck disable=SC2086
     _tmp="$(grep -o "\"${1}\":.*" ${no_of_lines_json_value:+-m} ${no_of_lines_json_value})" || return 1
     printf "%s\n" "${_tmp}" | sed -e "s|.*\"""${1}""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num_json_value}"p || :
@@ -236,7 +229,7 @@ _parse_config() {
     print_parse_config="${2:-false}"
 
     # check if the config file accessible
-    [ -r "${_config_file_parse_config}" ] || {
+    [[ -r "${_config_file_parse_config}" ]] || {
         printf "%s\n" "Error: Given config file ( ${_config_file_parse_config} ) is not readable."
         return 1
     }
@@ -245,7 +238,7 @@ _parse_config() {
     while IFS='=' read -r key val; do
         # Skip Lines starting with '#'
         # Also skip lines if key and val variable is empty
-        { [ -n "${key}" ] && [ -n "${val}" ] && [ -n "${key##\#*}" ]; } || continue
+        { [[ -n "${key}" ]] && [[ -n "${val}" ]] && [[ -n "${key##\#*}" ]]; } || continue
 
         # trim all leading white space
         key="${key#"${key%%[![:space:]]*}"}"
@@ -266,7 +259,7 @@ _parse_config() {
         # Throw a warning if cannot export the variable
         export "${key}=${val}" 2> /dev/null || printf "%s\n" "Warning: ${key} is not a valid variable name."
 
-        [ "${print_parse_config}" = true ] && echo "${key}=${val}"
+        [[ "${print_parse_config}" = true ]] && echo "${key}=${val}"
     done < "${_config_file_parse_config}"
 
     return 0
@@ -291,24 +284,24 @@ _parse_config() {
 #   https://gist.github.com/TrinityCoder/911059c83e5f7a351b785921cf7ecda
 ###################################################
 _print_center() {
-    [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
+    [[ $# -lt 3 ]] && printf "Missing arguments\n" && return 1
     term_cols_print_center="${COLUMNS:-}"
     type_print_center="${1}" filler_print_center=""
     case "${type_print_center}" in
         normal) out_print_center="${2}" && symbol_print_center="${3}" ;;
         justify)
-            if [ $# = 3 ]; then
+            if [[ $# = 3 ]]; then
                 input1_print_center="${2}" symbol_print_center="${3}" to_print_print_center="" out_print_center=""
                 to_print_print_center="$((term_cols_print_center - 5))"
-                { [ "${#input1_print_center}" -gt "${to_print_print_center}" ] && out_print_center="[ $(printf "%.${to_print_print_center}s\n" "${input1_print_center}")..]"; } ||
+                { [[ "${#input1_print_center}" -gt "${to_print_print_center}" ]] && out_print_center="[ $(printf "%.${to_print_print_center}s\n" "${input1_print_center}")..]"; } ||
                     { out_print_center="[ ${input1_print_center} ]"; }
             else
                 input1_print_center="${2}" input2_print_center="${3}" symbol_print_center="${4}" to_print_print_center="" temp_print_center="" out_print_center=""
                 to_print_print_center="$((term_cols_print_center * 47 / 100))"
-                { [ "${#input1_print_center}" -gt "${to_print_print_center}" ] && temp_print_center=" $(printf "%.${to_print_print_center}s\n" "${input1_print_center}").."; } ||
+                { [[ "${#input1_print_center}" -gt "${to_print_print_center}" ]] && temp_print_center=" $(printf "%.${to_print_print_center}s\n" "${input1_print_center}").."; } ||
                     { temp_print_center=" ${input1_print_center}"; }
                 to_print_print_center="$((term_cols_print_center * 46 / 100))"
-                { [ "${#input2_print_center}" -gt "${to_print_print_center}" ] && temp_print_center="${temp_print_center}$(printf "%.${to_print_print_center}s\n" "${input2_print_center}").. "; } ||
+                { [[ "${#input2_print_center}" -gt "${to_print_print_center}" ]] && temp_print_center="${temp_print_center}$(printf "%.${to_print_print_center}s\n" "${input2_print_center}").. "; } ||
                     { temp_print_center="${temp_print_center}${input2_print_center} "; }
                 out_print_center="[${temp_print_center}]"
             fi
@@ -317,18 +310,18 @@ _print_center() {
     esac
 
     str_len_print_center="${#out_print_center}"
-    [ "${str_len_print_center}" -ge "$((term_cols_print_center - 1))" ] && {
+    [[ "${str_len_print_center}" -ge "$((term_cols_print_center - 1))" ]] && {
         printf "%s\n" "${out_print_center}" && return 0
     }
 
     filler_print_center_len="$(((term_cols_print_center - str_len_print_center) / 2))"
 
-    i_print_center=1 && while [ "${i_print_center}" -le "${filler_print_center_len}" ]; do
+    i_print_center=1 && while [[ "${i_print_center}" -le "${filler_print_center_len}" ]]; do
         filler_print_center="${filler_print_center}${symbol_print_center}" && i_print_center="$((i_print_center + 1))"
     done
 
     printf "%s%s%s" "${filler_print_center}" "${out_print_center}" "${filler_print_center}"
-    [ "$(((term_cols_print_center - str_len_print_center) % 2))" -ne 0 ] && printf "%s" "${symbol_print_center}"
+    [[ "$(((term_cols_print_center - str_len_print_center) % 2))" -ne 0 ]] && printf "%s" "${symbol_print_center}"
     printf "\n"
 
     return 0
@@ -338,7 +331,7 @@ _print_center() {
 # print_center arguments but normal print
 ###################################################
 _print_center_quiet() {
-    { [ $# = 3 ] && printf "%s\n" "${2}"; } ||
+    { [[ $# = 3 ]] && printf "%s\n" "${2}"; } ||
         { printf "%s%s\n" "${2}" "${3}"; }
 }
 
@@ -352,7 +345,7 @@ _support_ansi_escapes() {
         xterm* | rxvt* | urxvt* | linux* | vt* | screen*) ansi_escapes="true" ;;
         *) : ;;
     esac
-    { [ -t 2 ] && [ -n "${ansi_escapes}" ] && return 0; } || return 1
+    { [[ -t 2 ]] && [[ -n "${ansi_escapes}" ]] && return 0; } || return 1
 }
 
 ###################################################
@@ -388,12 +381,98 @@ _timeout() {
 # Result: read description
 ###################################################
 _update_config() {
-    [ $# -lt 3 ] && printf "Missing arguments\n" && return 1
+    [[ $# -lt 3 ]] && printf "Missing arguments\n" && return 1
     value_name_update_config="${1}" value_update_config="${2}" config_path_update_config="${3}"
-    ! [ -f "${config_path_update_config}" ] && : >| "${config_path_update_config}" # If config file doesn't exist.
+    ! [[ -f "${config_path_update_config}" ]] && : >| "${config_path_update_config}" # If config file doesn't exist.
     chmod u+w -- "${config_path_update_config}" || return 1
     printf "%s\n%s\n" "$(grep -v -e "^$" -e "^${value_name_update_config}=" -- "${config_path_update_config}" || :)" \
         "${value_name_update_config}=\"${value_update_config}\"" >| "${config_path_update_config}" || return 1
     chmod a-w-r-x,u+r -- "${config_path_update_config}" || return 1
     return 0
+}
+
+###################################################
+# Check if something contains some
+# Arguments:
+#    ${1} = pattern to match, can be regex
+#    ${2} = string where it should match the pattern
+# Result: return 0 or 1
+###################################################
+_assert_regex() {
+    declare pattern="${1:-}" string="${2:-}"
+    if [[ ${string} =~ ${pattern} ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+###################################################
+# Alternative to wc -l command
+# Arguments: 1  or pipe
+#   ${1} = file, _count < file
+#          variable, _count <<< variable
+#   pipe = echo something | _count
+# Result: Read description
+# Reference:
+#   https://github.com/dylanaraps/pure-bash-bible#get-the-number-of-lines-in-a-file
+###################################################
+_count() {
+    mapfile -tn 0 lines
+    printf '%s\n' "${#lines[@]}"
+}
+
+###################################################
+# Print epoch seconds
+###################################################
+_epoch() {
+    printf "%(%s)T\\n" "-1"
+}
+
+###################################################
+# fetch column size and check if greater than the num ( see in function)
+# set trap on sigwinch to update COLUMNS variable
+# return 1 or 0
+###################################################
+_required_column_size() {
+    shopt -s checkwinsize && (: && :)
+    if [[ ${COLUMNS} -gt 45 ]]; then
+        trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+        return 0
+    else
+        return 1
+    fi
+}
+
+###################################################
+# Evaluates value1=value2
+# Arguments: 3
+#   ${1} = direct ( d ) or indirect ( i ) - ( evaluation mode )
+#   ${2} = var name
+#   ${3} = var value
+# Result: export value1=value2
+###################################################
+_set_value() {
+    case "${1:?}" in
+        d | direct) export "${2:?}=${3}" ;;
+        i | indirect) export "${2:?}=${!3}" ;;
+        *) return 1 ;;
+    esac
+}
+
+###################################################
+# remove the given character from the given string
+# 1st arg - character
+# 2nd arg - string
+# 3rd arg - var where to save the output
+# print trimmed string if 3rd arg empty else set
+###################################################
+_trim() {
+    declare char="${1}" str="${2}" var="${3}"
+
+    if [[ -n ${var} ]]; then
+        _set_value d "${var}" "${str//${char}/}"
+    else
+        printf "%s" "${str//${char}/}"
+    fi
 }

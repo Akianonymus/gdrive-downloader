@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # shellcheck source=/dev/null
 
 ###################################################
@@ -30,7 +30,7 @@ EOF
 id_parse_arguments=""
 _extract_id "${1}" id_parse_arguments 
 
-if [ -n "${id_parse_arguments}" ]; then
+if [[ -n "${id_parse_arguments}" ]]; then
     # this works well in place of arrays
     _set_value d "INPUT_ID_$((TOTAL_INPUTS += 1))" "${id_parse_arguments}"
 fi
@@ -93,7 +93,7 @@ if ! command -v aria2c 1>|/dev/null ; then
     return 1
 fi
 export DOWNLOADER="aria2c"
-[ "${1}" = "--aria-flags" ] && {
+[[ "${1}" = "--aria-flags" ]] && {
     ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && _parser_shift 
 }
 EOF
@@ -144,7 +144,7 @@ EOF
 
     _parser_setup_flag_process 4<< 'EOF'
 export OAUTH_ENABLED="true" CUSTOM_ACCOUNT_NAME="${2##default=}"
-[ -z "${2##default=*}" ] && export UPDATE_DEFAULT_ACCOUNT="_update_config"
+[[ -z "${2##default=*}" ]] && export UPDATE_DEFAULT_ACCOUNT="_update_config"
 _parser_shift
 EOF
 
@@ -204,18 +204,18 @@ API key will be saved in '${HOME}/.gdl.conf' and will be used from now on.
 Note: If both --key and --key oauth is used, --oauth flag is preferred."
 
     _parser_setup_flag_preprocess 4<< 'EOF'
-unset API_KEY_DOWNLOAD UPDATE_DEFAULT_API_KEY
+unset UPDATE_DEFAULT_API_KEY
+export API_KEY_DOWNLOAD="true"
 export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
 EOF
 
     _parser_setup_flag_process 4<< 'EOF'
-export API_KEY_DOWNLOAD="true"
 _API_KEY="${2##default=}"
 # https://github.com/l4yton/RegHex#Google-Drive-API-Key
 regex="AIza[0-9A-Za-z_-]{35}"
-if [ -n "${_API_KEY}" ] && _assert_regex "${regex}" "${_API_KEY}"; then
-    export API_KEY="${_API_KEY}" && _parser_shift 
-    [ -z "${2##default=*}" ] && UPDATE_DEFAULT_API_KEY="_update_config"
+if [[ -n "${_API_KEY}" ]] && _assert_regex "${regex}" "${_API_KEY}"; then
+    export API_KEY="${_API_KEY}" && _parser_shift
+    [[ -z "${2##default=*}" ]] && UPDATE_DEFAULT_API_KEY="_update_config"
 fi
 EOF
 
@@ -261,7 +261,7 @@ EOF
     _parser_setup_flag_process 4<< 'EOF'
 DOCUMENT_FORMAT="${2}"
 DOCUMENT_FORMAT_ESCAPED="${_get_export_mime "${DOCUMENT_FORMAT}"}"
-if [ -z "${DOCUMENT_FORMAT_ESCAPED}" ]; then
+if [[ -z "${DOCUMENT_FORMAT_ESCAPED}" ]]; then
     printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt, etc. See help" && return 1
 fi
 export DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
@@ -486,7 +486,7 @@ EOF
 ###################################################
 _version_info() {
     export COMMAND_NAME REPO INSTALL_PATH TYPE TYPE_VALUE
-    if command -v "${COMMAND_NAME}" 1> /dev/null && [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+    if command -v "${COMMAND_NAME}" 1> /dev/null && [[ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]]; then
         for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA CONFIG; do
             value_version_info=""
             _set_value i value_version_info "${i}"
@@ -535,12 +535,12 @@ Can also specify multiple flag names
 # otherwise print full help
 ###################################################
 _usage() {
-    [ -n "${1}" ] && {
+    [[ -n "${1}" ]] && {
         for flag_usage in "${@}"; do
             help_usage_usage=""
             _flag_help "${flag_usage}" help_usage_usage
 
-            if [ -z "${help_usage_usage}" ]; then
+            if [[ -z "${help_usage_usage}" ]]; then
                 printf "%s\n" "Error: No help found for ${flag_usage}"
             else
                 printf "%s\n%s\n%s\n" "${__PARSER_BAR}" "${help_usage_usage}" "${__PARSER_BAR}"
@@ -560,7 +560,7 @@ EOF
     ###################################################
 
     # should be only available if installed using install script
-    [ "${GDL_INSTALLED_WITH:-}" = script ] && {
+    [[ "${GDL_INSTALLED_WITH:-}" = script ]] && {
         _parser_setup_flag "-u --update" 0
         _parser_setup_flag_help \
             "Update the installed script in your system."

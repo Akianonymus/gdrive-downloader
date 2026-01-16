@@ -1,74 +1,268 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 SELF_SOURCE="true"
 set -a
+_actual_size_in_bytes(){
+file_actual_size_in_bytes="${1:?Error: give filename}"
+{ _tmp="$(BLOCK_SIZE=512 BLOCKSIZE=512 du -- "$file_actual_size_in_bytes")"&&_tmp="${_tmp%%"$(printf '\t')"*}"&&printf "%s\n" "$((_tmp*512))";}||return 1
+}
+_bytes_to_human(){
+b_bytes_to_human="$(printf "%.0f\n" "${1:-0}")" s_bytes_to_human=0
+d_bytes_to_human='' type_bytes_to_human=''
+while [[ $b_bytes_to_human -gt 1024 ]];do
+d_bytes_to_human="$(printf ".%02d" $((b_bytes_to_human%1024*100/1024)))"
+b_bytes_to_human=$((b_bytes_to_human/1024))&&s_bytes_to_human=$((s_bytes_to_human+=1))
+done
+j=0&&for i in B KB MB GB TB PB EB YB ZB;do
+j="$((j+=1))"&&[[ "$((j-1))" == "$s_bytes_to_human" ]]&&type_bytes_to_human="$i"&&break
+continue
+done
+printf "%s\n" "$b_bytes_to_human$d_bytes_to_human $type_bytes_to_human"
+}
+_check_debug(){
+export DEBUG QUIET
+if [[ -n $DEBUG ]];then
+set -x&&PS4='-> '
+_print_center(){
+if [[ $# == 3 ]];then
+printf "%s\n" "$2"
+else
+printf "%s%s\n" "$2" "$3"
+fi
+}
+_clear_line(){ :;}
+_move_cursor(){ :;}
+_newline(){ :;}
+else
+if [[ -z $QUIET ]];then
+if _support_ansi_escapes;then
+if ! _required_column_size;then
+_print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
+fi
+export EXTRA_LOG="_print_center" CURL_PROGRESS="-#" SUPPORT_ANSI_ESCAPES="true"
+else
+_print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
+_clear_line(){ :;}&&_move_cursor(){ :;}
+fi
+_newline(){ printf "%b" "$1";}
+else
+_print_center(){ :;}&&_clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
+fi
+set +x
+fi
+}
+_check_internet(){
+"${EXTRA_LOG:-}" "justify" "Checking Internet Connection.." "-"
+if ! _timeout 10 _curl -Is https://google.com --compressed;then
+_clear_line 1
+"${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
+return 1
+fi
+_clear_line 1
+}
+_clear_line(){
+printf "\033[%sA\033[2K" "$1"
+}
+_curl(){
+curl ${CURL_FLAGS:-} "$@"||return 1
+}
+_display_time(){
+t_display_time="$1" day_display_time="$((t_display_time/60/60/24))"
+hr_display_time="$((t_display_time/60/60%24))" min_display_time="$((t_display_time/60%60))" sec_display_time="$((t_display_time%60))"
+[[ $day_display_time -gt 0 ]]&&printf '%d days ' "$day_display_time"
+[[ $hr_display_time -gt 0 ]]&&printf '%d hrs ' "$hr_display_time"
+[[ $min_display_time -gt 0 ]]&&printf '%d minute(s) ' "$min_display_time"
+[[ $day_display_time -gt 0 ]]||[[ $hr_display_time -gt 0 ]]||[[ $min_display_time -gt 0 ]]&&printf 'and '
+printf '%d seconds\n' "$sec_display_time"
+}
+_get_latest_sha(){
+export TYPE TYPE_VALUE REPO
+unset latest_sha_get_latest_sha raw_get_latest_sha
+case "${1:-$TYPE}" in
+branch)latest_sha_get_latest_sha="$(raw_get_latest_sha="$(curl --compressed -s https://github.com/"${3:-$REPO}"/commits/"${2:-$TYPE_VALUE}".atom -r 0-2000)"
+_tmp="$(printf "%s\n" "$raw_get_latest_sha"|grep -o 'Commit\/.*<' -m1||:)"&&_tmp="${_tmp##*\/}"&&printf "%s\n" "${_tmp%%<*}")"
+;;
+release)latest_sha_get_latest_sha="$(raw_get_latest_sha="$(curl -L --compressed -s https://github.com/"${3:-$REPO}"/releases/"${2:-$TYPE_VALUE}")"
+_tmp="$(printf "%s\n" "$raw_get_latest_sha"|grep '="/'"${3:-$REPO}""/commit" -m1||:)"&&_tmp="${_tmp##*commit\/}"&&printf "%s\n" "${_tmp%%\"*}")"
+;;
+*):
+esac
+printf "%b" "${latest_sha_get_latest_sha:+$latest_sha_get_latest_sha\n}"
+}
+_is_fd_open(){
+for fd in ${1:?};do
+if ! { true >&"$fd";} 2<>/dev/null;then
+printf "%s\n" "Error: fd $fd not open."
+return 1
+fi
+done
+}
+_json_value(){
+{ [[ $2 -gt 0 ]] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
+{ [[ $3 -gt 0 ]] 2>|/dev/null&&num_json_value="$3";}||{ [[ $3 != all ]]&&num_json_value=1;}
+_tmp="$(grep -o "\"$1\":.*" ${no_of_lines_json_value:+-m} $no_of_lines_json_value)"||return 1
+printf "%s\n" "$_tmp"|sed -e 's|.*"'"$1""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "$num_json_value"p||:
+return 0
+}
+_move_cursor(){
+printf "\033[%sA" "${1:?Error: Num of line}"
+}
+_parse_config(){
+_config_file_parse_config="${1:?Error: Profile config file}"
+print_parse_config="${2:-false}"
+[[ -r $_config_file_parse_config ]]||{
+printf "%s\n" "Error: Given config file ( $_config_file_parse_config ) is not readable."
+return 1
+}
+while IFS='=' read -r key val;do
+{ [[ -n $key ]]&&[[ -n $val ]]&&[[ -n ${key##\#*} ]];}||continue
+key="${key#"${key%%[![:space:]]*}"}"
+val="${val#"${val%%[![:space:]]*}"}"
+key="${key%"${key##*[![:space:]]}"}"
+val="${val%"${val##*[![:space:]]}"}"
+case "$val" in
+\"*\")val="${val#\"}" val="${val%\"}";;
+\'*\')val="${val#\'}" val="${val%\'}";;
+*):
+esac
+export "$key=$val" 2>/dev/null||printf "%s\n" "Warning: $key is not a valid variable name."
+[[ $print_parse_config == true ]]&&echo "$key=$val"
+done <"$_config_file_parse_config"
+return 0
+}
+_print_center(){
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
+term_cols_print_center="${COLUMNS:-}"
+type_print_center="$1" filler_print_center=""
+case "$type_print_center" in
+normal)out_print_center="$2"&&symbol_print_center="$3";;
+justify)if
+[[ $# == 3 ]]
+then
+input1_print_center="$2" symbol_print_center="$3" to_print_print_center="" out_print_center=""
+to_print_print_center="$((term_cols_print_center-5))"
+{ [[ ${#input1_print_center} -gt $to_print_print_center ]]&&out_print_center="[ $(printf "%.${to_print_print_center}s\n" "$input1_print_center")..]";}||{ out_print_center="[ $input1_print_center ]";}
+else
+input1_print_center="$2" input2_print_center="$3" symbol_print_center="$4" to_print_print_center="" temp_print_center="" out_print_center=""
+to_print_print_center="$((term_cols_print_center*47/100))"
+{ [[ ${#input1_print_center} -gt $to_print_print_center ]]&&temp_print_center=" $(printf "%.${to_print_print_center}s\n" "$input1_print_center")..";}||{ temp_print_center=" $input1_print_center";}
+to_print_print_center="$((term_cols_print_center*46/100))"
+{ [[ ${#input2_print_center} -gt $to_print_print_center ]]&&temp_print_center="$temp_print_center$(printf "%.${to_print_print_center}s\n" "$input2_print_center").. ";}||{ temp_print_center="$temp_print_center$input2_print_center ";}
+out_print_center="[$temp_print_center]"
+fi
+;;
+*)return 1
+esac
+str_len_print_center="${#out_print_center}"
+[[ $str_len_print_center -ge "$((term_cols_print_center-1))" ]]&&{
+printf "%s\n" "$out_print_center"&&return 0
+}
+filler_print_center_len="$(((term_cols_print_center-str_len_print_center)/2))"
+i_print_center=1&&while [[ $i_print_center -le $filler_print_center_len ]];do
+filler_print_center="$filler_print_center$symbol_print_center"&&i_print_center="$((i_print_center+1))"
+done
+printf "%s%s%s" "$filler_print_center" "$out_print_center" "$filler_print_center"
+[[ "$(((term_cols_print_center-str_len_print_center)%2))" -ne 0 ]]&&printf "%s" "$symbol_print_center"
+printf "\n"
+return 0
+}
+_print_center_quiet(){
+{ [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";}
+}
+_support_ansi_escapes(){
+unset ansi_escapes
+case "${TERM:-}" in
+xterm*|rxvt*|urxvt*|linux*|vt*|screen*)ansi_escapes="true";;
+*):
+esac
+{ [[ -t 2 ]]&&[[ -n $ansi_escapes ]]&&return 0;}||return 1
+}
+_timeout(){
+timeout_timeout="${1:?Error: Specify Timeout}"&&shift
+{
+"$@"&
+child="$!"
+trap -- "" TERM
+{
+sleep "$timeout_timeout"
+kill -9 "$child"
+}&
+wait "$child"
+} 2>|/dev/null 1>&2
+}
+_update_config(){
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
+value_name_update_config="$1" value_update_config="$2" config_path_update_config="$3"
+! [[ -f $config_path_update_config ]]&&: >|"$config_path_update_config"
+chmod u+w -- "$config_path_update_config"||return 1
+printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name_update_config=" -- "$config_path_update_config"||:)" \
+"$value_name_update_config=\"$value_update_config\"" >|"$config_path_update_config"||return 1
+chmod a-w-r-x,u+r -- "$config_path_update_config"||return 1
+return 0
+}
 _assert_regex(){
-grep -qE "${1-}" 0<<EOF
-${2-}
-EOF
+declare pattern="${1:-}" string="${2:-}"
+if [[ $string =~ $pattern ]];then
+return 0
+else
+return 1
+fi
 }
 _count(){
-wc -l
-}
-_dirname(){
-dir_dirname="${1:-.}"
-dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}"&&[ -n "${dir_dirname##*/*}" ]&&dir_dirname=.
-dir_dirname="${dir_dirname%/*}"&&dir_dirname="${dir_dirname%%"${dir_dirname##*[!/]}"}"
-printf '%s\n' "${dir_dirname:-/}"
+mapfile -tn 0 lines
+printf '%s\n' "${#lines[@]}"
 }
 _epoch(){
-date +'%s'
+printf '%(%s)T\n' "-1"
 }
 _required_column_size(){
-COLUMNS="$({ command -v bash 1>|/dev/null&&bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1';}||{ command -v zsh 1>|/dev/null&&zsh -c 'printf "%s\n" "${COLUMNS}"';}||{ command -v stty 1>|/dev/null&&_tmp="$(stty size)"&&printf "%s\n" "${_tmp##* }";}||{ command -v tput 1>|/dev/null&&tput cols;})"||:
-[ "$((COLUMNS))" -gt 45 ]&&return 0
+shopt -s checkwinsize&&(:&&:)
+if [[ $COLUMNS -gt 45 ]];then
+trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+return 0
+else
+return 1
+fi
 }
 _set_value(){
 case "${1:?}" in
 d|direct)export "${2:?}=$3";;
-i|indirect)eval export "$2"=\"\$"$3"\";;
+i|indirect)export "${2:?}=${!3}";;
 *)return 1
 esac
 }
 _trim(){
-char_trim="$1" str_trim="$2" var_trim="$3"
-set -f
-old_ifs="$IFS"
-IFS="$char_trim"
-set -- $str_trim
-IFS=
-if [ -n "$var_trim" ];then
-_set_value d "$var_trim" "$*"
+declare char="$1" str="$2" var="$3"
+if [[ -n $var ]];then
+_set_value d "$var" "${str//$char/}"
 else
-printf "%s" "$*"
+printf "%s" "${str//$char/}"
 fi
-IFS="$old_ifs"
-set +f
 }
 _auto_update(){
 export COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE REPO LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL
-command -v "$COMMAND_NAME" 1>/dev/null&&if [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+$TYPE_VALUE}}}}" ];then
+command -v "$COMMAND_NAME" 1>/dev/null&&if [[ -n ${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+$TYPE_VALUE}}}} ]];then
 current_time="$(_epoch)"
-[ "$((LAST_UPDATE_TIME+AUTO_UPDATE_INTERVAL))" -lt "$(_epoch)" ]&&_update update
+[[ "$((LAST_UPDATE_TIME+AUTO_UPDATE_INTERVAL))" -lt "$(_epoch)" ]]&&_update update
 _update_value LAST_UPDATE_TIME "$current_time"
 fi
 return 0
 }
 _update(){
 job_update="${1:-update}"
-[ "${GLOBAL_INSTALL-}" = true ]&&! [ "$(id -u)" = 0 ]&&printf "%s\n" "Error: Need root access to update."&&return 0
-[ "$job_update" = uninstall ]&&job_uninstall="--uninstall"
+[[ ${GLOBAL_INSTALL:-} == true ]]&&[[ "$(id -u)" != 0 ]]&&printf "%s\n" "Error: Need root access to update."&&return 0
+[[ $job_update == uninstall ]]&&job_uninstall="--uninstall"
 _print_center "justify" "Fetching $job_update script.." "-"
 repo_update="${REPO:-akianonymus/gdrive-downloader}" type_value_update="${TYPE_VALUE:-latest}" cmd_update="${COMMAND_NAME:-gupload}" path_update="${INSTALL_PATH:-$HOME/.gdrive-downloader/bin}"
-{ [ "${TYPE-}" != branch ]&&type_value_update="$(_get_latest_sha release "$type_value_update" "$repo_update")";}||:
+{ [[ ${TYPE:-} != branch ]]&&type_value_update="$(_get_latest_sha release "$type_value_update" "$repo_update")";}||:
 if script_update="$(curl --compressed -Ls "https://github.com/$repo_update/raw/$type_value_update/install.sh")";then
 _clear_line 1
 printf "%s\n" "$script_update"|sh -n||{
 printf "%s\n" "Install script downloaded but malformed, try again and if the issue persists open an issue on github."
 return 1
 }
-printf "%s\n" "$script_update"|sh -s -- ${job_uninstall-} --skip-internet-check --cmd "$cmd_update" --path "$path_update"
+printf "%s\n" "$script_update"|sh -s -- ${job_uninstall:-} --skip-internet-check --cmd "$cmd_update" --path "$path_update"
 current_time="$(date +'%s')"
-[ -z "$job_uninstall" ]&&_update_value LAST_UPDATE_TIME "$current_time"
+[[ -z $job_uninstall ]]&&_update_value LAST_UPDATE_TIME "$current_time"
 else
 _clear_line 1
 "${QUIET:-_print_center}" "justify" "Error: Cannot download" " $job_update script." "=" 1>&2
@@ -78,7 +272,7 @@ return 0
 }
 _update_value(){
 command_path="${INSTALL_PATH:?}/${COMMAND_NAME:?}"
-value_name="${1:?}" value="${2-}"
+value_name="${1:?}" value="${2:-}"
 script_without_value_and_shebang="$(grep -v "$value_name=\".*\".* # added values" -- "$command_path"|sed 1d)"
 new_script="$(sed -n 1p -- "$command_path"
 printf "%s\n" "$value_name=\"$value\" # added values"
@@ -100,13 +294,13 @@ done
 }
 _parser_add_help(){
 _PARSER_ALL_HELP="$_PARSER_ALL_HELP
-${__PARSER_BAR-}
-${1-}" 2>|/dev/null
+${__PARSER_BAR:-}
+${1:-}" 2>|/dev/null
 }
 _parser_check_arguments(){
 nargs_parser_check_arguments="$((${1:?_parser_check_arguments}))"
 num_parser_check_arguments=$(($#-2))
-[ "$num_parser_check_arguments" -lt "$nargs_parser_check_arguments" ]&&{
+[[ $num_parser_check_arguments -lt $nargs_parser_check_arguments ]]&&{
 printf "%s\n" "${0##*/}: $2: flag requires $nargs_parser_check_arguments argument."
 printf "\n%s\n" "Help:"
 printf "%s\n" "$(_usage "$2")"
@@ -117,7 +311,7 @@ return 0
 _flag_exists(){
 tmp_flag_exists="" option_flag_exists=""
 _flag_help "${1:?}" tmp_flag_exists option_flag_exists
-[ -z "$tmp_flag_exists" ]&&return 1
+[[ -z $tmp_flag_exists ]]&&return 1
 _set_value d "${2:?}" "$option_flag_exists"
 }
 _flag_help(){
@@ -131,19 +325,17 @@ __NEWLINE="
 "
 _parse_support_ansi_escapes(){
 case "$TERM" in
-xterm*|rxvt*|urxvt*|linux*|vt*|screen*){ [ -t 2 ]&&return 0;}||return 1;;
+xterm*|rxvt*|urxvt*|linux*|vt*|screen*){ [[ -t 2 ]]&&return 0;}||return 1;;
 *):
 esac
-{ [ -t 2 ]&&return 0;}||return 1
+{ [[ -t 2 ]]&&return 0;}||return 1
 }
 _parser_required_column_size(){
 COLUMNS="$({ command -v bash 1>|/dev/null&&bash -c 'shopt -s checkwinsize && (: && :); printf "%s\n" "${COLUMNS}" 2>&1';}||{ command -v zsh 1>|/dev/null&&zsh -c 'printf "%s\n" "${COLUMNS}"';}||{ command -v stty 1>|/dev/null&&_tmp="$(stty size)"&&printf "%s\n" "${_tmp##* }";}||{ command -v tput 1>|/dev/null&&tput cols;})"||:
-[ "$((COLUMNS))" -gt 45 ]&&return 0
+[[ "$((COLUMNS))" -gt 45 ]]&&return 0
 }
-_parse_support_ansi_escapes&&_parser_required_column_size&&__PARSER_BAR="$(\
-filler='' \
-symbol='_'
-i=1&&while [ "$i" -le "$COLUMNS" ];do
+_parse_support_ansi_escapes&&_parser_required_column_size&&__PARSER_BAR="$(filler='' symbol='_'
+i=1&&while [[ $i -le $COLUMNS ]];do
 filler="$filler$symbol"&&i="$((i+1))"
 done
 printf "%s\n" "$filler")"
@@ -153,17 +345,16 @@ unset _PARSER_FLAGS _PARSER_CURRENT_FLAGS _PARSER_CURRENT_NARGS _PARSER_CURRENT_
 "${1:?_parse_arguments - 1: Missing funtion name to setup flags}"||return 1
 shift 2>|/dev/null
 _parser_run_preprocess||return 1
-while [ "$#" -gt 0 ];do
+while [[ $# -gt 0 ]];do
 case "$1" in
 ''):;;
 --)shift
-while [ "$#" -gt 0 ];do
+while [[ $# -gt 0 ]];do
 _parser_process_input "$@"||return 1
 shift
 done
 ;;
--*)\
-flag_parse_arguments=""
+-*)flag_parse_arguments=""
 if _flag_exists "$1" flag_parse_arguments;then
 "_parser_process_$flag_parse_arguments" "$@"||return 1
 else
@@ -206,9 +397,9 @@ EOF
 for f in ${_PARSER_FLAGS:?_parser_setup_flag_help};do
 start_parser_setup_flag_help="${start_parser_setup_flag_help:+$start_parser_setup_flag_help | }$f"
 done
-if ! [ "$nargs_parser_setup_flag_help" = 0 ];then
+if [[ $nargs_parser_setup_flag_help != 0 ]];then
 arg_parser_setup_flag_help="\"${_PARSER_CURRENT_ARGS:?_parser_setup_flag_help}\""
-if [ "$_PARSER_CURRENT_ARGS_TYPE" = optional ];then
+if [[ $_PARSER_CURRENT_ARGS_TYPE == optional ]];then
 arg_parser_setup_flag_help="$arg_parser_setup_flag_help [ Optional ]"
 else
 arg_parser_setup_flag_help="$arg_parser_setup_flag_help [ Required ]"
@@ -219,9 +410,9 @@ all_setup_help_flag="$start_parser_setup_flag_help${__NEWLINE:?}$help_parser_set
 for f in $flags_parser_setup_flag_help;do
 _set_value d "_parser__help_$f" "$all_setup_help_flag"
 done
-[ "$_PARSER_FLAGS" = input ]&&return 0
+[[ $_PARSER_FLAGS == input ]]&&return 0
 _PARSER_ALL_HELP="$_PARSER_ALL_HELP
-${__PARSER_BAR-}
+${__PARSER_BAR:-}
 $all_setup_help_flag" 2>|/dev/null
 }
 _parser_setup_flag_preprocess(){
@@ -237,7 +428,7 @@ $fn_parser_setup_flag_preprocess"
 _parser_setup_flag_process(){
 _is_fd_open 4||return 1
 unset fn_parser_setup_flag_process
-if [ "${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process}" -gt 0 ]&&! [ "$_PARSER_CURRENT_ARGS_TYPE" = optional ];then
+if [[ ${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process} -gt 0 ]]&&[[ $_PARSER_CURRENT_ARGS_TYPE != optional ]];then
 fn_parser_setup_flag_process="_parser_check_arguments ${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process} \"\${@}\""
 fi
 while IFS= read -r line <&4;do
@@ -272,7 +463,7 @@ old_ifs="$IFS"
 IFS="$char_trim"
 set -- $str_trim
 IFS=
-if [ -n "$var_trim" ];then
+if [[ -n $var_trim ]];then
 _set_value d "$var_trim" "$*"
 else
 printf "%s" "$*"
@@ -298,7 +489,7 @@ _parser_setup_flag_process 4<<'EOF'
 id_parse_arguments=""
 _extract_id "${1}" id_parse_arguments 
 
-if [ -n "${id_parse_arguments}" ]; then
+if [[ -n "${id_parse_arguments}" ]]; then
     # this works well in place of arrays
     _set_value d "INPUT_ID_$((TOTAL_INPUTS += 1))" "${id_parse_arguments}"
 fi
@@ -347,7 +538,7 @@ if ! command -v aria2c 1>|/dev/null ; then
     return 1
 fi
 export DOWNLOADER="aria2c"
-[ "${1}" = "--aria-flags" ] && {
+[[ "${1}" = "--aria-flags" ]] && {
     ARIA_FLAGS=" ${ARIA_FLAGS} ${2} " && _parser_shift 
 }
 EOF
@@ -383,7 +574,7 @@ unset OAUTH_ENABLED ACCOUNT_NAME ACCOUNT_ONLY_RUN CUSTOM_ACCOUNT_NAME UPDATE_DEF
 EOF
 _parser_setup_flag_process 4<<'EOF'
 export OAUTH_ENABLED="true" CUSTOM_ACCOUNT_NAME="${2##default=}"
-[ -z "${2##default=*}" ] && export UPDATE_DEFAULT_ACCOUNT="_update_config"
+[[ -z "${2##default=*}" ]] && export UPDATE_DEFAULT_ACCOUNT="_update_config"
 _parser_shift
 EOF
 _parser_setup_flag "-la --list-accounts" 0
@@ -424,17 +615,17 @@ API key will be saved in '$HOME/.gdl.conf' and will be used from now on.
 
 Note: If both --key and --key oauth is used, --oauth flag is preferred."
 _parser_setup_flag_preprocess 4<<'EOF'
-unset API_KEY_DOWNLOAD UPDATE_DEFAULT_API_KEY
+unset UPDATE_DEFAULT_API_KEY
+export API_KEY_DOWNLOAD="true"
 export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
 EOF
 _parser_setup_flag_process 4<<'EOF'
-export API_KEY_DOWNLOAD="true"
 _API_KEY="${2##default=}"
 # https://github.com/l4yton/RegHex#Google-Drive-API-Key
 regex="AIza[0-9A-Za-z_-]{35}"
-if [ -n "${_API_KEY}" ] && _assert_regex "${regex}" "${_API_KEY}"; then
-    export API_KEY="${_API_KEY}" && _parser_shift 
-    [ -z "${2##default=*}" ] && UPDATE_DEFAULT_API_KEY="_update_config"
+if [[ -n "${_API_KEY}" ]] && _assert_regex "${regex}" "${_API_KEY}"; then
+    export API_KEY="${_API_KEY}" && _parser_shift
+    [[ -z "${2##default=*}" ]] && UPDATE_DEFAULT_API_KEY="_update_config"
 fi
 EOF
 _parser_setup_flag "-c --config" 1 required "config file path"
@@ -466,7 +657,7 @@ EOF
 _parser_setup_flag_process 4<<'EOF'
 DOCUMENT_FORMAT="${2}"
 DOCUMENT_FORMAT_ESCAPED="${_get_export_mime "${DOCUMENT_FORMAT}"}"
-if [ -z "${DOCUMENT_FORMAT_ESCAPED}" ]; then
+if [[ -z "${DOCUMENT_FORMAT_ESCAPED}" ]]; then
     printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt, etc. See help" && return 1
 fi
 export DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED && _parser_shift 
@@ -622,7 +813,7 @@ _parser_setup_flag_preprocess 4<<'EOF'
 ###################################################
 _version_info() {
     export COMMAND_NAME REPO INSTALL_PATH TYPE TYPE_VALUE
-    if command -v "${COMMAND_NAME}" 1> /dev/null && [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+    if command -v "${COMMAND_NAME}" 1> /dev/null && [[ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]]; then
         for i in REPO INSTALL_PATH INSTALLATION TYPE TYPE_VALUE LATEST_INSTALLED_SHA CONFIG; do
             value_version_info=""
             _set_value i value_version_info "${i}"
@@ -661,12 +852,12 @@ _parser_setup_flag_preprocess 4<<'EOF'
 # otherwise print full help
 ###################################################
 _usage() {
-    [ -n "${1}" ] && {
+    [[ -n "${1}" ]] && {
         for flag_usage in "${@}"; do
             help_usage_usage=""
             _flag_help "${flag_usage}" help_usage_usage
 
-            if [ -z "${help_usage_usage}" ]; then
+            if [[ -z "${help_usage_usage}" ]]; then
                 printf "%s\n" "Error: No help found for ${flag_usage}"
             else
                 printf "%s\n%s\n%s\n" "${__PARSER_BAR}" "${help_usage_usage}" "${__PARSER_BAR}"
@@ -682,7 +873,7 @@ EOF
 _parser_setup_flag_process 4<<'EOF'
 shift 1 && _usage "${@}"
 EOF
-[ "${GDL_INSTALLED_WITH-}" = script ]&&{
+[[ ${GDL_INSTALLED_WITH:-} == script ]]&&{
 _parser_setup_flag "-u --update" 0
 _parser_setup_flag_help \
 "Update the installed script in your system."
@@ -704,37 +895,37 @@ _assert_regex "$account_name_regex_account_name_valid" "$name_account_name_valid
 return 0
 }
 _account_exists(){
-name_account_exists="${1-}" client_id_account_exists="" client_secret_account_exists="" refresh_token_account_exists=""
+name_account_exists="${1:-}" client_id_account_exists="" client_secret_account_exists="" refresh_token_account_exists=""
 _account_name_valid "$name_account_exists"||return 1
 _set_value indirect client_id_account_exists "ACCOUNT_${name_account_exists}_CLIENT_ID"
 _set_value indirect client_secret_account_exists "ACCOUNT_${name_account_exists}_CLIENT_SECRET"
 _set_value indirect refresh_token_account_exists "ACCOUNT_${name_account_exists}_REFRESH_TOKEN"
-[ -z "${client_id_account_exists:+${client_secret_account_exists:+$refresh_token_account_exists}}" ]&&return 1
+[[ -z ${client_id_account_exists:+${client_secret_account_exists:+$refresh_token_account_exists}} ]]&&return 1
 return 0
 }
 _all_accounts(){
 export CONFIG QUIET
 { _reload_config&&_handle_old_config;}||return 1
 COUNT=0
-while read -r account <&4&&[ -n "$account" ];do
-_account_exists "$account"&&{ [ "$COUNT" = 0 ]&&"${QUIET:-_print_center}" "normal" " All available accounts. " "="||:;}&&printf "%b" "$((COUNT+=1)). $account \n"&&_set_value direct "ACC_${COUNT}_ACC" "$account"
+while read -r account <&4&&[[ -n $account ]];do
+_account_exists "$account"&&{ [[ $COUNT == 0 ]]&&"${QUIET:-_print_center}" "normal" " All available accounts. " "="||:;}&&printf "%b" "$((COUNT+=1)). $account \n"&&_set_value direct "ACC_${COUNT}_ACC" "$account"
 done 4<<EOF
 $(grep -oE '^ACCOUNT_.*_CLIENT_ID' -- "$CONFIG"|sed -e "s/ACCOUNT_//g" -e "s/_CLIENT_ID//g")
 EOF
-{ [ "$COUNT" -le 0 ]&&"${QUIET:-_print_center}" "normal" " No accounts configured yet. " "=" 1>&2;}||printf '\n'
+{ [[ $COUNT -le 0 ]]&&"${QUIET:-_print_center}" "normal" " No accounts configured yet. " "=" 1>&2;}||printf '\n'
 return 0
 }
 _set_new_account_name(){
 export QUIET NEW_ACCOUNT_NAME
 _reload_config||return 1
-new_account_name_set_new_account_name="${1-}"&&unset name_valid_set_new_account_name
-[ -z "$new_account_name_set_new_account_name" ]&&{
+new_account_name_set_new_account_name="${1:-}"&&unset name_valid_set_new_account_name
+[[ -z $new_account_name_set_new_account_name ]]&&{
 _all_accounts 2>|/dev/null
 "${QUIET:-_print_center}" "normal" " New account name: " "="
 "${QUIET:-_print_center}" "normal" "Info: Account names can only contain alphabets / numbers / dashes." " "&&printf '\n'
 }
-until [ -n "$name_valid_set_new_account_name" ];do
-if [ -n "$new_account_name_set_new_account_name" ];then
+until [[ -n $name_valid_set_new_account_name ]];do
+if [[ -n $new_account_name_set_new_account_name ]];then
 if _account_name_valid "$new_account_name_set_new_account_name";then
 if _account_exists "$new_account_name_set_new_account_name";then
 "${QUIET:-_print_center}" "normal" " Warning: Given account ( $new_account_name_set_new_account_name ) already exists, input different name. " "-" 1>&2
@@ -747,7 +938,7 @@ else
 unset new_account_name_set_new_account_name&&continue
 fi
 else
-[ -t 1 ]||{ "${QUIET:-_print_center}" "normal" " Error: Not running in an interactive terminal, cannot ask for new account name. " 1>&2&&return 1;}
+[[ -t 1 ]]||{ "${QUIET:-_print_center}" "normal" " Error: Not running in an interactive terminal, cannot ask for new account name. " 1>&2&&return 1;}
 printf -- "-> \033[?7l"
 read -r new_account_name_set_new_account_name
 printf '\033[?7h'
@@ -776,7 +967,7 @@ return 0
 }
 _handle_old_config(){
 export CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ROOT_FOLDER ROOT_FOLDER_NAME
-[ -n "${CLIENT_ID:+${CLIENT_SECRET:+$REFRESH_TOKEN}}" ]&&{
+[[ -n ${CLIENT_ID:+${CLIENT_SECRET:+$REFRESH_TOKEN}} ]]&&{
 account_name_handle_old_config="default" regex_check_handle_old_config config_without_values_handle_old_config count_handle_old_config
 until ! _account_exists "$account_name_handle_old_config";do
 account_name_handle_old_config="$account_name_handle_old_config$((count_handle_old_config+=1))"
@@ -800,36 +991,36 @@ _check_credentials(){
 export CONFIG CONFIG_INFO DEFAULT_ACCOUNT NEW_ACCOUNT_NAME CUSTOM_ACCOUNT_NAME QUIET COUNT
 { _reload_config&&_handle_old_config;}||return 1
 ACCOUNT_NAME="$DEFAULT_ACCOUNT"
-if [ -n "$NEW_ACCOUNT_NAME" ];then
+if [[ -n $NEW_ACCOUNT_NAME ]];then
 _set_new_account_name "$NEW_ACCOUNT_NAME"||return 1
 _check_account_credentials "$ACCOUNT_NAME"||return 1
 else
-if [ -n "$CUSTOM_ACCOUNT_NAME" ];then
+if [[ -n $CUSTOM_ACCOUNT_NAME ]];then
 if _account_exists "$CUSTOM_ACCOUNT_NAME";then
 ACCOUNT_NAME="$CUSTOM_ACCOUNT_NAME"
 else
 "${QUIET:-_print_center}" "normal" " Error: No such account ( $CUSTOM_ACCOUNT_NAME ) exists. " "-"&&return 1
 fi
-elif [ -n "$DEFAULT_ACCOUNT" ];then
+elif [[ -n $DEFAULT_ACCOUNT ]];then
 _account_exists "$DEFAULT_ACCOUNT"||{
 _update_config DEFAULT_ACCOUNT "" "$CONFIG"&&unset DEFAULT_ACCOUNT ACCOUNT_NAME&&UPDATE_DEFAULT_ACCOUNT="_update_config"
 }
 else
 UPDATE_DEFAULT_ACCOUNT="_update_config"
 fi
-if [ -z "$ACCOUNT_NAME" ];then
-if _all_accounts 2>|/dev/null&&[ "$COUNT" -gt 0 ];then
-if [ "$COUNT" -eq 1 ];then
+if [[ -z $ACCOUNT_NAME ]];then
+if _all_accounts 2>|/dev/null&&[[ $COUNT -gt 0 ]];then
+if [[ $COUNT -eq 1 ]];then
 _set_value indirect ACCOUNT_NAME "ACC_1_ACC"
 else
 "${QUIET:-_print_center}" "normal" " Above accounts are configured, but default one not set. " "="
-if [ -t 1 ];then
+if [[ -t 1 ]];then
 "${QUIET:-_print_center}" "normal" " Choose default account: " "-"
-until [ -n "$ACCOUNT_NAME" ];do
+until [[ -n $ACCOUNT_NAME ]];do
 printf -- "-> \033[?7l"
 read -r account_name_check_credentials
 printf '\033[?7h'
-if [ "$account_name_check_credentials" -gt 0 ]&&[ "$account_name_check_credentials" -le "$COUNT" ];then
+if [[ $account_name_check_credentials -gt 0 ]]&&[[ $account_name_check_credentials -le $COUNT ]];then
 _set_value indirect ACCOUNT_NAME "ACC_${COUNT}_ACC"
 else
 _clear_line 1
@@ -849,7 +1040,7 @@ _check_account_credentials "$ACCOUNT_NAME"||return 1
 fi
 "${UPDATE_DEFAULT_ACCOUNT:-:}" DEFAULT_ACCOUNT "$ACCOUNT_NAME" "$CONFIG"
 "${UPDATE_DEFAULT_CONFIG:-:}" CONFIG "$CONFIG" "$CONFIG_INFO"
-[ -n "$CONTINUE_WITH_NO_INPUT" ]||_token_bg_service
+[[ -n $CONTINUE_WITH_NO_INPUT ]]||_token_bg_service
 return 0
 }
 _check_account_credentials(){
@@ -861,27 +1052,27 @@ return 0
 }
 _check_client(){
 export CONFIG QUIET
-type_check_client="CLIENT_${1:?Error: ID or SECRET}" account_name_check_client="${2-}"
+type_check_client="CLIENT_${1:?Error: ID or SECRET}" account_name_check_client="${2:-}"
 unset type_value_check_client type_name_check_client valid_check_client client_check_client message_check_client regex_check_client
-if [ "$type_check_client" = "CLIENT_ID" ];then
+if [[ $type_check_client == "CLIENT_ID" ]];then
 regex_check_client='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
 else
 regex_check_client='[0-9A-Za-z_-]+'
 fi
 type_name_check_client="${account_name_check_client:+ACCOUNT_${account_name_check_client}_}$type_check_client"
 _set_value indirect type_value_check_client "$type_name_check_client"
-until [ -n "$type_value_check_client" ]&&[ -n "$valid_check_client" ];do
-[ -n "$type_value_check_client" ]&&{
+until [[ -n $type_value_check_client ]]&&[[ -n $valid_check_client ]];do
+[[ -n $type_value_check_client ]]&&{
 if _assert_regex "$regex_check_client" "$type_value_check_client";then
-[ -n "$client_check_client" ]&&{ _update_config "$type_name_check_client" "$type_value_check_client" "$CONFIG"||return 1;}
+[[ -n $client_check_client ]]&&{ _update_config "$type_name_check_client" "$type_value_check_client" "$CONFIG"||return 1;}
 valid_check_client="true"&&continue
 else
-{ [ -n "$client_check_client" ]&&message_check_client="- Try again";}||message_check_client="in config ( $CONFIG )"
+{ [[ -n $client_check_client ]]&&message_check_client="- Try again";}||message_check_client="in config ( $CONFIG )"
 "${QUIET:-_print_center}" "normal" " Invalid Client $1 $message_check_client " "-"&&unset "$type_name_check_client" client
 fi
 }
-[ -z "$client_check_client" ]&&printf "\n"&&"${QUIET:-_print_center}" "normal" " Enter Client $1 " "-"
-[ -n "$client_check_client" ]&&_clear_line 1
+[[ -z $client_check_client ]]&&printf "\n"&&"${QUIET:-_print_center}" "normal" " Enter Client $1 " "-"
+[[ -n $client_check_client ]]&&_clear_line 1
 printf -- "-> "
 read -r "${type_name_check_client?}"&&client_check_client=1
 _set_value indirect type_value_check_client "$type_name_check_client"
@@ -892,22 +1083,22 @@ return 0
 }
 _check_refresh_token(){
 export CLIENT_ID CLIENT_SECRET QUIET CONFIG CURL_PROGRESS SCOPE REDIRECT_URI TOKEN_URL
-[ -z "${CLIENT_ID:+$CLIENT_SECRET}" ]&&return 1
-account_name_check_refresh_token="${1-}"
+[[ -z ${CLIENT_ID:+$CLIENT_SECRET} ]]&&return 1
+account_name_check_refresh_token="${1:-}"
 refresh_token_regex='[0-9]//[0-9A-Za-z_-]+' authorization_code_regex='[0-9]/[0-9A-Za-z_-]+'
 _set_value direct refresh_token_name_check_refresh_token "${account_name_check_refresh_token:+ACCOUNT_${account_name_check_refresh_token}_}REFRESH_TOKEN"
-_set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token-}"
-[ "${REFETCH_REFRESH_TOKEN:-false}" = "true" ]&&{
+_set_value indirect refresh_token_value_check_refresh_token "${refresh_token_name_check_refresh_token:-}"
+[[ ${REFETCH_REFRESH_TOKEN:-false} == "true" ]]&&{
 unset refresh_token_value_check_refresh_token
 }
-[ -n "$refresh_token_value_check_refresh_token" ]&&{
+[[ -n $refresh_token_value_check_refresh_token ]]&&{
 ! _assert_regex "$refresh_token_regex" "$refresh_token_value_check_refresh_token"&&"${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token in config file, follow below steps.. " "-"&&unset refresh_token_value_check_refresh_token
 }
-[ -z "$refresh_token_value_check_refresh_token" ]&&{
+[[ -z $refresh_token_value_check_refresh_token ]]&&{
 printf "\n"&&"${QUIET:-_print_center}" "normal" "If you have a refresh token generated, then type the token, else leave blank and press return key.." " "
 printf "\n"&&"${QUIET:-_print_center}" "normal" " Refresh Token " "-"&&printf -- "-> "
 read -r refresh_token_value_check_refresh_token
-if [ -n "$refresh_token_value_check_refresh_token" ];then
+if [[ -n $refresh_token_value_check_refresh_token ]];then
 "${QUIET:-_print_center}" "normal" " Checking refresh token.. " "-"
 if _assert_regex "$refresh_token_regex" "$refresh_token_value_check_refresh_token";then
 _set_value direct REFRESH_TOKEN "$refresh_token_value_check_refresh_token"
@@ -915,7 +1106,7 @@ _set_value direct REFRESH_TOKEN "$refresh_token_value_check_refresh_token"
 else
 check_error_check_refresh_token=true
 fi
-[ -n "$check_error_check_refresh_token" ]&&"${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token given, follow below steps to generate.. " "-"&&unset refresh_token_value_check_refresh_token
+[[ -n $check_error_check_refresh_token ]]&&"${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token given, follow below steps to generate.. " "-"&&unset refresh_token_value_check_refresh_token
 else
 "${QUIET:-_print_center}" "normal" " No Refresh token given, follow below steps to generate.. " "-"&&unset refresh_token_value_check_refresh_token
 fi
@@ -923,7 +1114,7 @@ server_string_check_refresh_token='Now go back to command line..'
 server_port_check_refresh_token='8079'
 while :;do
 : "$((server_port_check_refresh_token+=1))"
-if [ "$server_port_check_refresh_token" -gt 8130 ];then
+if [[ $server_port_check_refresh_token -gt 8130 ]];then
 "${QUIET:-_print_center}" "normal" "Error: No open ports found ( 8080 to 8130 )." "-"
 return 1
 fi
@@ -953,7 +1144,7 @@ else
 return 1
 fi
 code_challenge_check_refresh_token="$(_epoch)authorization_code"
-[ -z "$refresh_token_value_check_refresh_token" ]&&{
+[[ -z $refresh_token_value_check_refresh_token ]]&&{
 printf "\n"&&"${QUIET:-_print_center}" "normal" "Visit the below URL, follow the instructions and then come back to commandline" " "
 URL="https://accounts.google.com/o/oauth2/auth?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI%3A$server_port_check_refresh_token&scope=$SCOPE&response_type=code&code_challenge_method=plain&code_challenge=$code_challenge_check_refresh_token"
 printf "\n%s\n" "$URL"
@@ -984,15 +1175,15 @@ return 0
 }
 _check_access_token(){
 export CLIENT_ID CLIENT_SECRET REFRESH_TOKEN CONFIG QUIET
-[ -z "${CLIENT_ID:+${CLIENT_SECRET:+$REFRESH_TOKEN}}" ]&&return 1
-account_name_check_access_token="${1-}" no_check_check_access_token="${2:-false}" response_json_check_access_token="${3-}"
+[[ -z ${CLIENT_ID:+${CLIENT_SECRET:+$REFRESH_TOKEN}} ]]&&return 1
+account_name_check_access_token="${1:-}" no_check_check_access_token="${2:-false}" response_json_check_access_token="${3:-}"
 unset token_name_check_access_token token_expiry_name_check_access_token token_value_check_access_token token_expiry_value_check_access_token response_check_access_token
 access_token_regex='ya29\.[0-9A-Za-z_-]+'
 token_name_check_access_token="${account_name_check_access_token:+ACCOUNT_${account_name_check_access_token}_}ACCESS_TOKEN"
 token_expiry_name_check_access_token="${token_name_check_access_token}_EXPIRY"
 _set_value indirect token_value_check_access_token "$token_name_check_access_token"
 _set_value indirect token_expiry_value_check_access_token "$token_expiry_name_check_access_token"
-[ "$no_check_check_access_token" = skip_check ]||[ -z "$token_value_check_access_token" ]||[ "${token_expiry_value_check_access_token:-0}" -lt "$(_epoch)" ]||! _assert_regex "$access_token_regex" "$token_value_check_access_token"&&{
+[[ $no_check_check_access_token == skip_check ]]||[[ -z $token_value_check_access_token ]]||[[ ${token_expiry_value_check_access_token:-0} -lt "$(_epoch)" ]]||! _assert_regex "$access_token_regex" "$token_value_check_access_token"&&{
 response_check_access_token="${response_json_check_access_token:-$(curl --compressed -s -X POST --data \
 "client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&refresh_token=$REFRESH_TOKEN&grant_type=refresh_token" "$TOKEN_URL")}"||:
 if token_value_check_access_token="$(printf "%s\n" "$response_check_access_token"|_json_value access_token 1 1)";then
@@ -1013,22 +1204,22 @@ return 0
 }
 _reload_config(){
 export CONFIG
-{ [ -r "$CONFIG" ]&&_parse_config "$CONFIG";}||{ printf "" >>"$CONFIG"||return 1;}
+{ [[ -r $CONFIG ]]&&_parse_config "$CONFIG";}||{ printf "" >>"$CONFIG"||return 1;}
 return 0
 }
 _token_bg_service(){
 export MAIN_PID ACCESS_TOKEN ACCESS_TOKEN_EXPIRY TMPFILE
-[ -z "$MAIN_PID" ]&&return 0
+[[ -z $MAIN_PID ]]&&return 0
 printf "%b\n" "ACCESS_TOKEN=\"$ACCESS_TOKEN\"\nACCESS_TOKEN_EXPIRY=\"$ACCESS_TOKEN_EXPIRY\"" >|"${TMPFILE}_ACCESS_TOKEN"
 {
 until ! kill -0 "$MAIN_PID" 2>|/dev/null 1>&2;do
 . "${TMPFILE}_ACCESS_TOKEN"
 CURRENT_TIME="$(_epoch)"
 REMAINING_TOKEN_TIME="$((ACCESS_TOKEN_EXPIRY-CURRENT_TIME))"
-if [ "$REMAINING_TOKEN_TIME" -le 300 ];then
+if [[ $REMAINING_TOKEN_TIME -le 300 ]];then
 CONFIG="${TMPFILE}_ACCESS_TOKEN" _timeout 30 _check_access_token "" skip_check||:
 else
-TOKEN_PROCESS_TIME_TO_SLEEP="$(if [ "$REMAINING_TOKEN_TIME" -le 301 ];then
+TOKEN_PROCESS_TIME_TO_SLEEP="$(if [[ $REMAINING_TOKEN_TIME -le 301 ]];then
 printf "0\n"
 else
 printf "%s\n" "$((REMAINING_TOKEN_TIME-300))"
@@ -1048,22 +1239,22 @@ file_actual_size_in_bytes="${1:?Error: give filename}"
 _bytes_to_human(){
 b_bytes_to_human="$(printf "%.0f\n" "${1:-0}")" s_bytes_to_human=0
 d_bytes_to_human='' type_bytes_to_human=''
-while [ "$b_bytes_to_human" -gt 1024 ];do
+while [[ $b_bytes_to_human -gt 1024 ]];do
 d_bytes_to_human="$(printf ".%02d" $((b_bytes_to_human%1024*100/1024)))"
 b_bytes_to_human=$((b_bytes_to_human/1024))&&s_bytes_to_human=$((s_bytes_to_human+=1))
 done
 j=0&&for i in B KB MB GB TB PB EB YB ZB;do
-j="$((j+=1))"&&[ "$((j-1))" = "$s_bytes_to_human" ]&&type_bytes_to_human="$i"&&break
+j="$((j+=1))"&&[[ "$((j-1))" == "$s_bytes_to_human" ]]&&type_bytes_to_human="$i"&&break
 continue
 done
 printf "%s\n" "$b_bytes_to_human$d_bytes_to_human $type_bytes_to_human"
 }
 _check_debug(){
 export DEBUG QUIET
-if [ -n "$DEBUG" ];then
+if [[ -n $DEBUG ]];then
 set -x&&PS4='-> '
 _print_center(){
-if [ $# = 3 ];then
+if [[ $# == 3 ]];then
 printf "%s\n" "$2"
 else
 printf "%s%s\n" "$2" "$3"
@@ -1073,14 +1264,14 @@ _clear_line(){ :;}
 _move_cursor(){ :;}
 _newline(){ :;}
 else
-if [ -z "$QUIET" ];then
+if [[ -z $QUIET ]];then
 if _support_ansi_escapes;then
 if ! _required_column_size;then
-_print_center(){ { [ $# = 3 ]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
+_print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
 fi
 export EXTRA_LOG="_print_center" CURL_PROGRESS="-#" SUPPORT_ANSI_ESCAPES="true"
 else
-_print_center(){ { [ $# = 3 ]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
+_print_center(){ { [[ $# == 3 ]]&&printf "%s\n" "[ $2 ]";}||{ printf "%s\n" "[ $2$3 ]";};}
 _clear_line(){ :;}&&_move_cursor(){ :;}
 fi
 _newline(){ printf "%b" "$1";}
@@ -1089,14 +1280,9 @@ _print_center(){ :;}&&_clear_line(){ :;}&&_move_cursor(){ :;}&&_newline(){ :;}
 fi
 set +x
 fi
-{
-[ "${_SHELL-}" = "bash" ]&&tmp="-f"&&export "${tmp?}" _newline \
-_print_center \
-_clear_line
-} 2>|/dev/null 1>&2||:
 }
 _check_internet(){
-"${EXTRA_LOG-}" "justify" "Checking Internet Connection.." "-"
+"${EXTRA_LOG:-}" "justify" "Checking Internet Connection.." "-"
 if ! _timeout 10 _curl -Is https://google.com --compressed;then
 _clear_line 1
 "${QUIET:-_print_center}" "justify" "Error: Internet connection" " not available." "="
@@ -1108,29 +1294,25 @@ _clear_line(){
 printf "\033[%sA\033[2K" "$1"
 }
 _curl(){
-curl ${CURL_FLAGS-} "$@"||return 1
+curl ${CURL_FLAGS:-} "$@"||return 1
 }
 _display_time(){
 t_display_time="$1" day_display_time="$((t_display_time/60/60/24))"
 hr_display_time="$((t_display_time/60/60%24))" min_display_time="$((t_display_time/60%60))" sec_display_time="$((t_display_time%60))"
-[ "$day_display_time" -gt 0 ]&&printf '%d days ' "$day_display_time"
-[ "$hr_display_time" -gt 0 ]&&printf '%d hrs ' "$hr_display_time"
-[ "$min_display_time" -gt 0 ]&&printf '%d minute(s) ' "$min_display_time"
-[ "$day_display_time" -gt 0 ]||[ "$hr_display_time" -gt 0 ]||[ "$min_display_time" -gt 0 ]&&printf 'and '
+[[ $day_display_time -gt 0 ]]&&printf '%d days ' "$day_display_time"
+[[ $hr_display_time -gt 0 ]]&&printf '%d hrs ' "$hr_display_time"
+[[ $min_display_time -gt 0 ]]&&printf '%d minute(s) ' "$min_display_time"
+[[ $day_display_time -gt 0 ]]||[[ $hr_display_time -gt 0 ]]||[[ $min_display_time -gt 0 ]]&&printf 'and '
 printf '%d seconds\n' "$sec_display_time"
 }
 _get_latest_sha(){
 export TYPE TYPE_VALUE REPO
 unset latest_sha_get_latest_sha raw_get_latest_sha
 case "${1:-$TYPE}" in
-branch)\
-latest_sha_get_latest_sha="$(\
-raw_get_latest_sha="$(curl --compressed -s https://github.com/"${3:-$REPO}"/commits/"${2:-$TYPE_VALUE}".atom -r 0-2000)"
+branch)latest_sha_get_latest_sha="$(raw_get_latest_sha="$(curl --compressed -s https://github.com/"${3:-$REPO}"/commits/"${2:-$TYPE_VALUE}".atom -r 0-2000)"
 _tmp="$(printf "%s\n" "$raw_get_latest_sha"|grep -o 'Commit\/.*<' -m1||:)"&&_tmp="${_tmp##*\/}"&&printf "%s\n" "${_tmp%%<*}")"
 ;;
-release)\
-latest_sha_get_latest_sha="$(\
-raw_get_latest_sha="$(curl -L --compressed -s https://github.com/"${3:-$REPO}"/releases/"${2:-$TYPE_VALUE}")"
+release)latest_sha_get_latest_sha="$(raw_get_latest_sha="$(curl -L --compressed -s https://github.com/"${3:-$REPO}"/releases/"${2:-$TYPE_VALUE}")"
 _tmp="$(printf "%s\n" "$raw_get_latest_sha"|grep '="/'"${3:-$REPO}""/commit" -m1||:)"&&_tmp="${_tmp##*commit\/}"&&printf "%s\n" "${_tmp%%\"*}")"
 ;;
 *):
@@ -1146,8 +1328,8 @@ fi
 done
 }
 _json_value(){
-{ [ "$2" -gt 0 ] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
-{ [ "$3" -gt 0 ] 2>|/dev/null&&num_json_value="$3";}||{ ! [ "$3" = all ]&&num_json_value=1;}
+{ [[ $2 -gt 0 ]] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
+{ [[ $3 -gt 0 ]] 2>|/dev/null&&num_json_value="$3";}||{ [[ $3 != all ]]&&num_json_value=1;}
 _tmp="$(grep -o "\"$1\":.*" ${no_of_lines_json_value:+-m} $no_of_lines_json_value)"||return 1
 printf "%s\n" "$_tmp"|sed -e 's|.*"'"$1""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "$num_json_value"p||:
 return 0
@@ -1158,12 +1340,12 @@ printf "\033[%sA" "${1:?Error: Num of line}"
 _parse_config(){
 _config_file_parse_config="${1:?Error: Profile config file}"
 print_parse_config="${2:-false}"
-[ -r "$_config_file_parse_config" ]||{
+[[ -r $_config_file_parse_config ]]||{
 printf "%s\n" "Error: Given config file ( $_config_file_parse_config ) is not readable."
 return 1
 }
 while IFS='=' read -r key val;do
-{ [ -n "$key" ]&&[ -n "$val" ]&&[ -n "${key##\#*}" ];}||continue
+{ [[ -n $key ]]&&[[ -n $val ]]&&[[ -n ${key##\#*} ]];}||continue
 key="${key#"${key%%[![:space:]]*}"}"
 val="${val#"${val%%[![:space:]]*}"}"
 key="${key%"${key##*[![:space:]]}"}"
@@ -1174,56 +1356,56 @@ case "$val" in
 *):
 esac
 export "$key=$val" 2>/dev/null||printf "%s\n" "Warning: $key is not a valid variable name."
-[ "$print_parse_config" = true ]&&echo "$key=$val"
+[[ $print_parse_config == true ]]&&echo "$key=$val"
 done <"$_config_file_parse_config"
 return 0
 }
 _print_center(){
-[ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
-term_cols_print_center="${COLUMNS-}"
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
+term_cols_print_center="${COLUMNS:-}"
 type_print_center="$1" filler_print_center=""
 case "$type_print_center" in
 normal)out_print_center="$2"&&symbol_print_center="$3";;
 justify)if
-[ $# = 3 ]
+[[ $# == 3 ]]
 then
 input1_print_center="$2" symbol_print_center="$3" to_print_print_center="" out_print_center=""
 to_print_print_center="$((term_cols_print_center-5))"
-{ [ "${#input1_print_center}" -gt "$to_print_print_center" ]&&out_print_center="[ $(printf "%.${to_print_print_center}s\n" "$input1_print_center")..]";}||{ out_print_center="[ $input1_print_center ]";}
+{ [[ ${#input1_print_center} -gt $to_print_print_center ]]&&out_print_center="[ $(printf "%.${to_print_print_center}s\n" "$input1_print_center")..]";}||{ out_print_center="[ $input1_print_center ]";}
 else
 input1_print_center="$2" input2_print_center="$3" symbol_print_center="$4" to_print_print_center="" temp_print_center="" out_print_center=""
 to_print_print_center="$((term_cols_print_center*47/100))"
-{ [ "${#input1_print_center}" -gt "$to_print_print_center" ]&&temp_print_center=" $(printf "%.${to_print_print_center}s\n" "$input1_print_center")..";}||{ temp_print_center=" $input1_print_center";}
+{ [[ ${#input1_print_center} -gt $to_print_print_center ]]&&temp_print_center=" $(printf "%.${to_print_print_center}s\n" "$input1_print_center")..";}||{ temp_print_center=" $input1_print_center";}
 to_print_print_center="$((term_cols_print_center*46/100))"
-{ [ "${#input2_print_center}" -gt "$to_print_print_center" ]&&temp_print_center="$temp_print_center$(printf "%.${to_print_print_center}s\n" "$input2_print_center").. ";}||{ temp_print_center="$temp_print_center$input2_print_center ";}
+{ [[ ${#input2_print_center} -gt $to_print_print_center ]]&&temp_print_center="$temp_print_center$(printf "%.${to_print_print_center}s\n" "$input2_print_center").. ";}||{ temp_print_center="$temp_print_center$input2_print_center ";}
 out_print_center="[$temp_print_center]"
 fi
 ;;
 *)return 1
 esac
 str_len_print_center="${#out_print_center}"
-[ "$str_len_print_center" -ge "$((term_cols_print_center-1))" ]&&{
+[[ $str_len_print_center -ge "$((term_cols_print_center-1))" ]]&&{
 printf "%s\n" "$out_print_center"&&return 0
 }
 filler_print_center_len="$(((term_cols_print_center-str_len_print_center)/2))"
-i_print_center=1&&while [ "$i_print_center" -le "$filler_print_center_len" ];do
+i_print_center=1&&while [[ $i_print_center -le $filler_print_center_len ]];do
 filler_print_center="$filler_print_center$symbol_print_center"&&i_print_center="$((i_print_center+1))"
 done
 printf "%s%s%s" "$filler_print_center" "$out_print_center" "$filler_print_center"
-[ "$(((term_cols_print_center-str_len_print_center)%2))" -ne 0 ]&&printf "%s" "$symbol_print_center"
+[[ "$(((term_cols_print_center-str_len_print_center)%2))" -ne 0 ]]&&printf "%s" "$symbol_print_center"
 printf "\n"
 return 0
 }
 _print_center_quiet(){
-{ [ $# = 3 ]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";}
+{ [[ $# == 3 ]]&&printf "%s\n" "$2";}||{ printf "%s%s\n" "$2" "$3";}
 }
 _support_ansi_escapes(){
 unset ansi_escapes
-case "${TERM-}" in
+case "${TERM:-}" in
 xterm*|rxvt*|urxvt*|linux*|vt*|screen*)ansi_escapes="true";;
 *):
 esac
-{ [ -t 2 ]&&[ -n "$ansi_escapes" ]&&return 0;}||return 1
+{ [[ -t 2 ]]&&[[ -n $ansi_escapes ]]&&return 0;}||return 1
 }
 _timeout(){
 timeout_timeout="${1:?Error: Specify Timeout}"&&shift
@@ -1239,24 +1421,63 @@ wait "$child"
 } 2>|/dev/null 1>&2
 }
 _update_config(){
-[ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
 value_name_update_config="$1" value_update_config="$2" config_path_update_config="$3"
-! [ -f "$config_path_update_config" ]&&: >|"$config_path_update_config"
+! [[ -f $config_path_update_config ]]&&: >|"$config_path_update_config"
 chmod u+w -- "$config_path_update_config"||return 1
 printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name_update_config=" -- "$config_path_update_config"||:)" \
 "$value_name_update_config=\"$value_update_config\"" >|"$config_path_update_config"||return 1
 chmod a-w-r-x,u+r -- "$config_path_update_config"||return 1
 return 0
 }
+_assert_regex(){
+declare pattern="${1:-}" string="${2:-}"
+if [[ $string =~ $pattern ]];then
+return 0
+else
+return 1
+fi
+}
+_count(){
+mapfile -tn 0 lines
+printf '%s\n' "${#lines[@]}"
+}
+_epoch(){
+printf '%(%s)T\n' "-1"
+}
+_required_column_size(){
+shopt -s checkwinsize&&(:&&:)
+if [[ $COLUMNS -gt 45 ]];then
+trap 'shopt -s checkwinsize; (:;:)' SIGWINCH
+return 0
+else
+return 1
+fi
+}
+_set_value(){
+case "${1:?}" in
+d|direct)export "${2:?}=$3";;
+i|indirect)export "${2:?}=${!3}";;
+*)return 1
+esac
+}
+_trim(){
+declare char="$1" str="$2" var="$3"
+if [[ -n $var ]];then
+_set_value d "$var" "${str//$char/}"
+else
+printf "%s" "${str//$char/}"
+fi
+}
 _api_request(){
-_curl --compressed ${CURL_PROGRESS-} \
+_curl --compressed ${CURL_PROGRESS:-} \
 -e "https://drive.google.com" \
 "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
 }
 _api_request_oauth(){
 . "${TMPFILE:?}_ACCESS_TOKEN"
-_curl --compressed ${CURL_PROGRESS-} \
+_curl --compressed ${CURL_PROGRESS:-} \
 -H "Authorization: Bearer ${ACCESS_TOKEN:?}" \
 "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
@@ -1267,8 +1488,8 @@ id_check_id="${1:?_check_id}" json_check_id=""
 __error_check_id(){
 _clear_line 1
 "${QUIET:-_print_center}" "justify" "${1:?__error_check_id}" "="
-[ -n "$2" ]&&{
-if [ -n "$3" ];then
+[[ -n $2 ]]&&{
+if [[ -n $3 ]];then
 "${QUIET:-_print_center}" "normal" "$2" " "
 else
 printf "%s\n" "$2"
@@ -1292,17 +1513,13 @@ return 1
 }
 _clear_line 1
 case "$mime_check_id" in
-"application/vnd.google-apps.folder")\
-FOLDER_ID="$id_check_id"
+"application/vnd.google-apps.folder")FOLDER_ID="$id_check_id"
 _print_center "justify" "Folder Detected" "="
 ;;
-"application/vnd.google-apps.document")\
-FILE_ID="$id_check_id" \
-FILE_MIME_TYPE="$mime_check_id"
+"application/vnd.google-apps.document")FILE_ID="$id_check_id" FILE_MIME_TYPE="$mime_check_id"
 _print_center "justify" "Document Detected" "="
 ;;
-*)\
-SIZE="$(printf "%s\n" "$json_check_id"|_json_value size 1 1)"||{
+*)SIZE="$(printf "%s\n" "$json_check_id"|_json_value size 1 1)"||{
 printf "\n"&&__error_check_id "Cannot fetch size of file."&&return 1
 }
 FILE_ID="$id_check_id" FILE_MIME_TYPE="$mime_check_id"
@@ -1313,7 +1530,7 @@ export NAME SIZE FILE_ID FILE_MIME_TYPE FOLDER_ID
 return 0
 }
 _extract_id(){
-[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+[[ $# == 0 ]]&&printf "Missing arguments\n"&&return 1
 id_extract_id="$1"
 case "$id_extract_id" in
 *'drive.google.com'*'id='*)_tmp="${id_extract_id##*id=}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}";;
@@ -1321,14 +1538,14 @@ case "$id_extract_id" in
 *'drive.google.com'*'drive'*'folders'*)_tmp="${id_extract_id##*\/folders\/}"&&_tmp="${_tmp%%\?*}"&&id_extract_id="${_tmp%%\&*}";;
 *):
 esac
-if [ -n "$2" ];then
+if [[ -n $2 ]];then
 _set_value d "$2" "$id_extract_id"
 else
 printf "%b" "${id_extract_id:+$id_extract_id\n}"
 fi
 }
 _get_export_mime(){
-[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+[[ $# == 0 ]]&&printf "Missing arguments\n"&&return 1
 type_get_export_mime="$1"
 given_format_get_export_mime="$2"
 ext_get_export_mime=""
@@ -1353,32 +1570,35 @@ svg|image/svg+xml)format_get_export_mime="image%2Fsvg%2Bxml" ext_get_export_mime
 json|application/vnd.google-apps.script+json)format_get_export_mime="application%2Fvnd.google-apps.script%2Bjson" ext_get_export_mime="json";;
 *)format_get_export_mime="" ext_get_export_mime=""
 esac
-if [ "$type_get_export_mime" = "ext" ];then
+if [[ $type_get_export_mime == "ext" ]];then
 printf "%s" "$ext_get_export_mime"
-elif [ "$type_get_export_mime" = "mime" ];then
+elif [[ $type_get_export_mime == "mime" ]];then
 printf "%s" "$format_get_export_mime"
 fi
 }
 _cookies_and_document_stuff(){
 "$EXTRA_LOG" "justify" "Fetching" " ${1:?}.." "-"
-_curl --compressed $CURL_PROGRESS ${3-} \
-"${4:---header}" "${5-}" \
+_curl --compressed $CURL_PROGRESS ${3:-} \
+"${4:---header}" "${5:-}" \
 -c "${TMPFILE}_${file_id_download_file}_COOKIE" -o "${TMPFILE}_${file_id_download_file}_misc" \
 "${2:?}"||return 1
-print '' >>"${TMPFILE}_${file_id_download_file}_misc"
+printf '%s\n' '' >>"${TMPFILE}_${file_id_download_file}_misc"
 for _ in 1 2;do _clear_line 1;done
 }
 _common_stuff(){
 export OAUTH_ENABLED TMPFILE ACCESS_TOKEN API_URL API_VERSION API_KEY API_KEY_DOWNLOAD EXTRA_LOG CURL_PROGRESS DOWNLOADER DOCUMENT_FORMAT DOCUMENT_FORMAT_ESCAPED
-if [ -n "${OAUTH_ENABLED:-$API_KEY_DOWNLOAD}" ];then
+if [[ -n ${OAUTH_ENABLED:-$API_KEY_DOWNLOAD} ]];then
 url_download_file="$API_URL/drive/$API_VERSION/files/$file_id_download_file$(case "$mime_download_file" in
 "application/vnd.google-apps."*)printf "%s" "/export?mimeType=$DOCUMENT_FORMAT_ESCAPED";;
 *)printf "?alt=media"
 esac)&supportsAllDrives=true&includeItemsFromAllDrives=true"
-if [ -n "$OAUTH_ENABLED" ];then
+if [[ -n $OAUTH_ENABLED ]];then
 . "${TMPFILE}_ACCESS_TOKEN"
+flag_value_download_file="${5:-}"
+if [[ -n $flag_value_download_file ]];then
 flag_download_file="--header" flag_value_download_file="Authorization: Bearer $ACCESS_TOKEN"
-elif [ -n "$API_KEY_DOWNLOAD" ];then
+fi
+elif [[ -n $API_KEY_DOWNLOAD ]];then
 flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
 url_download_file="$url_download_file&key=$API_KEY"
 fi
@@ -1394,8 +1614,7 @@ esac
 else
 flag_download_file="-b" flag_value_download_file="${TMPFILE}_${file_id_download_file}_COOKIE"
 case "$mime_download_file" in
-"application/vnd.google-apps."*)\
-json_common_stuff="$("$API_REQUEST_FUNCTION" "files/$file_id_download_file?alt=json&fields=exportLinks")"||return 1
+"application/vnd.google-apps."*)json_common_stuff="$("$API_REQUEST_FUNCTION" "files/$file_id_download_file?alt=json&fields=exportLinks")"||return 1
 url_download_file="$(printf "%s\n" "$json_common_stuff"|_json_value "$DOCUMENT_FORMAT_ESCAPED" 1 1)"||return 0
 _cookies_and_document_stuff "cookies and document size" "$url_download_file" "-LI"||return 1
 server_size_download_file="$(($(_tmp="$(grep -F 'content-length' "${TMPFILE}_${file_id_download_file}_misc")"&&_tmp="${_tmp##content-length: }"&&printf "%s\n" "${_tmp%"$(printf '\r')"}")))"
@@ -1403,16 +1622,15 @@ server_size_readable_download_file="$(_bytes_to_human "$server_size_download_fil
 _clear_line 1
 _print_center "justify" "$name_download_file" " | $server_size_readable_download_file" "="
 ;;
-*)\
-url_download_file="https://drive.google.com/uc?export=download&id=$file_id_download_file"
+*)url_download_file="https://drive.google.com/uc?export=download&id=$file_id_download_file"
 _cookies_and_document_stuff "cookies" "$url_download_file" "-L"||return 1
 confirm_string="$(_tmp="$(grep -F 'download_warning' "${TMPFILE}_${file_id_download_file}_COOKIE")"&&printf "%s\n" "${_tmp##*"$(printf '\t')"}")"||:
-[ -z "$confirm_string" ]&&{
-confirm_string="$(_tmp="$(grep -Eo "export=download.*$file_id_download_file.*confirm=\w+" "${TMPFILE}_${file_id_download_file}_misc")"&&printf "%s\n" "${_tmp##*=}")"
+[[ -z $confirm_string ]]&&{
+confirm_string="$(_tmp="$(grep 'name="confirm"' "${TMPFILE}_${file_id_download_file}_misc")"&&_tmp="${_tmp##*name=\"confirm\" value=\"}"&&printf "%s" "${_tmp%%\"*}")"
 }
 url_download_file="$url_download_file${confirm_string:+&confirm=$confirm_string}"
 esac
-[ "$DOWNLOADER" = "aria2c" ]&&{
+[[ $DOWNLOADER == "aria2c" ]]&&{
 cookies_download_file="$(sed -e "s/^\# .*//g" -e "s/^\#HttpOnly_//g" "${TMPFILE}_${file_id_download_file}_COOKIE")"
 printf "%s\n" "$cookies_download_file" >|"${TMPFILE}_${file_id_download_file}_COOKIE"
 flag_download_file="--load-cookies"
@@ -1422,7 +1640,7 @@ return 0
 }
 _download_with_aria2c(){
 export ARIA_FLAGS QUIET
-[ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
 file_id_download_file="$1" name_download_file="$2" mime_download_file="$3" server_size_download_file="$4" parallel_download_file="$5"
 unset flag_download_file flag_value_download_file url_download_file cookies_download_file
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file" 2>|/dev/null)"
@@ -1432,7 +1650,7 @@ download_status=0
 aria2c $ARIA_FLAGS \
 "$flag_download_file" "$flag_value_download_file" \
 "$url_download_file" -o "$name_download_file"||download_status=1
-if [ "$download_status" -eq 0 ];then
+if [[ $download_status -eq 0 ]];then
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f -- "$name.aria2"
 else
@@ -1444,16 +1662,16 @@ return 0
 }
 _download_with_curl(){
 export QUIET
-[ $# -lt 3 ]&&printf "Missing arguments\n"&&return 1
+[[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
 file_id_download_file="$1" name_download_file="$2" mime_download_file="$3" server_size_download_file="$4" parallel_download_file="$5"
 unset range_download_file downloaded_download_file old_downloaded_download_file left_download_file speed_download_file eta_download_file \
 flag_download_file flag_value_download_file url_download_file cookies_download_file
 server_size_readable_download_file="$(_bytes_to_human "$server_size_download_file" 2>|/dev/null)"
 _print_center "justify" "$name_download_file" " | $server_size_readable_download_file" "="
 __check_for_resume_download_with_curl(){
-if [ -s "$name_download_file" ];then
+if [[ -s $name_download_file ]];then
 local_size_download_file="$(_actual_size_in_bytes "$name_download_file")"
-if [ "$local_size_download_file" -ge "$((server_size_download_file))" ];then
+if [[ $local_size_download_file -ge "$((server_size_download_file))" ]];then
 "${QUIET:-_print_center}" "justify" "File already present" "="&&_newline "\n"
 _log_in_file
 return 1
@@ -1462,7 +1680,7 @@ _print_center "justify" "File is partially" " present, resuming.." "-"
 range_download_file="Range: bytes=$local_size_download_file-$server_size_download_file"
 fi
 else
-[ "$((server_size_download_file))" -gt 0 ]&&range_download_file="Range: bytes=0-$server_size_download_file"
+[[ "$((server_size_download_file))" -gt 0 ]]&&range_download_file="Range: bytes=0-$server_size_download_file"
 _print_center "justify" "Downloading file.." "-"
 fi
 }
@@ -1478,16 +1696,16 @@ _curl -Ls \
 "$flag_download_file" "$flag_value_download_file" \
 "$url_download_file" >>"$name_download_file"&
 pid="$!"
-if [ -n "$parallel_download_file" ];then
+if [[ -n $parallel_download_file ]];then
 wait "$pid" 2>|/dev/null 1>&2
 else
-until [ -f "$name_download_file" ]||! kill -0 "$pid" 2>|/dev/null 1>&2;do sleep 0.5;done
+until [[ -f $name_download_file ]]||! kill -0 "$pid" 2>|/dev/null 1>&2;do sleep 0.5;done
 _newline "\n\n"
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
 downloaded_download_file="$(_actual_size_in_bytes "$name_download_file")"
 left_download_file="$((server_size_download_file-downloaded_download_file))"
 speed_download_file="$((downloaded_download_file-old_downloaded_download_file))"
-{ [ "$speed_download_file" -gt 0 ]&&eta_download_file="$(_display_time "$((left_download_file/speed_download_file))")";}||eta_download_file=""
+{ [[ $speed_download_file -gt 0 ]]&&eta_download_file="$(_display_time "$((left_download_file/speed_download_file))")";}||eta_download_file=""
 sleep 0.5
 _move_cursor 2
 _print_center "justify" "Downloaded: $(_bytes_to_human "$downloaded_download_file") " "| Left: $(_bytes_to_human "$left_download_file")" "="
@@ -1495,7 +1713,7 @@ _print_center "justify" "Speed: $(_bytes_to_human "$speed_download_file")/s " "|
 old_downloaded_download_file="$downloaded_download_file"
 done
 fi
-if [ "$(_actual_size_in_bytes "$name_download_file")" -ge "$((server_size_download_file))" ];then
+if [[ "$(_actual_size_in_bytes "$name_download_file")" -ge "$((server_size_download_file))" ]];then
 for _ in 1 2 3;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f -- "$name.aria2"
@@ -1508,9 +1726,9 @@ return 0
 }
 _download_file_main(){
 export DOWNLOADER DOCUMENT_FORMAT
-[ $# -lt 2 ]&&printf "Missing arguments\n"&&return 1
+[[ $# -lt 2 ]]&&printf "Missing arguments\n"&&return 1
 unset line_download_file_main fileid_download_file_main name_download_file_main mime_download_file_main size_download_file_main parallel_download_file_main RETURN_STATUS sleep_download_file_main&&retry_download_file_main="${RETRY:-0}"
-if [ "$1" = parse ];then
+if [[ $1 == parse ]];then
 line_download_file_main="${2:?}"
 parallel_download_file_main="$3"
 root_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
@@ -1528,10 +1746,10 @@ mime_download_file_main="$4"
 size_download_file_main="$5"
 size_download_file_main="$((size_download_file_main))"
 fi
-[ -z "${fileid_download_file_main:+$name_download_file_main}" ]&&return 0
+[[ -z ${fileid_download_file_main:+$name_download_file_main} ]]&&return 0
 case "$mime_download_file_main" in
 "application/vnd.google-apps."*)if
-[ -z "${DOCUMENT_FORMAT:+$DOCUMENT_FORMAT_ESCAPED}" ]
+[[ -z ${DOCUMENT_FORMAT:+$DOCUMENT_FORMAT_ESCAPED} ]]
 then
 DOCUMENT_FORMAT="$(_get_export_mime ext "$mime_download_file_main")"
 DOCUMENT_FORMAT_ESCAPED="$(_get_export_mime mime "$mime_download_file_main")"
@@ -1540,24 +1758,22 @@ name_download_file_main="$name_download_file_main.$DOCUMENT_FORMAT"
 ;;
 *):
 esac
-unset RETURN_STATUS&&until [ "$retry_download_file_main" -le 0 ]&&[ -n "$RETURN_STATUS" ];do
-if [ -n "$parallel_download_file_main" ];then
-([ "$1" = parse ]&&{
+unset RETURN_STATUS&&until [[ $retry_download_file_main -le 0 ]]&&[[ -n $RETURN_STATUS ]];do
+if [[ -n $parallel_download_file_main ]];then
+([[ $1 == parse ]]&&{
 cd -- "$root_download_file_main"||return 1
 }
-"_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main" true 2>|/dev/null 1>&2)&&\
-RETURN_STATUS=1&&break
+"_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main" true 2>|/dev/null 1>&2)&&RETURN_STATUS=1&&break
 else
-([ "$1" = parse ]&&{
+([[ $1 == parse ]]&&{
 cd -- "$root_download_file_main"||return 1
 }
-"_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main")&&\
-RETURN_STATUS=1&&break
+"_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main")&&RETURN_STATUS=1&&break
 fi
 sleep "$((sleep_download_file_main+=1))"
 RETURN_STATUS=2 retry_download_file_main="$((retry_download_file_main-1))"&&continue
 done
-{ [ "$RETURN_STATUS" = 1 ]&&printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}";}||printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}" 1>&2
+{ [[ $RETURN_STATUS == 1 ]]&&printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}";}||printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}" 1>&2
 return 0
 }
 _fetch_folderinfo(){
@@ -1568,7 +1784,7 @@ error_status_fetch_folderinfo success_status_fetch_folderinfo \
 files_id_fetch_folderinfo folders_id_fetch_folderinfo files_size_fetch_folderinfo \
 files_name_fetch_folderinfo folders_name_fetch_folderinfo files_mime_fetch_folderinfo \
 num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
-if [ "$parse_fetch_folderinfo" = "true" ];then
+if [[ $parse_fetch_folderinfo == "true" ]];then
 mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
 line_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
 files_list_fetch_folderinfo="${4:?_fetch_folderinfo: 4}" folders_list_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
@@ -1584,7 +1800,7 @@ folder_id_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
 name_fetch_folderinfo="${4:?_fetch_folderinfo: 4}" root_name_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
 files_list_fetch_folderinfo="${6:?_fetch_folderinfo: 6}" folders_list_fetch_folderinfo="${7:?_fetch_folderinfo: 7}"
 fi
-if [ "$root_name_fetch_folderinfo" = "$PWD" ];then
+if [[ $root_name_fetch_folderinfo == "$PWD" ]];then
 _newline "\n"
 else
 "$EXTRA_LOG" "justify" "Root folder name: ${root_name_fetch_folderinfo##"$PWD"/}" "="
@@ -1593,12 +1809,12 @@ fi
 "$EXTRA_LOG" "justify" "Fetching folder" " details.." "-"
 _search_error_message_fetch_folderinfo(){
 "${QUIET:-_print_center}" "justify" "Error: Cannot" ", fetch folder details." "="
-printf "%s\n" "${1-}"&&return 1
+printf "%s\n" "${1:-}"&&return 1
 }
 if json_search_fetch_folderinfo="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id_fetch_folderinfo%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name")";then
 while :;do
 next_page_token_fetch_folderinfo="$(printf "%s\n" "${json_search_fragment_fetch_folderinfo:-$json_search_fetch_folderinfo}"|_json_value nextPageToken 1 1||:)"
-[ -z "$next_page_token_fetch_folderinfo" ]&&break
+[[ -z $next_page_token_fetch_folderinfo ]]&&break
 json_search_fragment_fetch_folderinfo="$("$API_REQUEST_FUNCTION" "files?q=%27$folder_id_fetch_folderinfo%27+in+parents&fields=nextPageToken,files(name,size,id,mimeType)&pageSize=1000&orderBy=name&pageToken=$next_page_token_fetch_folderinfo")"||_search_error_message_fetch_folderinfo "$json_search_fragment_fetch_folderinfo"
 json_search_fetch_folderinfo="$json_search_fetch_folderinfo
 $json_search_fragment_fetch_folderinfo"
@@ -1625,12 +1841,12 @@ exec 8<<EOF
 $(printf "%s\n" "$files_mime_fetch_folderinfo")
 EOF
 while IFS= read -r id <&5&&read -r size <&6&&read -r name <&7&&read -r mime <&8;do
-[ -n "${id:+$name}" ]&&printf "%s\n" "$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name|:_//_:|$((size))|:_//_:|$mime"
+[[ -n ${id:+$name} ]]&&printf "%s\n" "$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name|:_//_:|$((size))|:_//_:|$mime"
 done >>"$files_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-&&exec 7<&-&&exec 8<&-
 _clear_line 1
 chmod -w+r -- "$files_list_fetch_folderinfo"
-if [ -f "$name_fetch_folderinfo" ];then
+if [[ -f $name_fetch_folderinfo ]];then
 name_fetch_folderinfo="$name_fetch_folderinfo$(_epoch)"
 fi
 mkdir -p -- "$root_name_fetch_folderinfo/$name_fetch_folderinfo"
@@ -1645,16 +1861,16 @@ exec 6<<EOF
 $(printf "%s\n" "$folders_name_fetch_folderinfo")
 EOF
 _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5&&read -r name <&6;do
-[ -n "${id:+$name}" ]&&printf "%s\n" "$folder_id_fetch_folderinfo|:_//_:|$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name"
+[[ -n ${id:+$name} ]]&&printf "%s\n" "$folder_id_fetch_folderinfo|:_//_:|$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name"
 done)"
 printf "%s" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-
 chmod -w+r -- "$folders_list_fetch_folderinfo"
 _clear_line 1
 for _ in 1 2;do _clear_line 1;done
-[ "$mode_fetch_folderinfo" = "alt" ]||return 0
-if [ -z "$SKIP_SUBDIRS" ]&&[ -n "$folders_list_fetch_folderinfo" ];then
-while IFS= read -r line <&4&&{ [ -n "$line" ]||continue;};do
+[[ $mode_fetch_folderinfo == "alt" ]]||return 0
+if [[ -z $SKIP_SUBDIRS ]]&&[[ -n $folders_list_fetch_folderinfo ]];then
+while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
 _fetch_folderinfo true "$mode_fetch_folderinfo" "$line" "$files_list_fetch_folderinfo" "$folders_list_fetch_folderinfo"
 done 4<<EOF
 $(printf "%s\n" "$_tmp_folders_list_fetch_folderinfo")
@@ -1664,10 +1880,10 @@ return 0
 }
 _download_folder(){
 export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS
-[ $# = 4 ]&&printf "Missing arguments\n"&&return 1
+[[ $# == 4 ]]&&printf "Missing arguments\n"&&return 1
 mode_download_folder="$1" folder_id_download_folder="$2" name_download_folder="$3" root_download_folder="${4:-$PWD}" parallel_download_folder="$5"
 unset error_status_download_folder success_status_download_folder num_of_files_download_folder num_of_folders_download_folder
-if [ "$mode_download_folder" = "alt" ];then
+if [[ $mode_download_folder == "alt" ]];then
 files_list_download_folder="${TMPFILE}_files_list"
 folders_list_download_folder="${TMPFILE}_folders_list"
 else
@@ -1679,34 +1895,34 @@ printf '' >|"$folders_list_download_folder"
 _fetch_folderinfo false "$mode_download_folder" "$folder_id_download_folder" "$name_download_folder" "$root_download_folder" \
 "$files_list_download_folder" "$folders_list_download_folder" "$parallel_download_folder"
 chmod +w+r -- "$files_list_download_folder" "$folders_list_download_folder"
-[ -n "$INCLUDE_FILES" ]&&_tmp_filesinfo="$(grep -E "$INCLUDE_FILES" "$files_list_download_folder")"&&printf "%s\n" "$_tmp_filesinfo" >>"$files_list_download_folder"
-[ -n "$EXCLUDE_FILES" ]&&_tmp_filesinfo="$(grep -Ev "$EXCLUDE_FILES" "$files_list_download_folder")"&&printf "%s\n" "$_tmp_filesinfo" >>"$files_list_download_folder"
+[[ -n $INCLUDE_FILES ]]&&_tmp_filesinfo="$(grep -E "$INCLUDE_FILES" "$files_list_download_folder")"&&printf "%s\n" "$_tmp_filesinfo" >>"$files_list_download_folder"
+[[ -n $EXCLUDE_FILES ]]&&_tmp_filesinfo="$(grep -Ev "$EXCLUDE_FILES" "$files_list_download_folder")"&&printf "%s\n" "$_tmp_filesinfo" >>"$files_list_download_folder"
 chmod -w+r -- "$files_list_download_folder" "$folders_list_download_folder"
 num_of_files_download_folder="$(_count <"$files_list_download_folder")"
 num_of_folders_download_folder="$(_count <"$folders_list_download_folder")"
-{ [ "$mode_download_folder" = "alt" ]&&_tmp_sum_download_folder="$((num_of_files_download_folder))";}||_tmp_sum_download_folder="$((num_of_files_download_folder+num_of_folders_download_folder))"
-[ "$((_tmp_sum_download_folder))" -eq 0 ]&&for _ in 1 2;do _clear_line 1;done&&_print_center "justify" "$name_download_folder" " | Empty Folder" "="&&_newline "\n"&&return 0
+{ [[ $mode_download_folder == "alt" ]]&&_tmp_sum_download_folder="$((num_of_files_download_folder))";}||_tmp_sum_download_folder="$((num_of_files_download_folder+num_of_folders_download_folder))"
+[[ "$((_tmp_sum_download_folder))" -eq 0 ]]&&for _ in 1 2;do _clear_line 1;done&&_print_center "justify" "$name_download_folder" " | Empty Folder" "="&&_newline "\n"&&return 0
 _print_center "justify" \
 "$name_download_folder" \
 "${num_of_files_download_folder:+ | $num_of_files_download_folder files}${num_of_folders_download_folder:+ | $num_of_folders_download_folder sub folders}" "="
 _newline "\n\n"
-if [ "$((num_of_files_download_folder))" -gt 0 ];then
-if [ -n "$parallel_download_folder" ];then
+if [[ "$((num_of_files_download_folder))" -gt 0 ]];then
+if [[ -n $parallel_download_folder ]];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
-[ -f "$TMPFILE"SUCCESS ]&&rm "$TMPFILE"SUCCESS
-[ -f "$TMPFILE"ERROR ]&&rm "$TMPFILE"ERROR
+[[ -f "$TMPFILE"SUCCESS ]]&&rm "$TMPFILE"SUCCESS
+[[ -f "$TMPFILE"ERROR ]]&&rm "$TMPFILE"ERROR
 (xargs -P"$NO_OF_PARALLEL_JOBS_FINAL" -I "{}" -n 1 "${_SHELL:-sh}" -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
             ' <"$files_list_download_folder" 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&
 pid="$!"
-until [ -f "$TMPFILE"SUCCESS ]||[ -f "$TMPFILE"ERROR ];do sleep 0.5;done
+until [[ -f "$TMPFILE"SUCCESS ]]||[[ -f "$TMPFILE"ERROR ]];do sleep 0.5;done
 _clear_line 1
 until ! kill -0 "$pid" 2>|/dev/null 1>&2;do
 success_status_download_folder="$(($(_count <"$TMPFILE"SUCCESS)))"
 error_status_download_folder="$(($(_count <"$TMPFILE"ERROR)))"
 sleep 1
-if [ "$((success_status_download_folder+error_status_download_folder))" != "$TOTAL" ];then
+if [[ "$((success_status_download_folder+error_status_download_folder))" != "$TOTAL" ]];then
 printf '%s\r' "$(_print_center "justify" "Status" ": ${success_status_download_folder:-0} Downloaded | ${error_status_download_folder:-0} Failed" "=")"
 fi
 TOTAL="$((success_status_download_folder+error_status_download_folder))"
@@ -1716,10 +1932,10 @@ success_status_download_folder="$(($(_count <"$TMPFILE"SUCCESS)))"
 error_status_download_folder="$(($(_count <"$TMPFILE"ERROR)))"
 _clear_line 1&&_newline "\n"
 else
-while IFS= read -r line <&4&&{ [ -n "$line" ]||continue;};do
+while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
 _download_file_main parse "$line"
 : "$((RETURN_STATUS<2?(success_status_download_folder+=1):(error_status_download_folder+=1)))"
-if [ -z "$VERBOSE" ];then
+if [[ -z $VERBOSE ]];then
 for _ in 1 2 3 4;do _clear_line 1;done
 fi
 _print_center "justify" "Status" ": ${success_status_download_folder:-0} Downloaded | ${error_status_download_folder:-0} Failed" "="
@@ -1727,19 +1943,18 @@ done 4<"$files_list_download_folder"
 fi
 fi
 for _ in 1 2;do _clear_line 1;done
-[ "$((success_status_download_folder))" -gt 0 ]&&"${QUIET:-_print_center}" "justify" "Downloaded" ": $((success_status_download_folder))" "="
-[ "$((error_status_download_folder))" -gt 0 ]&&"${QUIET:-_print_center}" "justify" "Failed" ": $((error_status_download_folder))" "="
+[[ "$((success_status_download_folder))" -gt 0 ]]&&"${QUIET:-_print_center}" "justify" "Downloaded" ": $((success_status_download_folder))" "="
+[[ "$((error_status_download_folder))" -gt 0 ]]&&"${QUIET:-_print_center}" "justify" "Failed" ": $((error_status_download_folder))" "="
 _newline "\n"
-[ "$mode_download_folder" = "alt" ]&&return 0
-if [ -z "$SKIP_SUBDIRS" ]&&[ "$((num_of_folders_download_folder))" -gt 0 ];then
-while IFS= read -r line <&4&&{ [ -n "$line" ]||continue;};do
-(\
-id="${line%"|:_//_:|"*}"
+[[ $mode_download_folder == "alt" ]]&&return 0
+if [[ -z $SKIP_SUBDIRS ]]&&[[ "$((num_of_folders_download_folder))" -gt 0 ]];then
+while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
+(id="${line%"|:_//_:|"*}"
 id="${id##*"|:_//_:|"}"
 name="${line##*"|:_//_:|"}"
 root="${line#*"|:_//_:|"}"
 root="${root%%"|:_//_:|"*}"
-_download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel-}")
+_download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel:-}")
 done 4<"$folders_list_download_folder"
 fi
 (rm -f -- "$files_list_download_folder" "$folders_list_download_folder")&
@@ -1747,7 +1962,7 @@ return 0
 }
 _log_in_file(){
 export LOG_FILE_ID
-[ -z "$LOG_FILE_ID" ]||[ -d "$LOG_FILE_ID" ]&&return 0
+[[ -z $LOG_FILE_ID ]]||[[ -d $LOG_FILE_ID ]]&&return 0
 {
 printf "%s\n" "Name: $1"
 printf "%s\n" "Size: $2"
@@ -1756,12 +1971,12 @@ printf "%s\n\n" "ID: $3"
 }
 _cleanup_config(){
 config="${1:?Error: Missing config}"&&unset values_regex _tmp
-! [ -f "$config" ]&&return 0
-while read -r line <&4&&[ -n "$line" ];do
+! [[ -f $config ]]&&return 0
+while read -r line <&4&&[[ -n $line ]];do
 expiry_value_name="${line%%=*}"
 token_value_name="${expiry_value_name%%_EXPIRY}"
 _tmp="${line##*=}"&&_tmp="${_tmp%\"}"&&expiry="${_tmp#\"}"
-[ "$expiry" -le "$(_epoch)" ]&&values_regex="${values_regex:+$values_regex|}$expiry_value_name=\".*\"|$token_value_name=\".*\""
+[[ $expiry -le "$(_epoch)" ]]&&values_regex="${values_regex:+$values_regex|}$expiry_value_name=\".*\"|$token_value_name=\".*\""
 done 4<<EOF
 $(grep -F ACCESS_TOKEN_EXPIRY -- "$config"||:)
 EOF
@@ -1769,25 +1984,22 @@ chmod u+w -- "$config"&&printf "%s\n" "$(grep -Ev "^\$${values_regex:+|$values_r
 return 0
 }
 _setup_arguments(){
-[ $# = 0 ]&&printf "Missing arguments\n"&&return 1
+[[ $# == 0 ]]&&printf "Missing arguments\n"&&return 1
 unset CURL_FLAGS
 export DOWNLOADER="curl"
 export CURL_PROGRESS="-s" EXTRA_LOG=":"
 export CONFIG="$HOME/.gdl.conf"
 export API_URL="https://www.googleapis.com"
-export API_VERSION="v3" \
-SCOPE="$API_URL/auth/drive" \
-REDIRECT_URI="http%3A//localhost" \
-TOKEN_URL="https://accounts.google.com/o/oauth2/token"
+export API_VERSION="v3" SCOPE="$API_URL/auth/drive" REDIRECT_URI="http%3A//localhost" TOKEN_URL="https://accounts.google.com/o/oauth2/token"
 _parse_arguments "_parser_setup_flags" "$@"||return 1
 _check_debug
-[ -n "$QUIET" ]&&export CURL_PROGRESS="-s" ARIA_FLAGS=" $ARIA_FLAGS -q "
+[[ -n $QUIET ]]&&export CURL_PROGRESS="-s" ARIA_FLAGS=" $ARIA_FLAGS -q "
 ARIA_extra_flags="" CURL_extra_flags=""
 for downloader in CURL ARIA;do
 extra_flags="" flag="" value=""
 for var in SPEED_LIMIT USER_AGENT PROXY;do
 _set_value i value "$var"
-[ -n "$value" ]&&{
+[[ -n $value ]]&&{
 _set_value i flag "${downloader}_${var}_FLAG"
 extra_flags="$extra_flags $flag $value"
 }
@@ -1796,41 +2008,41 @@ _set_value d "${downloader}_extra_flags" "$extra_flags"
 done
 export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $ARIA_extra_flags"
 export CURL_FLAGS="$CURL_FLAGS $CURL_extra_flags"
-[ -n "$OAUTH_ENABLED" ]&&unset API_KEY_DOWNLOAD
-[ -n "$API_KEY_DOWNLOAD" ]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY-}" "$CONFIG"
-[ -n "$DELETE_ACCOUNT_NAME" ]&&_delete_account "$DELETE_ACCOUNT_NAME"
-[ -n "$LIST_ACCOUNTS" ]&&_all_accounts
-[ -z "$INPUT_ID_1" ]&&{
-[ -z "${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS:-$NEW_ACCOUNT_NAME}}" ]&&_short_help
-[ -n "${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS-}}" ]&&exit 0
-[ -n "$NEW_ACCOUNT_NAME" ]&&CONTINUE_WITH_NO_INPUT="true"
+[[ -n $OAUTH_ENABLED ]]&&unset API_KEY_DOWNLOAD
+[[ -n $API_KEY_DOWNLOAD ]]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "$CONFIG"
+[[ -n $DELETE_ACCOUNT_NAME ]]&&_delete_account "$DELETE_ACCOUNT_NAME"
+[[ -n $LIST_ACCOUNTS ]]&&_all_accounts
+[[ -z $INPUT_ID_1 ]]&&{
+[[ -z ${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS:-$NEW_ACCOUNT_NAME}} ]]&&_short_help
+[[ -n ${DELETE_ACCOUNT_NAME:-${LIST_ACCOUNTS:-}} ]]&&exit 0
+[[ -n $NEW_ACCOUNT_NAME ]]&&CONTINUE_WITH_NO_INPUT="true"
 }
 return 0
 }
 _setup_traps(){
 _cleanup(){
-[ -n "$SUPPORT_ANSI_ESCAPES" ]&&printf "\033[?25h\033[?7h"
+[[ -n $SUPPORT_ANSI_ESCAPES ]]&&printf "\033[?25h\033[?7h"
 {
-[ -f "${TMPFILE}_ACCESS_TOKEN" ]&&{
+[[ -f "${TMPFILE}_ACCESS_TOKEN" ]]&&{
 . "${TMPFILE}_ACCESS_TOKEN"
 export ACCESS_TOKEN ACCESS_TOKEN_EXPIRY INITIAL_ACCESS_TOKEN ACCOUNT_NAME
-[ "$INITIAL_ACCESS_TOKEN" = "$ACCESS_TOKEN" ]||{
+[[ $INITIAL_ACCESS_TOKEN == "$ACCESS_TOKEN" ]]||{
 _update_config "ACCOUNT_${ACCOUNT_NAME}_ACCESS_TOKEN" "$ACCESS_TOKEN" "$CONFIG"
 _update_config "ACCOUNT_${ACCOUNT_NAME}_ACCESS_TOKEN_EXPIRY" "$ACCESS_TOKEN_EXPIRY" "$CONFIG"
 }
 }||: 1>|/dev/null
-[ -n "$ACCESS_TOKEN_SERVICE_PID" ]&&{
+[[ -n $ACCESS_TOKEN_SERVICE_PID ]]&&{
 token_service_pids="$(ps --ppid="$ACCESS_TOKEN_SERVICE_PID" -o pid=)"
 kill "$ACCESS_TOKEN_SERVICE_PID"
 }||: 1>|/dev/null
 script_children_pids="$(ps --ppid="$MAIN_PID" -o pid=)"
 kill $token_service_pids $script_children_pids 1>|/dev/null
 rm -f "${TMPFILE:?}"*
-export abnormal_exit&&if [ -n "$abnormal_exit" ];then
+export abnormal_exit&&if [[ -n $abnormal_exit ]];then
 printf "\n\n%s\n" "Script exited manually."
 kill "${_SCRIPT_KILL_SIGNAL:--9}" -$$&
 else
-{ _cleanup_config "$CONFIG"&&[ "${GDL_INSTALLED_WITH-}" = script ]&&_auto_update;} 1>|/dev/null&
+{ _cleanup_config "$CONFIG"&&[[ ${GDL_INSTALLED_WITH:-} == script ]]&&_auto_update;} 1>|/dev/null&
 fi
 } 2>|/dev/null||:
 return 0
@@ -1842,11 +2054,11 @@ export MAIN_PID="$$"
 }
 _process_arguments(){
 export DRY_RUN FOLDERNAME TOTAL_INPUTS PARALLEL_DOWNLOAD
-[ -n "$FOLDERNAME" ]&&mkdir -p -- "$FOLDERNAME"
+[[ -n $FOLDERNAME ]]&&mkdir -p -- "$FOLDERNAME"
 cd -- "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
 _SEEN="" index_process_arguments=0
 TOTAL_INPUTS="$((TOTAL_INPUTS<0?0:TOTAL_INPUTS))"
-until [ "$index_process_arguments" -eq "$TOTAL_INPUTS" ];do
+until [[ $index_process_arguments -eq $TOTAL_INPUTS ]];do
 FILE_ID="" FOLDER_ID="" NAME="" FILE_MIME_TYPE="" SIZE=""
 _set_value i FILE_ID "INPUT_ID_$((index_process_arguments+=1))"
 case "$_SEEN" in
@@ -1854,17 +2066,17 @@ case "$_SEEN" in
 *)_SEEN="$_SEEN$FILE_ID"
 esac
 _check_id "$FILE_ID"||continue
-[ "$DRY_RUN" = "true" ]&&{
+[[ $DRY_RUN == "true" ]]&&{
 _clear_line 1
-if [ -n "$FOLDER_ID" ];then
+if [[ -n $FOLDER_ID ]];then
 _print_center "justify" "Name: $NAME" " | $FOLDER_ID" "="
 else
-_print_center "justify" "Name: $NAME" " | $FILE_ID | Size: $({ [ -n "$SIZE" ]&&_bytes_to_human "$SIZE";}||printf 'Unknown')" "="
+_print_center "justify" "Name: $NAME" " | $FILE_ID | Size: $({ [[ -n $SIZE ]]&&_bytes_to_human "$SIZE";}||printf 'Unknown')" "="
 fi
 printf '\n'&&continue
 }
-if [ -n "$FOLDER_ID" ];then
-_download_folder "${DOWNLOAD_METHOD:-alt}" "$FOLDER_ID" "$NAME" "$PWD" "${PARALLEL_DOWNLOAD-}"
+if [[ -n $FOLDER_ID ]];then
+_download_folder "${DOWNLOAD_METHOD:-alt}" "$FOLDER_ID" "$NAME" "$PWD" "${PARALLEL_DOWNLOAD:-}"
 else
 _download_file_main noparse "$FILE_ID" "$NAME" "$FILE_MIME_TYPE" "$SIZE"
 fi
@@ -1877,7 +2089,7 @@ _setup_arguments "$@"||exit 1
 TMPFILE="$(command -v mktemp 1>|/dev/null&&mktemp -u)"||TMPFILE="$(pwd)/.$(_t="$(_epoch)"&&printf "%s\n" "$((_t*_t))").tmpfile"
 export TMPFILE
 _setup_traps
-if [ -n "$OAUTH_ENABLED" ];then
+if [[ -n $OAUTH_ENABLED ]];then
 "$EXTRA_LOG" "justify" "Checking credentials.." "-"
 { _check_credentials&&_clear_line 1;}||{ "${QUIET:-_print_center}" "normal" "[ Error: Credentials checking failed ]" "="&&exit 1;}
 "${QUIET:-_print_center}" "normal" " Account: $ACCOUNT_NAME " "="
@@ -1885,9 +2097,9 @@ export API_REQUEST_FUNCTION="_api_request_oauth" OAUTH_ENABLED="true"
 else
 export API_REQUEST_FUNCTION="_api_request"
 fi
-[ -n "$CONTINUE_WITH_NO_INPUT" ]&&exit 0
+[[ -n $CONTINUE_WITH_NO_INPUT ]]&&exit 0
 START="$(_epoch)"
-[ -n "$SUPPORT_ANSI_ESCAPES" ]&&printf "\033[?25l"
+[[ -n $SUPPORT_ANSI_ESCAPES ]]&&printf "\033[?25l"
 _process_arguments
 END="$(_epoch)"
 DIFF="$((END-START))"
@@ -1895,29 +2107,19 @@ DIFF="$((END-START))"
 }
 set +a
 main(){
-[ $# = 0 ]&&{
+[[ $# == 0 ]]&&{
 printf "No valid arguments provided, use -h/--help flag to see usage.\n"
 exit 0
 }
-export _SHELL="sh"
-if [ -z "$SELF_SOURCE" ];then
+[[ -z $SELF_SOURCE ]]&&{
 export UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"
-export COMMON_PATH="${COMMON_UTILS_FILE:-$PWD}/../common"
-export SOURCE_UTILS=". '$UTILS_FOLDER/common-utils.sh' && 
-        . '$COMMON_PATH/parser.sh' &&
-        . '$COMMON_PATH/flags.sh' &&
-        . '$COMMON_PATH/auth-utils.sh' &&
-        . '$COMMON_PATH/common-utils.sh' &&
-        . '$COMMON_PATH/drive-utils.sh' &&
-        . '$COMMON_PATH/download-utils.sh'
-        . '$COMMON_PATH/gdl-common.sh'"
-else
-SCRIPT_PATH="$(cd "$(_dirname "$0")"&&pwd)/${0##*\/}"&&export SCRIPT_PATH
-export SOURCE_UTILS="SOURCED_GDL=true . '$SCRIPT_PATH'"
-fi
-eval "$SOURCE_UTILS"||{ printf "Error: Unable to source util files.\n"&&exit 1;}
-set -o noclobber
-export _SCRIPT_KILL_SIGNAL="-9"
+export COMMON_PATH="${COMMON_UTILS_FILE:-$PWD}/common"
+{ . "$COMMON_PATH/parser.sh"&&. "$COMMON_PATH/flags.sh"&&. "$COMMON_PATH/auth-utils.sh"&&. "$COMMON_PATH/common-utils.sh"&&. "$COMMON_PATH/drive-utils.sh"&&. "$COMMON_PATH/download-utils.sh"&&. "$COMMON_PATH/gdl-common.sh";}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
+}
+export SOURCE_UTILS=""
+[[ ${BASH_VERSINFO:-0} -ge 4 ]]||{ printf "Bash version lower than 4.x not supported.\n"&&return 1;}
+set -o noclobber -o pipefail||exit 1
+export _SCRIPT_KILL_SIGNAL="--"
 _main_helper "$@"||exit 1
 }
-{ [ -z "$SOURCED_GDL" ]&&main "$@";}||:
+{ [[ -z $SOURCED_GDL ]]&&main "$@";}||:

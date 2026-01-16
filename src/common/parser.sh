@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # shellcheck source=/dev/null
 
 ###################################################
@@ -41,7 +41,7 @@ _parser_check_arguments() {
     # because first argunent is num of args and second is the flag itself
     num_parser_check_arguments=$(($# - 2))
 
-    [ "${num_parser_check_arguments}" -lt "${nargs_parser_check_arguments}" ] && {
+    [[ "${num_parser_check_arguments}" -lt "${nargs_parser_check_arguments}" ]] && {
         printf "%s\n" "${0##*/}: ${2}: flag requires ${nargs_parser_check_arguments} argument."
         printf "\n%s\n" "Help:"
         # print help for the respective flag
@@ -66,7 +66,7 @@ _flag_exists() {
     # use _flag_help function get the help contents and function name
     _flag_help "${1:?}" tmp_flag_exists option_flag_exists
     # then check if help is empty or not
-    [ -z "${tmp_flag_exists}" ] && return 1
+    [[ -z "${tmp_flag_exists}" ]] && return 1
     _set_value d "${2:?}" "${option_flag_exists}"
 }
 
@@ -104,10 +104,10 @@ _parse_arguments() {
     # Check if script terminal supports ansi escapes | Result: return 1 or 0
     _parse_support_ansi_escapes() {
         case "${TERM}" in
-            xterm* | rxvt* | urxvt* | linux* | vt* | screen*) { [ -t 2 ] && return 0; } || return 1 ;;
+            xterm* | rxvt* | urxvt* | linux* | vt* | screen*) { [[ -t 2 ]] && return 0; } || return 1 ;;
             *) : ;;
         esac
-        { [ -t 2 ] && return 0; } || return 1
+        { [[ -t 2 ]] && return 0; } || return 1
     }
     # fetch column size and check if greater than the num ( see in function) | return 1 or 0
     _parser_required_column_size() {
@@ -116,7 +116,7 @@ _parse_arguments() {
             { command -v stty 1>| /dev/null && _tmp="$(stty size)" && printf "%s\n" "${_tmp##* }"; } ||
             { command -v tput 1>| /dev/null && tput cols; })" || :
 
-        [ "$((COLUMNS))" -gt 45 ] && return 0
+        [[ "$((COLUMNS))" -gt 45 ]] && return 0
     }
 
     # check if running in terminal and support ansi escape sequences
@@ -124,7 +124,7 @@ _parse_arguments() {
         _parser_required_column_size &&
         __PARSER_BAR="$(
             filler='' symbol='_'
-            i=1 && while [ "${i}" -le "${COLUMNS}" ]; do
+            i=1 && while [[ "${i}" -le "${COLUMNS}" ]]; do
                 filler="${filler}${symbol}" && i="$((i + 1))"
             done
             printf "%s\n" "${filler}"
@@ -152,13 +152,13 @@ _parse_arguments() {
     _parser_run_preprocess || return 1
 
     # TODO: remove usage of shift
-    while [ "${#}" -gt 0 ]; do
+    while [[ "${#}" -gt 0 ]]; do
         case "${1}" in
             # just ignore empty inputs
             '') : ;;
             --)
                 shift
-                while [ "${#}" -gt 0 ]; do
+                while [[ "${#}" -gt 0 ]]; do
                     _parser_process_input "${@}" || return 1
                     shift
                 done
@@ -247,12 +247,12 @@ EOF
     done
 
     # check if to add argument help
-    if ! [ "${nargs_parser_setup_flag_help}" = 0 ]; then
+    if [[ "${nargs_parser_setup_flag_help}" != 0 ]]; then
         # argument help should be inside double qoutes
         arg_parser_setup_flag_help="\"${_PARSER_CURRENT_ARGS:?_parser_setup_flag_help}\""
         # check if to add optional or required string
         # -p | --parallel-jobs "num of parallel downloads" [ Required ]
-        if [ "${_PARSER_CURRENT_ARGS_TYPE}" = optional ]; then
+        if [[ "${_PARSER_CURRENT_ARGS_TYPE}" = optional ]]; then
             arg_parser_setup_flag_help="${arg_parser_setup_flag_help} [ Optional ]"
         else
             arg_parser_setup_flag_help="${arg_parser_setup_flag_help} [ Required ]"
@@ -271,7 +271,7 @@ EOF
     done
 
     # don't add to help of when given flag is input
-    [ "${_PARSER_FLAGS}" = input ] && return 0
+    [[ "${_PARSER_FLAGS}" = input ]] && return 0
 
     # append current flag help content to _PARSER_ALL_HELP
     _PARSER_ALL_HELP="${_PARSER_ALL_HELP}
@@ -331,7 +331,7 @@ _parser_setup_flag_process() {
     unset fn_parser_setup_flag_process
 
     # check if 1 and required were given to _parser_setup_flag
-    if [ "${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process}" -gt 0 ] && ! [ "${_PARSER_CURRENT_ARGS_TYPE}" = optional ]; then
+    if [[ "${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process}" -gt 0 ]] && [[ "${_PARSER_CURRENT_ARGS_TYPE}" != optional ]]; then
         fn_parser_setup_flag_process="_parser_check_arguments ${_PARSER_CURRENT_NARGS:?_parser_setup_flag_process} \"\${@}\""
     fi
 
@@ -404,7 +404,7 @@ _trim() {
     # shellcheck disable=SC2086
     set -- ${str_trim}
     IFS=
-    if [ -n "${var_trim}" ]; then
+    if [[ -n "${var_trim}" ]]; then
         _set_value d "${var_trim}" "$*"
     else
         printf "%s" "$*"

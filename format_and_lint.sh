@@ -1,9 +1,9 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # shfmt - beautify scripts
 if command -v shfmt 1>| /dev/null; then
     printf "Beautifying scripts with shfmt... \n"
-    for k in . src/common src/sh src/bash; do
+    for k in . src/common; do
         cd "${k}" 2>| /dev/null 1>&2 || exit 1
         for i in *.*sh; do
             if ! shfmt -w "${i}"; then
@@ -25,10 +25,10 @@ fi
 # shell check - lint script
 if command -v shellcheck 1>| /dev/null; then
     printf "Linting scripts with shellcheck... \n"
-    for k in . src/common src/sh src/bash; do
+    for k in . src/common; do
         cd "${k}" 2>| /dev/null 1>&2 || exit 1
         for i in *.*sh; do
-            if ! shellcheck -o all -e SC2312 "${i}"; then
+            if ! shellcheck -o all -e SC2312 -e SC2329 "${i}"; then
                 printf "\n%s\n\n" "${k}/${i}: ERROR"
                 lint_status=1
             else
@@ -44,13 +44,13 @@ else
     printf 'Check https://www.shellcheck.net/ or https://github.com/koalaman/shellcheck\n\n'
 fi
 
-[ "${format_status}" = 1 ] &&
+[[ "${format_status}" = 1 ]] &&
     printf "Error: Some files not formatted succesfully.\n"
 
-[ "${lint_status}" = 1 ] &&
+[[ "${lint_status}" = 1 ]] &&
     printf "Error: Some shellcheck warnings need to be fixed.\n"
 
-if [ "${lint_status}" = 1 ] || [ "${format_status}" = 1 ]; then
+if [[ "${lint_status}" = 1 ]] || [[ "${format_status}" = 1 ]]; then
     exit 1
 else
     exit 0

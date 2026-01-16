@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 ###################################################
 # Automatic updater, only update if script is installed system wide.
@@ -8,29 +8,29 @@
 _auto_update() {
     export COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE REPO LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL
     command -v "${COMMAND_NAME}" 1> /dev/null &&
-        if [ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]; then
+        if [[ -n "${REPO:+${COMMAND_NAME:+${INSTALL_PATH:+${TYPE:+${TYPE_VALUE}}}}}" ]]; then
             current_time="$(_epoch)"
-            [ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(_epoch)" ] && _update update
+            [[ "$((LAST_UPDATE_TIME + AUTO_UPDATE_INTERVAL))" -lt "$(_epoch)" ]] && _update update
             _update_value LAST_UPDATE_TIME "${current_time}"
         fi
     return 0
 }
 
 ###################################################
-# Install/Update/uninstall the script.
+# Install/Update/uninstall/ script.
 # Arguments: 1
 #   ${1} = uninstall or update
 # Result: On
-#   ${1} = nothing - Update the script if installed, otherwise install.
-#   ${1} = uninstall - uninstall the script
+#   ${1} = nothing - Update/ script if installed, otherwise install.
+#   ${1} = uninstall - uninstall/ the script
 ###################################################
 _update() {
     job_update="${1:-update}"
-    [ "${GLOBAL_INSTALL:-}" = true ] && ! [ "$(id -u)" = 0 ] && printf "%s\n" "Error: Need root access to update." && return 0
-    [ "${job_update}" = uninstall ] && job_uninstall="--uninstall"
+    [[ "${GLOBAL_INSTALL:-}" = true ]] && [[ "$(id -u)" != 0 ]] && printf "%s\n" "Error: Need root access to update." && return 0
+    [[ "${job_update}" = uninstall ]] && job_uninstall="--uninstall"
     _print_center "justify" "Fetching ${job_update} script.." "-"
     repo_update="${REPO:-akianonymus/gdrive-downloader}" type_value_update="${TYPE_VALUE:-latest}" cmd_update="${COMMAND_NAME:-gupload}" path_update="${INSTALL_PATH:-${HOME}/.gdrive-downloader/bin}"
-    { [ "${TYPE:-}" != branch ] && type_value_update="$(_get_latest_sha release "${type_value_update}" "${repo_update}")"; } || :
+    { [[ "${TYPE:-}" != branch ]] && type_value_update="$(_get_latest_sha release "${type_value_update}" "${repo_update}")"; } || :
     if script_update="$(curl --compressed -Ls "https://github.com/${repo_update}/raw/${type_value_update}/install.sh")"; then
         _clear_line 1
 
@@ -42,7 +42,7 @@ _update() {
         # shellcheck disable=SC2248,SC2086
         printf "%s\n" "${script_update}" | sh -s -- ${job_uninstall:-} --skip-internet-check --cmd "${cmd_update}" --path "${path_update}"
         current_time="$(date +'%s')"
-        [ -z "${job_uninstall}" ] && _update_value LAST_UPDATE_TIME "${current_time}"
+        [[ -z "${job_uninstall}" ]] && _update_value LAST_UPDATE_TIME "${current_time}"
     else
         _clear_line 1
         "${QUIET:-_print_center}" "justify" "Error: Cannot download" " ${job_update} script." "=" 1>&2

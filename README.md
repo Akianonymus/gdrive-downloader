@@ -9,9 +9,9 @@
 <a href="https://github.com/Akianonymus/gdrive-downloader/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Akianonymus/gdrive-downloader.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-> gdrive-downloader is a collection of shell scripts runnable on all POSIX compatible shells ( sh / ksh / dash / bash / zsh / etc ).
->
-> It can be used to to download files or folders from google gdrive.
+ > gdrive-downloader is a collection of shell scripts runnable on Bash 4.x+.
+ >
+ > It can be used to to download files or folders from google gdrive.
 
 - Minimal
 - Authentication support ( not required for public files/folders ).
@@ -81,31 +81,24 @@ Again, it has not been officially tested on windows, there shouldn't be anything
 
 ## Installing and Updating
 
-### Native Dependencies
-
-This repo contains two types of scripts, posix compatible and bash compatible.
-
-<strong>These programs are required in both bash and posix scripts.</strong>
-
-| Program          | Role In Script                                         |
-| ---------------- | ------------------------------------------------------ |
-| curl             | All network requests                                   |
-| xargs            | For parallel downloading                               |
-| mkdir            | To create folders                                      |
-| rm               | To remove files and folders                            |
-| grep             | Miscellaneous                                          |
-| sed              | Miscellaneous                                          |
-| mktemp           | To generate temporary files ( optional )               |
-| sleep            | Self explanatory                                       |
-| ps               | To manage different processes                          |
-| du               | To get actual file sizes                               |
-
-<strong>If BASH is not available or BASH is available but version is less tham 4.x, then below programs are also required:</strong>
-
-| Program             | Role In Script                             |
-| ------------------- | ------------------------------------------ |
-| date                | For installation, update and Miscellaneous |
-| stty or zsh or tput | To determine column size ( optional )      |
+ ### Native Dependencies
+ 
+ This repo contains bash scripts.
+ 
+ <strong>These programs are required:</strong>
+ 
+ | Program          | Role In Script                                         |
+ | ---------------- | ------------------------------------------------------ |
+ | curl             | All network requests                                   |
+ | xargs            | For parallel downloading                               |
+ | mkdir            | To create folders                                      |
+ | rm               | To remove files and folders                            |
+ | grep             | Miscellaneous                                          |
+ | sed              | Miscellaneous                                          |
+ | mktemp           | To generate temporary files ( optional )               |
+ | sleep            | Self explanatory                                       |
+ | ps               | To manage different processes                          |
+ | du               | To get actual file sizes                               |
 
 ### Installation
 

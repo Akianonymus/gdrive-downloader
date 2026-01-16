@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # auth utils for Google Drive
 # shellcheck source=/dev/null
 
@@ -27,7 +27,7 @@ _account_exists() {
     _set_value indirect client_id_account_exists "ACCOUNT_${name_account_exists}_CLIENT_ID"
     _set_value indirect client_secret_account_exists "ACCOUNT_${name_account_exists}_CLIENT_SECRET"
     _set_value indirect refresh_token_account_exists "ACCOUNT_${name_account_exists}_REFRESH_TOKEN"
-    [ -z "${client_id_account_exists:+${client_secret_account_exists:+${refresh_token_account_exists}}}" ] && return 1
+    [[ -z "${client_id_account_exists:+${client_secret_account_exists:+${refresh_token_account_exists}}}" ]] && return 1
     return 0
 }
 
@@ -40,14 +40,14 @@ _all_accounts() {
     export CONFIG QUIET
     { _reload_config && _handle_old_config; } || return 1
     COUNT=0
-    while read -r account <&4 && [ -n "${account}" ]; do
+    while read -r account <&4 && [[ -n "${account}" ]]; do
         _account_exists "${account}" &&
-            { [ "${COUNT}" = 0 ] && "${QUIET:-_print_center}" "normal" " All available accounts. " "=" || :; } &&
+            { [[ "${COUNT}" = 0 ]] && "${QUIET:-_print_center}" "normal" " All available accounts. " "=" || :; } &&
             printf "%b" "$((COUNT += 1)). ${account} \n" && _set_value direct "ACC_${COUNT}_ACC" "${account}"
     done 4<< EOF
 $(grep -oE '^ACCOUNT_.*_CLIENT_ID' -- "${CONFIG}" | sed -e "s/ACCOUNT_//g" -e "s/_CLIENT_ID//g")
 EOF
-    { [ "${COUNT}" -le 0 ] && "${QUIET:-_print_center}" "normal" " No accounts configured yet. " "=" 1>&2; } || printf '\n'
+    { [[ "${COUNT}" -le 0 ]] && "${QUIET:-_print_center}" "normal" " No accounts configured yet. " "=" 1>&2; } || printf '\n'
     return 0
 }
 
@@ -63,13 +63,13 @@ _set_new_account_name() {
     export QUIET NEW_ACCOUNT_NAME
     _reload_config || return 1
     new_account_name_set_new_account_name="${1:-}" && unset name_valid_set_new_account_name
-    [ -z "${new_account_name_set_new_account_name}" ] && {
+    [[ -z "${new_account_name_set_new_account_name}" ]] && {
         _all_accounts 2>| /dev/null
         "${QUIET:-_print_center}" "normal" " New account name: " "="
         "${QUIET:-_print_center}" "normal" "Info: Account names can only contain alphabets / numbers / dashes." " " && printf '\n'
     }
-    until [ -n "${name_valid_set_new_account_name}" ]; do
-        if [ -n "${new_account_name_set_new_account_name}" ]; then
+    until [[ -n "${name_valid_set_new_account_name}" ]]; do
+        if [[ -n "${new_account_name_set_new_account_name}" ]]; then
             if _account_name_valid "${new_account_name_set_new_account_name}"; then
                 if _account_exists "${new_account_name_set_new_account_name}"; then
                     "${QUIET:-_print_center}" "normal" " Warning: Given account ( ${new_account_name_set_new_account_name} ) already exists, input different name. " "-" 1>&2
@@ -83,7 +83,7 @@ _set_new_account_name() {
                 unset new_account_name_set_new_account_name && continue
             fi
         else
-            [ -t 1 ] || { "${QUIET:-_print_center}" "normal" " Error: Not running in an interactive terminal, cannot ask for new account name. " 1>&2 && return 1; }
+            [[ -t 1 ]] || { "${QUIET:-_print_center}" "normal" " Error: Not running in an interactive terminal, cannot ask for new account name. " 1>&2 && return 1; }
             printf -- "-> \033[?7l"
             read -r new_account_name_set_new_account_name
             printf '\033[?7h'
@@ -124,7 +124,7 @@ _delete_account() {
 _handle_old_config() {
     # to handle a shellcheck warning
     export CLIENT_ID CLIENT_SECRET REFRESH_TOKEN ROOT_FOLDER ROOT_FOLDER_NAME # only try to convert the if all three values are present
-    [ -n "${CLIENT_ID:+${CLIENT_SECRET:+${REFRESH_TOKEN}}}" ] && {
+    [[ -n "${CLIENT_ID:+${CLIENT_SECRET:+${REFRESH_TOKEN}}}" ]] && {
         account_name_handle_old_config="default" regex_check_handle_old_config config_without_values_handle_old_config count_handle_old_config
         # first try to name the new account as default, otherwise try to add numbers as suffix
         until ! _account_exists "${account_name_handle_old_config}"; do
@@ -161,19 +161,19 @@ _check_credentials() {
     ACCOUNT_NAME="${DEFAULT_ACCOUNT}"
     # if old values exist in config
 
-    if [ -n "${NEW_ACCOUNT_NAME}" ]; then
+    if [[ -n "${NEW_ACCOUNT_NAME}" ]]; then
         # create new account, --create-account flag
         _set_new_account_name "${NEW_ACCOUNT_NAME}" || return 1
         _check_account_credentials "${ACCOUNT_NAME}" || return 1
     else
-        if [ -n "${CUSTOM_ACCOUNT_NAME}" ]; then
+        if [[ -n "${CUSTOM_ACCOUNT_NAME}" ]]; then
             if _account_exists "${CUSTOM_ACCOUNT_NAME}"; then
                 ACCOUNT_NAME="${CUSTOM_ACCOUNT_NAME}"
             else
                 # error out in case CUSTOM_ACCOUNT_NAME is invalid
                 "${QUIET:-_print_center}" "normal" " Error: No such account ( ${CUSTOM_ACCOUNT_NAME} ) exists. " "-" && return 1
             fi
-        elif [ -n "${DEFAULT_ACCOUNT}" ]; then
+        elif [[ -n "${DEFAULT_ACCOUNT}" ]]; then
             # check if default account if valid or not, else set account name to nothing and remove default account in config
             _account_exists "${DEFAULT_ACCOUNT}" || {
                 _update_config DEFAULT_ACCOUNT "" "${CONFIG}" && unset DEFAULT_ACCOUNT ACCOUNT_NAME && UPDATE_DEFAULT_ACCOUNT="_update_config"
@@ -184,21 +184,21 @@ _check_credentials() {
         fi
 
         # in case no account name was set
-        if [ -z "${ACCOUNT_NAME}" ]; then
+        if [[ -z "${ACCOUNT_NAME}" ]]; then
             # if accounts are configured but default account is not set
-            if _all_accounts 2>| /dev/null && [ "${COUNT}" -gt 0 ]; then
+            if _all_accounts 2>| /dev/null && [[ "${COUNT}" -gt 0 ]]; then
                 # when only 1 account is configured, then set it as default
-                if [ "${COUNT}" -eq 1 ]; then
+                if [[ "${COUNT}" -eq 1 ]]; then
                     _set_value indirect ACCOUNT_NAME "ACC_1_ACC" # ACC_1_ACC comes from _all_accounts function
                 else
                     "${QUIET:-_print_center}" "normal" " Above accounts are configured, but default one not set. " "="
-                    if [ -t 1 ]; then
+                    if [[ -t 1 ]]; then
                         "${QUIET:-_print_center}" "normal" " Choose default account: " "-"
-                        until [ -n "${ACCOUNT_NAME}" ]; do
+                        until [[ -n "${ACCOUNT_NAME}" ]]; do
                             printf -- "-> \033[?7l"
                             read -r account_name_check_credentials
                             printf '\033[?7h'
-                            if [ "${account_name_check_credentials}" -gt 0 ] && [ "${account_name_check_credentials}" -le "${COUNT}" ]; then
+                            if [[ "${account_name_check_credentials}" -gt 0 ]] && [[ "${account_name_check_credentials}" -le "${COUNT}" ]]; then
                                 _set_value indirect ACCOUNT_NAME "ACC_${COUNT}_ACC"
                             else
                                 _clear_line 1
@@ -221,7 +221,7 @@ _check_credentials() {
     "${UPDATE_DEFAULT_ACCOUNT:-:}" DEFAULT_ACCOUNT "${ACCOUNT_NAME}" "${CONFIG}" # update default account if required
     "${UPDATE_DEFAULT_CONFIG:-:}" CONFIG "${CONFIG}" "${CONFIG_INFO}"            # update default config if required
 
-    [ -n "${CONTINUE_WITH_NO_INPUT}" ] || _token_bg_service # launch token bg service
+    [[ -n "${CONTINUE_WITH_NO_INPUT}" ]] || _token_bg_service # launch token bg service
     return 0
 }
 
@@ -255,7 +255,7 @@ _check_client() {
     unset type_value_check_client type_name_check_client valid_check_client client_check_client message_check_client regex_check_client
 
     # set regex for validation
-    if [ "${type_check_client}" = "CLIENT_ID" ]; then
+    if [[ "${type_check_client}" = "CLIENT_ID" ]]; then
         regex_check_client='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
     else
         regex_check_client='[0-9A-Za-z_-]+'
@@ -265,18 +265,18 @@ _check_client() {
     type_name_check_client="${account_name_check_client:+ACCOUNT_${account_name_check_client}_}${type_check_client}"
     _set_value indirect type_value_check_client "${type_name_check_client}"
 
-    until [ -n "${type_value_check_client}" ] && [ -n "${valid_check_client}" ]; do
-        [ -n "${type_value_check_client}" ] && {
+    until [[ -n "${type_value_check_client}" ]] && [[ -n "${valid_check_client}" ]]; do
+        [[ -n "${type_value_check_client}" ]] && {
             if _assert_regex "${regex_check_client}" "${type_value_check_client}"; then
-                [ -n "${client_check_client}" ] && { _update_config "${type_name_check_client}" "${type_value_check_client}" "${CONFIG}" || return 1; }
+                [[ -n "${client_check_client}" ]] && { _update_config "${type_name_check_client}" "${type_value_check_client}" "${CONFIG}" || return 1; }
                 valid_check_client="true" && continue
             else
-                { [ -n "${client_check_client}" ] && message_check_client="- Try again"; } || message_check_client="in config ( ${CONFIG} )"
+                { [[ -n "${client_check_client}" ]] && message_check_client="- Try again"; } || message_check_client="in config ( ${CONFIG} )"
                 "${QUIET:-_print_center}" "normal" " Invalid Client ${1} ${message_check_client} " "-" && unset "${type_name_check_client}" client
             fi
         }
-        [ -z "${client_check_client}" ] && printf "\n" && "${QUIET:-_print_center}" "normal" " Enter Client ${1} " "-"
-        [ -n "${client_check_client}" ] && _clear_line 1
+        [[ -z "${client_check_client}" ]] && printf "\n" && "${QUIET:-_print_center}" "normal" " Enter Client ${1} " "-"
+        [[ -n "${client_check_client}" ]] && _clear_line 1
         printf -- "-> "
         read -r "${type_name_check_client?}" && client_check_client=1
         _set_value indirect type_value_check_client "${type_name_check_client}"
@@ -299,7 +299,7 @@ _check_client() {
 _check_refresh_token() {
     export CLIENT_ID CLIENT_SECRET QUIET CONFIG CURL_PROGRESS SCOPE REDIRECT_URI TOKEN_URL
     # bail out before doing anything if client id and secret is not present, unlikely to happen but just in case
-    [ -z "${CLIENT_ID:+${CLIENT_SECRET}}" ] && return 1
+    [[ -z "${CLIENT_ID:+${CLIENT_SECRET}}" ]] && return 1
     account_name_check_refresh_token="${1:-}"
     refresh_token_regex='[0-9]//[0-9A-Za-z_-]+' authorization_code_regex='[0-9]/[0-9A-Za-z_-]+'
 
@@ -308,20 +308,20 @@ _check_refresh_token() {
 
     # check if need to refetch refresh token whether one present or not
     # checked when --oauth-refetch-refresh-token flag is used
-    [ "${REFETCH_REFRESH_TOKEN:-false}" = "true" ] && {
+    [[ "${REFETCH_REFRESH_TOKEN:-false}" = "true" ]] && {
         unset refresh_token_value_check_refresh_token
     }
 
-    [ -n "${refresh_token_value_check_refresh_token}" ] && {
+    [[ -n "${refresh_token_value_check_refresh_token}" ]] && {
         ! _assert_regex "${refresh_token_regex}" "${refresh_token_value_check_refresh_token}" &&
             "${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token in config file, follow below steps.. " "-" && unset refresh_token_value_check_refresh_token
     }
 
-    [ -z "${refresh_token_value_check_refresh_token}" ] && {
+    [[ -z "${refresh_token_value_check_refresh_token}" ]] && {
         printf "\n" && "${QUIET:-_print_center}" "normal" "If you have a refresh token generated, then type the token, else leave blank and press return key.." " "
         printf "\n" && "${QUIET:-_print_center}" "normal" " Refresh Token " "-" && printf -- "-> "
         read -r refresh_token_value_check_refresh_token
-        if [ -n "${refresh_token_value_check_refresh_token}" ]; then
+        if [[ -n "${refresh_token_value_check_refresh_token}" ]]; then
             "${QUIET:-_print_center}" "normal" " Checking refresh token.. " "-"
             if _assert_regex "${refresh_token_regex}" "${refresh_token_value_check_refresh_token}"; then
                 _set_value direct REFRESH_TOKEN "${refresh_token_value_check_refresh_token}"
@@ -331,7 +331,7 @@ _check_refresh_token() {
             else
                 check_error_check_refresh_token=true
             fi
-            [ -n "${check_error_check_refresh_token}" ] && "${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token given, follow below steps to generate.. " "-" && unset refresh_token_value_check_refresh_token
+            [[ -n "${check_error_check_refresh_token}" ]] && "${QUIET:-_print_center}" "normal" " Error: Invalid Refresh token given, follow below steps to generate.. " "-" && unset refresh_token_value_check_refresh_token
         else
             "${QUIET:-_print_center}" "normal" " No Refresh token given, follow below steps to generate.. " "-" && unset refresh_token_value_check_refresh_token
         fi
@@ -342,7 +342,7 @@ _check_refresh_token() {
         # check for 50 ports
         while :; do
             : "$((server_port_check_refresh_token += 1))"
-            if [ "${server_port_check_refresh_token}" -gt 8130 ]; then
+            if [[ "${server_port_check_refresh_token}" -gt 8130 ]]; then
                 "${QUIET:-_print_center}" "normal" "Error: No open ports found ( 8080 to 8130 )." "-"
                 return 1
             fi
@@ -377,7 +377,7 @@ EOF
 
         # https://developers.google.com/identity/protocols/oauth2/native-app#obtainingaccesstokens
         code_challenge_check_refresh_token="$(_epoch)authorization_code"
-        [ -z "${refresh_token_value_check_refresh_token}" ] && {
+        [[ -z "${refresh_token_value_check_refresh_token}" ]] && {
             printf "\n" && "${QUIET:-_print_center}" "normal" "Visit the below URL, follow the instructions and then come back to commandline" " "
             URL="https://accounts.google.com/o/oauth2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}%3A${server_port_check_refresh_token}&scope=${SCOPE}&response_type=code&code_challenge_method=plain&code_challenge=${code_challenge_check_refresh_token}"
             printf "\n%s\n" "${URL}"
@@ -432,7 +432,7 @@ EOF
 _check_access_token() {
     export CLIENT_ID CLIENT_SECRET REFRESH_TOKEN CONFIG QUIET
     # bail out before doing anything if client id|secret or refresh token is not present, unlikely to happen but just in case
-    [ -z "${CLIENT_ID:+${CLIENT_SECRET:+${REFRESH_TOKEN}}}" ] && return 1
+    [[ -z "${CLIENT_ID:+${CLIENT_SECRET:+${REFRESH_TOKEN}}}" ]] && return 1
 
     account_name_check_access_token="${1:-}" no_check_check_access_token="${2:-false}" response_json_check_access_token="${3:-}"
     unset token_name_check_access_token token_expiry_name_check_access_token token_value_check_access_token token_expiry_value_check_access_token response_check_access_token
@@ -443,7 +443,7 @@ _check_access_token() {
     _set_value indirect token_value_check_access_token "${token_name_check_access_token}"
     _set_value indirect token_expiry_value_check_access_token "${token_expiry_name_check_access_token}"
 
-    [ "${no_check_check_access_token}" = skip_check ] || [ -z "${token_value_check_access_token}" ] || [ "${token_expiry_value_check_access_token:-0}" -lt "$(_epoch)" ] || ! _assert_regex "${access_token_regex}" "${token_value_check_access_token}" && {
+    [[ "${no_check_check_access_token}" = skip_check ]] || [[ -z "${token_value_check_access_token}" ]] || [[ "${token_expiry_value_check_access_token:-0}" -lt "$(_epoch)" ]] || ! _assert_regex "${access_token_regex}" "${token_value_check_access_token}" && {
         response_check_access_token="${response_json_check_access_token:-$(curl --compressed -s -X POST --data \
             "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&refresh_token=${REFRESH_TOKEN}&grant_type=refresh_token" "${TOKEN_URL}")}" || :
 
@@ -474,7 +474,7 @@ _check_access_token() {
 ###################################################
 _reload_config() {
     export CONFIG
-    { [ -r "${CONFIG}" ] && _parse_config "${CONFIG}"; } || { printf "" >> "${CONFIG}" || return 1; }
+    { [[ -r "${CONFIG}" ]] && _parse_config "${CONFIG}"; } || { printf "" >> "${CONFIG}" || return 1; }
     return 0
 }
 
@@ -486,18 +486,18 @@ _reload_config() {
 ###################################################
 _token_bg_service() {
     export MAIN_PID ACCESS_TOKEN ACCESS_TOKEN_EXPIRY TMPFILE
-    [ -z "${MAIN_PID}" ] && return 0 # don't start if MAIN_PID is empty
+    [[ -z "${MAIN_PID}" ]] && return 0 # don't start if MAIN_PID is empty
     printf "%b\n" "ACCESS_TOKEN=\"${ACCESS_TOKEN}\"\nACCESS_TOKEN_EXPIRY=\"${ACCESS_TOKEN_EXPIRY}\"" >| "${TMPFILE}_ACCESS_TOKEN"
     {
         until ! kill -0 "${MAIN_PID}" 2>| /dev/null 1>&2; do
             . "${TMPFILE}_ACCESS_TOKEN"
             CURRENT_TIME="$(_epoch)"
             REMAINING_TOKEN_TIME="$((ACCESS_TOKEN_EXPIRY - CURRENT_TIME))"
-            if [ "${REMAINING_TOKEN_TIME}" -le 300 ]; then
+            if [[ "${REMAINING_TOKEN_TIME}" -le 300 ]]; then
                 # timeout after 30 seconds, it shouldn't take too long anyway, and update tmp config
                 CONFIG="${TMPFILE}_ACCESS_TOKEN" _timeout 30 _check_access_token "" skip_check || :
             else
-                TOKEN_PROCESS_TIME_TO_SLEEP="$(if [ "${REMAINING_TOKEN_TIME}" -le 301 ]; then
+                TOKEN_PROCESS_TIME_TO_SLEEP="$(if [[ "${REMAINING_TOKEN_TIME}" -le 301 ]]; then
                     printf "0\n"
                 else
                     printf "%s\n" "$((REMAINING_TOKEN_TIME - 300))"
