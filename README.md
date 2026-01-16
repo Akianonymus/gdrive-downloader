@@ -118,20 +118,12 @@ Default values set by automatic installation script, which are changeable:
 
 For custom command name, repo, shell file, etc, see advanced installation method.
 
-**Now, for automatic install script, there are two ways:**
-
-#### Basic Method
+**Now, for automatic install script:**
 
 To install gdrive-downloader in your system, you can run the below command:
 
 ```shell
-curl -Ls --compressed https://drivedl.cf | sh -s
-```
-
-alternatively, you can use the original github url instead of `https://drivedl.cf`
-
-```shell
-curl -Ls --compressed  https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s
+curl -Ls --compressed https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s
 ```
 
 After the scripts have been downloaded, it will ask to add path to shell rc, follow the instructions.
@@ -247,7 +239,7 @@ Now, run the script and use flags according to your usecase.
 E.g:
 
 ```shell
-curl -Ls --compressed https://drivedl.cf | sh -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
+curl -Ls --compressed https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
 ```
 </details>
 
@@ -607,7 +599,7 @@ There are two methods:
 1.  Run the installation script again with -U/--uninstall flag
 
     ```shell
-    curl -Ls --compressed https://drivedl.cf | sh -s -- --uninstall
+    curl -Ls --compressed https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s -- --uninstall
     ```
 
     Yes, just run the installation script again with the flag and voila, it's done.
