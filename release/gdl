@@ -656,7 +656,7 @@ DOCUMENT_FORMAT_ESCAPED=""
 EOF
 _parser_setup_flag_process 4<<'EOF'
 DOCUMENT_FORMAT="${2}"
-DOCUMENT_FORMAT_ESCAPED="${_get_export_mime "${DOCUMENT_FORMAT}"}"
+DOCUMENT_FORMAT_ESCAPED="$(_get_export_mime mime "${DOCUMENT_FORMAT}")"
 if [[ -z "${DOCUMENT_FORMAT_ESCAPED}" ]]; then
     printf "\nError: Wrong document format.\nAvailable formats are: rtf, odt, pdf, epub, zip, docx, txt, etc. See help" && return 1
 fi
