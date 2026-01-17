@@ -82,7 +82,10 @@ _setup_arguments() {
     [[ -n "${OAUTH_ENABLED}" ]] && unset API_KEY_DOWNLOAD
 
     # post processing for --key flag
-    [[ -n "${API_KEY_DOWNLOAD}" ]] && "${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "${CONFIG}"
+    [[ -n "${API_KEY_DOWNLOAD}" ]] && {
+        API_KEY="$(_sanitize_api_key "${API_KEY:-}")" &&
+            "${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY}" "${CONFIG}"
+    }
 
     # post processing for --account, --delete-account, --create-acount and --list-accounts
     # handle account related flags here as we want to use the flags independenlty even with no normal valid inputs

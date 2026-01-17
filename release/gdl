@@ -97,11 +97,28 @@ fi
 done
 }
 _json_value(){
-{ [[ $2 -gt 0 ]] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
-{ [[ $3 -gt 0 ]] 2>|/dev/null&&num_json_value="$3";}||{ [[ $3 != all ]]&&num_json_value=1;}
-_tmp="$(grep -o "\"$1\":.*" ${no_of_lines_json_value:+-m} $no_of_lines_json_value)"||return 1
-printf "%s\n" "$_tmp"|sed -e 's|.*"'"$1""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "$num_json_value"p||:
-return 0
+local _filter="${1:?}" _no_lines="${2:-1}" _num="${3:-1}" _input _output
+_input="$(cat)"
+if [[ $_num == "all" ]];then
+_output="$(printf "%s\n" "$_input"|jq -r ".$_filter")"
+[[ $_output == "null" ]]&&_output=""
+else
+_output="$(printf "%s\n" "$_input"|jq -r ".$_filter")"
+[[ $_output == "null" ]]&&_output=""
+[[ -n $_output ]]&&printf "%s\n" "$_output"|head -n "$_num"
+fi
+}
+_aarr_to_str(){
+declare -p "${1:?}"|sed 's/^declare -A //'
+}
+_str_to_aarr(){
+local _var="${1:?}" _str="${2:?}" _key _val
+declare -gA "$_var"
+while IFS=: read -r _key _val;do
+_key="${_key#\"}" _key="${_key%\"}"
+_val="${_val#\"}" _val="${_val%\",*}"
+[[ -n $_key ]]&&printf -v "$_var[$_key]" '%s' "$_val"
+done < <(jq -r 'to_entries[] | "\(.key):\(.value)"' <<<"$_str")
 }
 _move_cursor(){
 printf "\033[%sA" "${1:?Error: Num of line}"
@@ -124,6 +141,7 @@ case "$val" in
 \'*\')val="${val#\'}" val="${val%\'}";;
 *):
 esac
+[[ $key == "API_KEY" ]]&&val="$(_sanitize_api_key "$val")"
 export "$key=$val" 2>/dev/null||printf "%s\n" "Warning: $key is not a valid variable name."
 [[ $print_parse_config == true ]]&&echo "$key=$val"
 done <"$_config_file_parse_config"
@@ -206,6 +224,12 @@ return 0
 else
 return 1
 fi
+}
+_sanitize_api_key(){
+local _key="${1:?}"
+_key="${_key//[$'\t\r\n']/}"
+_key="${_key// /}"
+printf "%s" "$_key"
 }
 _count(){
 mapfile -tn 0 lines
@@ -621,6 +645,7 @@ export API_KEY="AIzaSyD2dHsZJ9b4OXuy5B_owiL8W18NaNOM8tk"
 EOF
 _parser_setup_flag_process 4<<'EOF'
 _API_KEY="${2##default=}"
+_API_KEY="$(_sanitize_api_key "${_API_KEY}")"
 # https://github.com/l4yton/RegHex#Google-Drive-API-Key
 regex="AIza[0-9A-Za-z_-]{35}"
 if [[ -n "${_API_KEY}" ]] && _assert_regex "${regex}" "${_API_KEY}"; then
@@ -1328,11 +1353,28 @@ fi
 done
 }
 _json_value(){
-{ [[ $2 -gt 0 ]] 2>|/dev/null&&no_of_lines_json_value="$2";}||:
-{ [[ $3 -gt 0 ]] 2>|/dev/null&&num_json_value="$3";}||{ [[ $3 != all ]]&&num_json_value=1;}
-_tmp="$(grep -o "\"$1\":.*" ${no_of_lines_json_value:+-m} $no_of_lines_json_value)"||return 1
-printf "%s\n" "$_tmp"|sed -e 's|.*"'"$1""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "$num_json_value"p||:
-return 0
+local _filter="${1:?}" _no_lines="${2:-1}" _num="${3:-1}" _input _output
+_input="$(cat)"
+if [[ $_num == "all" ]];then
+_output="$(printf "%s\n" "$_input"|jq -r ".$_filter")"
+[[ $_output == "null" ]]&&_output=""
+else
+_output="$(printf "%s\n" "$_input"|jq -r ".$_filter")"
+[[ $_output == "null" ]]&&_output=""
+[[ -n $_output ]]&&printf "%s\n" "$_output"|head -n "$_num"
+fi
+}
+_aarr_to_str(){
+declare -p "${1:?}"|sed 's/^declare -A //'
+}
+_str_to_aarr(){
+local _var="${1:?}" _str="${2:?}" _key _val
+declare -gA "$_var"
+while IFS=: read -r _key _val;do
+_key="${_key#\"}" _key="${_key%\"}"
+_val="${_val#\"}" _val="${_val%\",*}"
+[[ -n $_key ]]&&printf -v "$_var[$_key]" '%s' "$_val"
+done < <(jq -r 'to_entries[] | "\(.key):\(.value)"' <<<"$_str")
 }
 _move_cursor(){
 printf "\033[%sA" "${1:?Error: Num of line}"
@@ -1355,6 +1397,7 @@ case "$val" in
 \'*\')val="${val#\'}" val="${val%\'}";;
 *):
 esac
+[[ $key == "API_KEY" ]]&&val="$(_sanitize_api_key "$val")"
 export "$key=$val" 2>/dev/null||printf "%s\n" "Warning: $key is not a valid variable name."
 [[ $print_parse_config == true ]]&&echo "$key=$val"
 done <"$_config_file_parse_config"
@@ -1438,6 +1481,12 @@ else
 return 1
 fi
 }
+_sanitize_api_key(){
+local _key="${1:?}"
+_key="${_key//[$'\t\r\n']/}"
+_key="${_key// /}"
+printf "%s" "$_key"
+}
 _count(){
 mapfile -tn 0 lines
 printf '%s\n' "${#lines[@]}"
@@ -1472,7 +1521,7 @@ fi
 _api_request(){
 _curl --compressed ${CURL_PROGRESS:-} \
 -e "https://drive.google.com" \
-"${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY:?}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
+"${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY//[[:space:]]/}&supportsAllDrives=true&includeItemsFromAllDrives=true"||return 1
 _clear_line 1 1>&2
 }
 _api_request_oauth(){
@@ -1502,7 +1551,10 @@ json_check_id="$("$API_REQUEST_FUNCTION" "files/$id_check_id?alt=json&fields=nam
 __error_check_id "Error: Cannot validate URL/ID" "$json_check_id"
 return 1
 }
-printf "%s\n" "$json_check_id"|_json_value code 1 1 2>|/dev/null 1>&2&&__error_check_id "Invalid URL/ID" "$id_check_id" pretty&&return 1
+error_code="$(printf "%s\n" "$json_check_id"|jq -r '.error.code' 2>|/dev/null)"
+[[ $error_code != "null" ]]&&[[ -n $error_code ]]&&{
+__error_check_id "Invalid URL/ID" "$id_check_id" pretty&&return 1
+}
 NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1)"||{
 __error_check_id "Cannot fetch name."
 return 1
@@ -1576,6 +1628,25 @@ elif [[ $type_get_export_mime == "mime" ]];then
 printf "%s" "$format_get_export_mime"
 fi
 }
+_create_file_record(){
+local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}"
+printf '{"root":"%s","id":"%s","name":"%s","size":"%s","mime":"%s"}' \
+"$_root" "$_id" "$_name" "$_size" "$_mime"
+}
+_check_google_error(){
+local _file="${1:?}" _head
+[[ -f $_file ]]||return 1
+_head="$(head -c 2000 "$_file" 2>/dev/null)"
+[[ $_head == *"<html"* ]]||return 1
+[[ $_head == *"<title>Sorry..."* ]]&&return 0
+[[ $_head == *"your computer or network may be sending automated queries"* ]]&&return 0
+return 1
+}
+_create_folder_record(){
+local _parent_id="${1:?}" _root="${2:?}" _id="${3:?}" _name="${4:?}"
+printf '{"parent_id":"%s","root":"%s","id":"%s","name":"%s"}' \
+"$_parent_id" "$_root" "$_id" "$_name"
+}
 _cookies_and_document_stuff(){
 "$EXTRA_LOG" "justify" "Fetching" " ${1:?}.." "-"
 _curl --compressed $CURL_PROGRESS ${3:-} \
@@ -1600,7 +1671,7 @@ flag_download_file="--header" flag_value_download_file="Authorization: Bearer $A
 fi
 elif [[ -n $API_KEY_DOWNLOAD ]];then
 flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
-url_download_file="$url_download_file&key=$API_KEY"
+url_download_file="$url_download_file&key=${API_KEY//[[:space:]]/}"
 fi
 case "$mime_download_file" in
 "application/vnd.google-apps."*)_cookies_and_document_stuff "document size" "$url_download_file" "-LI" "$flag_download_file" "$flag_value_download_file"||return 1
@@ -1651,9 +1722,27 @@ aria2c $ARIA_FLAGS \
 "$flag_download_file" "$flag_value_download_file" \
 "$url_download_file" -o "$name_download_file"||download_status=1
 if [[ $download_status -eq 0 ]];then
+if _check_google_error "$name_download_file";then
+rm -f -- "$name" "$name.aria2"
+_newline "\n"
+"${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+exit 1
+fi
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f -- "$name.aria2"
 else
+if _check_google_error "$name_download_file";then
+rm -f -- "$name" "$name.aria2"
+_newline "\n"
+"${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+exit 1
+fi
 "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
 return 1
 fi
@@ -1714,10 +1803,28 @@ old_downloaded_download_file="$downloaded_download_file"
 done
 fi
 if [[ "$(_actual_size_in_bytes "$name_download_file")" -ge "$((server_size_download_file))" ]];then
+if _check_google_error "$name_download_file";then
+rm -f -- "$name" "$name.aria2"
+_newline "\n"
+"${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+exit 1
+fi
 for _ in 1 2 3;do _clear_line 1;done
 "${QUIET:-_print_center}" "justify" "Downloaded" "="&&_newline "\n"
 rm -f -- "$name.aria2"
 else
+if _check_google_error "$name_download_file";then
+rm -f -- "$name" "$name.aria2"
+_newline "\n"
+"${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+exit 1
+fi
 "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
 return 1
 fi
@@ -1731,20 +1838,18 @@ unset line_download_file_main fileid_download_file_main name_download_file_main 
 if [[ $1 == parse ]];then
 line_download_file_main="${2:?}"
 parallel_download_file_main="$3"
-root_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
-fileid_download_file_main="${line_download_file_main##"$root_download_file_main""|:_//_:|"}"
-fileid_download_file_main="${fileid_download_file_main%%"|:_//_:|"*}"
-name_download_file_main="${line_download_file_main##*"$fileid_download_file_main""|:_//_:|"}"
-name_download_file_main="${name_download_file_main%%"|:_//_:|"*}"
-size_download_file_main="${line_download_file_main##*"$name_download_file_main""|:_//_:|"}"
-size_download_file_main="${size_download_file_main%%"|:_//_:|"*}"
-mime_download_file_main="${line_download_file_main##*"|:_//_:|"}"
+root_download_file_main="$(jq -r '.root' <<<"$line_download_file_main")"
+fileid_download_file_main="$(jq -r '.id' <<<"$line_download_file_main")"
+name_download_file_main="$(jq -r '.name' <<<"$line_download_file_main")"
+size_download_file_main="$(jq -r '.size' <<<"$line_download_file_main")"
+mime_download_file_main="$(jq -r '.mime' <<<"$line_download_file_main")"
 else
 fileid_download_file_main="${2:?}"
 name_download_file_main="${3:?}"
 mime_download_file_main="$4"
 size_download_file_main="$5"
 size_download_file_main="$((size_download_file_main))"
+parallel_download_file_main="$6"
 fi
 [[ -z ${fileid_download_file_main:+$name_download_file_main} ]]&&return 0
 case "$mime_download_file_main" in
@@ -1760,10 +1865,7 @@ name_download_file_main="$name_download_file_main.$DOCUMENT_FORMAT"
 esac
 unset RETURN_STATUS&&until [[ $retry_download_file_main -le 0 ]]&&[[ -n $RETURN_STATUS ]];do
 if [[ -n $parallel_download_file_main ]];then
-([[ $1 == parse ]]&&{
-cd -- "$root_download_file_main"||return 1
-}
-"_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main" true 2>|/dev/null 1>&2)&&RETURN_STATUS=1&&break
+("_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main" true 2>|/dev/null 1>&2)&&RETURN_STATUS=1&&break
 else
 ([[ $1 == parse ]]&&{
 cd -- "$root_download_file_main"||return 1
@@ -1776,6 +1878,12 @@ done
 { [[ $RETURN_STATUS == 1 ]]&&printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}";}||printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}" 1>&2
 return 0
 }
+_download_file_main_aarr(){
+local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}" _parallel="$6"
+cd -- "$_root"||return 1
+PARALLEL_ROOT="$_root" _download_file_main "" "$_id" "$_name" "$_mime" "$_size" true
+return $?
+}
 _fetch_folderinfo(){
 export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS
 parse_fetch_folderinfo="${1:?}"
@@ -1787,13 +1895,11 @@ num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
 if [[ $parse_fetch_folderinfo == "true" ]];then
 mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
 line_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
-files_list_fetch_folderinfo="${4:?_fetch_folderinfo: 4}" folders_list_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
-name_fetch_folderinfo="${line_fetch_folderinfo##*"|:_//_:|"}"
-_tmp_root_fetch_folderinfo="${line_fetch_folderinfo%"|:_//_:|"*}"
-_tmp_root_fetch_folderinfo="${_tmp_root_fetch_folderinfo%"|:_//_:|"*}"
-root_name_fetch_folderinfo="${_tmp_root_fetch_folderinfo#*"|:_//_:|"}"
-_tmp_id_fetch_folderinfo="${line_fetch_folderinfo%%"|:_//_:|""$name_fetch_folderinfo"}"
-folder_id_fetch_folderinfo="${_tmp_id_fetch_folderinfo##*"|:_//_:|"}"
+files_list_fetch_folderinfo="${4:?_fetch_folderinfo: 4}"
+folders_list_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
+name_fetch_folderinfo="$(jq -r '.name' <<<"$line_fetch_folderinfo")"
+root_name_fetch_folderinfo="$(jq -r '.root' <<<"$line_fetch_folderinfo")"
+folder_id_fetch_folderinfo="$(jq -r '.id' <<<"$line_fetch_folderinfo")"
 else
 mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
 folder_id_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
@@ -1823,10 +1929,10 @@ else
 _search_error_message_fetch_folderinfo "$json_search_fetch_folderinfo"
 fi&&_clear_line 1
 "$EXTRA_LOG" "justify" "Preparing files list.." "="
-files_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value id all all)"||:
-files_size_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value size all all)"||:
-files_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value name all all)"||:
-files_mime_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|_json_value mimeType all all)"||:
+files_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].id')"||:
+files_size_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].size')"||:
+files_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].name')"||:
+files_mime_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].mimeType')"||:
 chmod +w+r -- "$files_list_fetch_folderinfo"
 exec 5<<EOF
 $(printf "%s\n" "$files_id_fetch_folderinfo")
@@ -1841,7 +1947,7 @@ exec 8<<EOF
 $(printf "%s\n" "$files_mime_fetch_folderinfo")
 EOF
 while IFS= read -r id <&5&&read -r size <&6&&read -r name <&7&&read -r mime <&8;do
-[[ -n ${id:+$name} ]]&&printf "%s\n" "$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name|:_//_:|$((size))|:_//_:|$mime"
+[[ -n ${id:+$name} ]]&&printf "%s\n" "$(_create_file_record "$root_name_fetch_folderinfo/$name_fetch_folderinfo" "$id" "$name" "$((size))" "$mime")"
 done >>"$files_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-&&exec 7<&-&&exec 8<&-
 _clear_line 1
@@ -1851,8 +1957,8 @@ name_fetch_folderinfo="$name_fetch_folderinfo$(_epoch)"
 fi
 mkdir -p -- "$root_name_fetch_folderinfo/$name_fetch_folderinfo"
 "$EXTRA_LOG" "justify" "Preparing sub folders list.." "="
-folders_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|grep '"mimeType":.*folder.*' -B2|_json_value id all all)"||:
-folders_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|grep '"mimeType":.*folder.*' -B1|_json_value name all all)"||:
+folders_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[] | select(.mimeType | contains("folder")) | .id')"||:
+folders_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[] | select(.mimeType | contains("folder")) | .name')"||:
 chmod +w+r -- "$folders_list_fetch_folderinfo"
 exec 5<<EOF
 $(printf "%s\n" "$folders_id_fetch_folderinfo")
@@ -1861,7 +1967,7 @@ exec 6<<EOF
 $(printf "%s\n" "$folders_name_fetch_folderinfo")
 EOF
 _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5&&read -r name <&6;do
-[[ -n ${id:+$name} ]]&&printf "%s\n" "$folder_id_fetch_folderinfo|:_//_:|$root_name_fetch_folderinfo/$name_fetch_folderinfo|:_//_:|$id|:_//_:|$name"
+[[ -n ${id:+$name} ]]&&printf "%s\n" "$(_create_folder_record "$folder_id_fetch_folderinfo" "$root_name_fetch_folderinfo/$name_fetch_folderinfo" "$id" "$name")"
 done)"
 printf "%s" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-
@@ -1911,10 +2017,10 @@ if [[ -n $parallel_download_folder ]];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
 [[ -f "$TMPFILE"SUCCESS ]]&&rm "$TMPFILE"SUCCESS
 [[ -f "$TMPFILE"ERROR ]]&&rm "$TMPFILE"ERROR
-(xargs -P"$NO_OF_PARALLEL_JOBS_FINAL" -I "{}" -n 1 bash -c '
-                eval "${SOURCE_UTILS}"
-                _download_file_main parse "{}" true
-            ' <"$files_list_download_folder" 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&
+(xargs -P"$NO_OF_PARALLEL_JOBS_FINAL" -d '\n' -n 1 bash -c '
+                line="${1}"
+                _download_file_main_aarr "$(jq -r ".root" <<< "${line}")" "$(jq -r ".id" <<< "${line}")" "$(jq -r ".name" <<< "${line}")" "$(jq -r ".size" <<< "${line}")" "$(jq -r ".mime" <<< "${line}")" true
+            ' _ <"$files_list_download_folder" 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&
 pid="$!"
 until [[ -f "$TMPFILE"SUCCESS ]]||[[ -f "$TMPFILE"ERROR ]];do sleep 0.5;done
 _clear_line 1
@@ -1949,11 +2055,9 @@ _newline "\n"
 [[ $mode_download_folder == "alt" ]]&&return 0
 if [[ -z $SKIP_SUBDIRS ]]&&[[ "$((num_of_folders_download_folder))" -gt 0 ]];then
 while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
-(id="${line%"|:_//_:|"*}"
-id="${id##*"|:_//_:|"}"
-name="${line##*"|:_//_:|"}"
-root="${line#*"|:_//_:|"}"
-root="${root%%"|:_//_:|"*}"
+(id="$(jq -r '.id' <<<"$line")"
+name="$(jq -r '.name' <<<"$line")"
+root="$(jq -r '.root' <<<"$line")"
 _download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel:-}")
 done 4<"$folders_list_download_folder"
 fi
@@ -2009,7 +2113,9 @@ done
 export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $ARIA_extra_flags"
 export CURL_FLAGS="$CURL_FLAGS $CURL_extra_flags"
 [[ -n $OAUTH_ENABLED ]]&&unset API_KEY_DOWNLOAD
-[[ -n $API_KEY_DOWNLOAD ]]&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "${API_KEY:-}" "$CONFIG"
+[[ -n $API_KEY_DOWNLOAD ]]&&{
+API_KEY="$(_sanitize_api_key "${API_KEY:-}")"&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "$API_KEY" "$CONFIG"
+}
 [[ -n $DELETE_ACCOUNT_NAME ]]&&_delete_account "$DELETE_ACCOUNT_NAME"
 [[ -n $LIST_ACCOUNTS ]]&&_all_accounts
 [[ -z $INPUT_ID_1 ]]&&{
@@ -2115,8 +2221,14 @@ exit 0
 export UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"
 export COMMON_PATH="${COMMON_UTILS_FILE:-$PWD}/common"
 { . "$COMMON_PATH/parser.sh"&&. "$COMMON_PATH/flags.sh"&&. "$COMMON_PATH/auth-utils.sh"&&. "$COMMON_PATH/common-utils.sh"&&. "$COMMON_PATH/drive-utils.sh"&&. "$COMMON_PATH/download-utils.sh"&&. "$COMMON_PATH/gdl-common.sh";}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
+_export_functions(){
+local func
+for func in $(compgen -A function|grep '^_');do
+export -f "$func"
+done
 }
-export SOURCE_UTILS=""
+_export_functions
+}
 [[ ${BASH_VERSINFO:-0} -ge 4 ]]||{ printf "Bash version lower than 4.x not supported.\n"&&return 1;}
 set -o noclobber -o pipefail||exit 1
 export _SCRIPT_KILL_SIGNAL="--"

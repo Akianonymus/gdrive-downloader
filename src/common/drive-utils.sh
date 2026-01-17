@@ -5,10 +5,10 @@
 # Default curl command used for gdrivr api requests.
 ###################################################
 _api_request() {
-    # shellcheck disable=SC2086
+    # shellcheck disable=SC2086,SC2154
     _curl --compressed ${CURL_PROGRESS:-} \
         -e "https://drive.google.com" \
-        "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY:?}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
+        "${API_URL:?}/drive/${API_VERSION:?}/${1:?}&key=${API_KEY//[[:space:]]/}&supportsAllDrives=true&includeItemsFromAllDrives=true" || return 1
     _clear_line 1 1>&2
 }
 
@@ -55,8 +55,10 @@ _check_id() {
         return 1
     }
 
-    printf "%s\n" "${json_check_id}" | _json_value code 1 1 2>| /dev/null 1>&2 &&
+    error_code="$(printf "%s\n" "${json_check_id}" | jq -r '.error.code' 2>| /dev/null)"
+    [[ "${error_code}" != "null" ]] && [[ -n "${error_code}" ]] && {
         __error_check_id "Invalid URL/ID" "${id_check_id}" pretty && return 1
+    }
 
     NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1)" || {
         __error_check_id "Cannot fetch name."

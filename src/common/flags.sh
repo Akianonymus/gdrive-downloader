@@ -211,6 +211,7 @@ EOF
 
     _parser_setup_flag_process 4<< 'EOF'
 _API_KEY="${2##default=}"
+_API_KEY="$(_sanitize_api_key "${_API_KEY}")"
 # https://github.com/l4yton/RegHex#Google-Drive-API-Key
 regex="AIza[0-9A-Za-z_-]{35}"
 if [[ -n "${_API_KEY}" ]] && _assert_regex "${regex}" "${_API_KEY}"; then

@@ -71,7 +71,7 @@ _check_debug() {
 _check_dependencies() {
     posix_check_dependencies="${1:-0}" error_list=""
 
-    for program in curl find xargs mkdir rm grep sed sleep ps du; do
+    for program in curl find xargs mkdir rm grep sed sleep ps du jq; do
         command -v "${program}" 2>| /dev/null 1>&2 || error_list="${error_list}\n${program}"
     done
 
@@ -330,7 +330,7 @@ _inject_values() {
     {
         printf "%s\n" "${shebang}"
         for i in VALUES_LIST ${VALUES_LIST}; do
-            printf "%s\n" "${i}=\"$(eval printf "%s" \"\$"${i}"\")\" # added values"
+            printf "%s\n" "${i}=\"${!i}\" # added values"
         done
         printf "%s\n" "LATEST_INSTALLED_SHA=\"${LATEST_CURRENT_SHA}\" # added values"
         printf "%s\n" "${script_without_values_and_shebang}"
@@ -527,15 +527,24 @@ main() {
 
     _check_existing_command() {
         if COMMAND_PATH="$(command -v "${COMMAND_NAME}")"; then
-            if SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" -- "${COMMAND_PATH}" || :)" &&
-                eval "${SCRIPT_VALUES}" 2> /dev/null && [ -n "${LATEST_INSTALLED_SHA:+${SELF_SOURCE}}" ]; then
-                return 0
-            else
-                printf "%s\n" "Error: Cannot validate existing installation, make sure no other program is installed as ${COMMAND_NAME}."
-                printf "%s\n\n" "You can use -c / --cmd flag to specify custom command name."
-                printf "%s\n\n" "Create a issue on github with proper log if above mentioned suggestion doesn't work."
-                exit 1
+            SCRIPT_VALUES="$(grep -E "${VALUES_REGEX}|^LATEST_INSTALLED_SHA=\".*\".* # added values|^SELF_SOURCE=\".*\"" -- "${COMMAND_PATH}" || :)"
+            if [ -n "${SCRIPT_VALUES}" ]; then
+                while IFS='=' read -r var_line value_line; do
+                    [ -z "${var_line}" ] && continue
+                    var_name="${var_line}"
+                    value_line="${value_line% # added values}"
+                    value="${value_line%\"}"
+                    value="${value#\"}"
+                    export "${var_name}=${value}"
+                done <<< "${SCRIPT_VALUES}"
+                if [ -n "${LATEST_INSTALLED_SHA:+${SELF_SOURCE}}" ]; then
+                    return 0
+                fi
             fi
+            printf "%s\n" "Error: Cannot validate existing installation, make sure no other program is installed as ${COMMAND_NAME}."
+            printf "%s\n\n" "You can use -c / --cmd flag to specify custom command name."
+            printf "%s\n\n" "Create a issue on github with proper log if above mentioned suggestion doesn't work."
+            exit 1
         else
             return 1
         fi

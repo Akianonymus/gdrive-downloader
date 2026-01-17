@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Common functions for bash scripts
 # shellcheck source=/dev/null
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2128
 
 ###################################################
 # Print actual size of a file ( apparant size )
@@ -186,23 +186,54 @@ _is_fd_open() {
 }
 
 ###################################################
-# Method to extract specified field data from json
-# Arguments: 2
-#   ${1} - value of field to fetch from json
-#   ${2} - Optional, no of lines to parse for the given field in 1st arg
-#   ${3} - Optional, nth number of value from extracted values, default it 1.
+# Extract value from json using jq
+# Arguments: 3
+#   ${1} - jq filter to apply
+#   ${2} - Optional, no of lines to parse
+#   ${3} - Optional, nth number of value, default is 1, or "all"
 # Input: file | pipe
-#   _json_value "Arguments" < file
-#   echo something | _json_value "Arguments"
+#   echo json | _json_value "Arguments"
 # Result: print extracted value
 ###################################################
 _json_value() {
-    { [[ "${2}" -gt 0 ]] 2>| /dev/null && no_of_lines_json_value="${2}"; } || :
-    { [[ "${3}" -gt 0 ]] 2>| /dev/null && num_json_value="${3}"; } || { [[ "${3}" != all ]] && num_json_value=1; }
-    # shellcheck disable=SC2086
-    _tmp="$(grep -o "\"${1}\":.*" ${no_of_lines_json_value:+-m} ${no_of_lines_json_value})" || return 1
-    printf "%s\n" "${_tmp}" | sed -e "s|.*\"""${1}""\":||" -e 's/[",]*$//' -e 's/["]*$//' -e 's/[,]*$//' -e "s/^ //" -e 's/^"//' -n -e "${num_json_value}"p || :
-    return 0
+    local _filter="${1:?}" _no_lines="${2:-1}" _num="${3:-1}" _input _output
+    _input="$(cat)"
+
+    if [[ "${_num}" = "all" ]]; then
+        _output="$(printf "%s\n" "${_input}" | jq -r ".${_filter}")"
+        [[ "${_output}" = "null" ]] && _output=""
+    else
+        _output="$(printf "%s\n" "${_input}" | jq -r ".${_filter}")"
+        [[ "${_output}" = "null" ]] && _output=""
+        [[ -n "${_output}" ]] && printf "%s\n" "${_output}" | head -n "${_num}"
+    fi
+}
+
+###################################################
+# Serialize associative array to string for subprocess
+# Arguments: 1
+#   ${1} = associative array name
+# Result: print serialized array string
+###################################################
+_aarr_to_str() {
+    declare -p "${1:?}" | sed 's/^declare -A //'
+}
+
+###################################################
+# Deserialize JSON string to associative array
+# Arguments: 2
+#   ${1} = variable name to create
+#   ${2} = JSON string
+# Result: create associative array in calling scope
+###################################################
+_str_to_aarr() {
+    local _var="${1:?}" _str="${2:?}" _key _val
+    declare -gA "${_var}"
+    while IFS=: read -r _key _val; do
+        _key="${_key#\"}" _key="${_key%\"}"
+        _val="${_val#\"}" _val="${_val%\",*}"
+        [[ -n "${_key}" ]] && printf -v "${_var}[${_key}]" '%s' "${_val}"
+    done < <(jq -r 'to_entries[] | "\(.key):\(.value)"' <<< "${_str}")
 }
 
 ###################################################
@@ -254,6 +285,9 @@ _parse_config() {
             \'*\') val="${val#\'}" val="${val%\'}" ;;
             *) : ;;
         esac
+
+        # sanitize API_KEY to remove newlines and whitespace
+        [[ "${key}" = "API_KEY" ]] && val="$(_sanitize_api_key "${val}")"
 
         # '$key' stores the key and '$val' stores the value.
         # Throw a warning if cannot export the variable
@@ -405,6 +439,19 @@ _assert_regex() {
     else
         return 1
     fi
+}
+
+###################################################
+# Sanitize API key by removing newlines and whitespace
+# Arguments: 1
+#   ${1} = API key string to sanitize
+# Result: prints sanitized API key
+###################################################
+_sanitize_api_key() {
+    local _key="${1:?}"
+    _key="${_key//[$'\t\r\n']/}"
+    _key="${_key// /}"
+    printf "%s" "${_key}"
 }
 
 ###################################################

@@ -1,6 +1,50 @@
 #!/usr/bin/env bash
 # shellcheck source=/dev/null
 
+###################################################
+# Create serialized file record string
+# Arguments: 5
+#   ${1} = root folder path
+#   ${2} = file id
+#   ${3} = file name
+#   ${4} = file size
+#   ${5} = file mime type
+# Result: print serialized associative array
+###################################################
+_create_file_record() {
+    local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}"
+    printf '{"root":"%s","id":"%s","name":"%s","size":"%s","mime":"%s"}' \
+        "${_root}" "${_id}" "${_name}" "${_size}" "${_mime}"
+}
+
+###################################################
+# Check if downloaded file is Google rate limit error page
+# Arguments: 1
+#   ${1} = filename to check
+# Result: Return 0 if error page, 1 otherwise
+###################################################
+_check_google_error() {
+    local _file="${1:?}" _head
+    [[ -f "${_file}" ]] || return 1
+
+    _head="$(head -c 2000 "${_file}" 2> /dev/null)"
+
+    # Check for Google error page indicators
+    [[ "${_head}" == *"<html"* ]] || return 1
+
+    # Check for error indicators (avoid apostrophe issues)
+    [[ "${_head}" == *"<title>Sorry..."* ]] && return 0
+    [[ "${_head}" == *"your computer or network may be sending automated queries"* ]] && return 0
+
+    return 1
+}
+
+_create_folder_record() {
+    local _parent_id="${1:?}" _root="${2:?}" _id="${3:?}" _name="${4:?}"
+    printf '{"parent_id":"%s","root":"%s","id":"%s","name":"%s"}' \
+        "${_parent_id}" "${_root}" "${_id}" "${_name}"
+}
+
 # a wrapper function to handle cookies for unauthenticated downloads and to fetch document size all
 _cookies_and_document_stuff() {
     "${EXTRA_LOG}" "justify" "Fetching" " ${1:?}.." "-"
@@ -39,7 +83,7 @@ _common_stuff() {
         elif [[ -n "${API_KEY_DOWNLOAD}" ]]; then
             # download with api key
             flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
-            url_download_file="${url_download_file}&key=${API_KEY}"
+            url_download_file="${url_download_file}&key=${API_KEY//[[:space:]]/}"
         fi
 
         case "${mime_download_file}" in
@@ -122,9 +166,27 @@ _download_with_aria2c() {
         "${url_download_file}" -o "${name_download_file}" || download_status=1
 
     if [[ "${download_status}" -eq 0 ]]; then
+        if _check_google_error "${name_download_file}"; then
+            rm -f -- "${name}" "${name}.aria2"
+            _newline "\n"
+            "${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+            printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+            printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+            printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+            exit 1
+        fi
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f -- "${name}.aria2"
     else
+        if _check_google_error "${name_download_file}"; then
+            rm -f -- "${name}" "${name}.aria2"
+            _newline "\n"
+            "${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+            printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+            printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+            printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+            exit 1
+        fi
         "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
         return 1
     fi
@@ -204,10 +266,28 @@ _download_with_curl() {
     fi
 
     if [[ "$(_actual_size_in_bytes "${name_download_file}")" -ge "$((server_size_download_file))" ]]; then
+        if _check_google_error "${name_download_file}"; then
+            rm -f -- "${name}" "${name}.aria2"
+            _newline "\n"
+            "${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+            printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+            printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+            printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+            exit 1
+        fi
         for _ in 1 2 3; do _clear_line 1; done
         "${QUIET:-_print_center}" "justify" "Downloaded" "=" && _newline "\n"
         rm -f -- "${name}.aria2"
     else
+        if _check_google_error "${name_download_file}"; then
+            rm -f -- "${name}" "${name}.aria2"
+            _newline "\n"
+            "${QUIET:-_print_center}" "justify" "Error: Google rate limit" " detected." "=" 1>&2
+            printf "%s\n" "Your computer or network has been blocked for sending automated queries." 1>&2
+            printf "%s\n" "Suggestion: Use your own API key (--key) or OAuth for better limits." 1>&2
+            printf "%s\n" "See: https://github.com/Akianonymus/gdrive-downloader#api-key-setup" 1>&2
+            exit 1
+        fi
         "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
         return 1
     fi
@@ -229,19 +309,11 @@ _download_file_main() {
         line_download_file_main="${2:?}"
         parallel_download_file_main="${3}"
 
-        # "root_folder_name|:_//_:|id|:_//_:|name|:_//_:|size|:_//_:|mime"
-        root_download_file_main="${line_download_file_main%%"|:_//_:|"*}"
-
-        fileid_download_file_main="${line_download_file_main##"${root_download_file_main}""|:_//_:|"}"
-        fileid_download_file_main="${fileid_download_file_main%%"|:_//_:|"*}"
-
-        name_download_file_main="${line_download_file_main##*"${fileid_download_file_main}""|:_//_:|"}"
-        name_download_file_main="${name_download_file_main%%"|:_//_:|"*}"
-
-        size_download_file_main="${line_download_file_main##*"${name_download_file_main}""|:_//_:|"}"
-        size_download_file_main="${size_download_file_main%%"|:_//_:|"*}"
-
-        mime_download_file_main="${line_download_file_main##*"|:_//_:|"}"
+        root_download_file_main="$(jq -r '.root' <<< "${line_download_file_main}")"
+        fileid_download_file_main="$(jq -r '.id' <<< "${line_download_file_main}")"
+        name_download_file_main="$(jq -r '.name' <<< "${line_download_file_main}")"
+        size_download_file_main="$(jq -r '.size' <<< "${line_download_file_main}")"
+        mime_download_file_main="$(jq -r '.mime' <<< "${line_download_file_main}")"
     else
         fileid_download_file_main="${2:?}"
         name_download_file_main="${3:?}"
@@ -249,6 +321,7 @@ _download_file_main() {
 
         size_download_file_main="${5}"
         size_download_file_main="$((size_download_file_main))"
+        parallel_download_file_main="${6}"
     fi
 
     # just return if fileid or name is empty
@@ -268,7 +341,6 @@ _download_file_main() {
     unset RETURN_STATUS && until [[ "${retry_download_file_main}" -le 0 ]] && [[ -n "${RETURN_STATUS}" ]]; do
         if [[ -n "${parallel_download_file_main}" ]]; then
             (
-                [[ "${1}" = parse ]] && { cd -- "${root_download_file_main}" || return 1; }
                 "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2
             ) && RETURN_STATUS=1 && break
         else
@@ -282,6 +354,26 @@ _download_file_main() {
     done
     { [[ "${RETURN_STATUS}" = 1 ]] && printf "%b" "${parallel_download_file_main:+${RETURN_STATUS}\n}"; } || printf "%b" "${parallel_download_file_main:+${RETURN_STATUS}\n}" 1>&2
     return 0
+}
+
+###################################################
+# Download file main function - associative array version
+# Used by parallel execution
+# Arguments: 6
+#   ${1} = root folder path
+#   ${2} = file id
+#   ${3} = file name
+#   ${4} = file size
+#   ${5} = file mime type
+#   ${6} = parallel flag (optional)
+# Result: same as _download_file_main
+###################################################
+_download_file_main_aarr() {
+    local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}" _parallel="${6}"
+
+    cd -- "${_root}" || return 1
+    PARALLEL_ROOT="${_root}" _download_file_main "" "${_id}" "${_name}" "${_mime}" "${_size}" true
+    return $?
 }
 
 ###################################################
@@ -302,17 +394,12 @@ _fetch_folderinfo() {
     if [[ "${parse_fetch_folderinfo}" = "true" ]]; then
         mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
         line_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
-        files_list_fetch_folderinfo="${4:?_fetch_folderinfo: 4}" folders_list_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
-        # parallel_fetch_folderinfo="${6}"
-        # extracting data from this format "folder_id_fetch_folderinfo|:_//_:|folder_name|:_//_:|id|:_//_:|name"
-        name_fetch_folderinfo="${line_fetch_folderinfo##*"|:_//_:|"}"
+        files_list_fetch_folderinfo="${4:?_fetch_folderinfo: 4}"
+        folders_list_fetch_folderinfo="${5:?_fetch_folderinfo: 5}"
 
-        _tmp_root_fetch_folderinfo="${line_fetch_folderinfo%"|:_//_:|"*}"
-        _tmp_root_fetch_folderinfo="${_tmp_root_fetch_folderinfo%"|:_//_:|"*}"
-        root_name_fetch_folderinfo="${_tmp_root_fetch_folderinfo#*"|:_//_:|"}"
-
-        _tmp_id_fetch_folderinfo="${line_fetch_folderinfo%%"|:_//_:|""${name_fetch_folderinfo}"}"
-        folder_id_fetch_folderinfo="${_tmp_id_fetch_folderinfo##*"|:_//_:|"}"
+        name_fetch_folderinfo="$(jq -r '.name' <<< "${line_fetch_folderinfo}")"
+        root_name_fetch_folderinfo="$(jq -r '.root' <<< "${line_fetch_folderinfo}")"
+        folder_id_fetch_folderinfo="$(jq -r '.id' <<< "${line_fetch_folderinfo}")"
     else
         mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
         folder_id_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
@@ -354,10 +441,10 @@ ${json_search_fragment_fetch_folderinfo}"
 
     # parse the fetched json and make a list containing files size, name, id and mimeType
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    files_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value id all all)" || :
-    files_size_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value size all all)" || :
-    files_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value name all all)" || :
-    files_mime_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | _json_value mimeType all all)" || :
+    files_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].id')" || :
+    files_size_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].size')" || :
+    files_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].name')" || :
+    files_mime_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].mimeType')" || :
 
     chmod +w+r -- "${files_list_fetch_folderinfo}"
     exec 5<< EOF
@@ -374,7 +461,7 @@ $(printf "%s\n" "${files_mime_fetch_folderinfo}")
 EOF
     while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7 && read -r mime <&8; do
         [[ -n "${id:+${name}}" ]] &&
-            printf "%s\n" "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}|:_//_:|${id}|:_//_:|${name}|:_//_:|$((size))|:_//_:|${mime}"
+            printf "%s\n" "$(_create_file_record "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" "${id}" "${name}" "$((size))" "${mime}")"
     done >> "${files_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&- && exec 7<&- && exec 8<&-
     _clear_line 1
@@ -387,8 +474,8 @@ EOF
 
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
-    folders_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep '"mimeType":.*folder.*' -B2 | _json_value id all all)" || :
-    folders_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | grep '"mimeType":.*folder.*' -B1 | _json_value name all all)" || :
+    folders_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[] | select(.mimeType | contains("folder")) | .id')" || :
+    folders_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[] | select(.mimeType | contains("folder")) | .name')" || :
 
     chmod +w+r -- "${folders_list_fetch_folderinfo}"
     exec 5<< EOF
@@ -397,9 +484,10 @@ EOF
     exec 6<< EOF
 $(printf "%s\n" "${folders_name_fetch_folderinfo}")
 EOF
+    # shellcheck disable=SC2030
     _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5 && read -r name <&6; do
         [[ -n "${id:+${name}}" ]] &&
-            printf "%s\n" "${folder_id_fetch_folderinfo}|:_//_:|${root_name_fetch_folderinfo}/${name_fetch_folderinfo}|:_//_:|${id}|:_//_:|${name}"
+            printf "%s\n" "$(_create_folder_record "${folder_id_fetch_folderinfo}" "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" "${id}" "${name}")"
     done)"
     printf "%s" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&-
@@ -469,10 +557,10 @@ _download_folder() {
             [[ -f "${TMPFILE}"ERROR ]] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 bash -c '
-                eval "${SOURCE_UTILS}"
-                _download_file_main parse "{}" true
-            ' < "${files_list_download_folder}" 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
+            (xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -d '\n' -n 1 bash -c '
+                line="${1}"
+                _download_file_main_aarr "$(jq -r ".root" <<< "${line}")" "$(jq -r ".id" <<< "${line}")" "$(jq -r ".name" <<< "${line}")" "$(jq -r ".size" <<< "${line}")" "$(jq -r ".mime" <<< "${line}")" true
+            ' _ < "${files_list_download_folder}" 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
             pid="${!}"
 
             until [[ -f "${TMPFILE}"SUCCESS ]] || [[ -f "${TMPFILE}"ERROR ]]; do sleep 0.5; done
@@ -512,15 +600,11 @@ _download_folder() {
 
     if [[ -z "${SKIP_SUBDIRS}" ]] && [[ "$((num_of_folders_download_folder))" -gt 0 ]]; then
         while IFS= read -r line <&4 && { [[ -n "${line}" ]] || continue; }; do
-            #  "folder_id|:_//_:|root_name|:_//_:|id|:_//_:|name"
+            # shellcheck disable=SC2031
             (
-                id="${line%"|:_//_:|"*}"
-                id="${id##*"|:_//_:|"}"
-
-                name="${line##*"|:_//_:|"}"
-
-                root="${line#*"|:_//_:|"}"
-                root="${root%%"|:_//_:|"*}"
+                id="$(jq -r '.id' <<< "${line}")"
+                name="$(jq -r '.name' <<< "${line}")"
+                root="$(jq -r '.root' <<< "${line}")"
 
                 _download_folder "${mode_download_folder}" "${id}" "${name}" "${root}" "${parallel:-}"
             )

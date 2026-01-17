@@ -51,6 +51,14 @@
 - [Contributing](#contributing)
 - [License](#license)
 
+## Breaking Changes
+
+### Version 4.0.0
+
+- **New Dependency**: `jq` is now required for JSON parsing. Install `jq` before upgrading.
+- **Internal Changes**: Migrated from custom delimiter system to Bash associative arrays for data handling.
+- **JSON Parsing**: Rewrote internal JSON parsing to use `jq` instead of grep/sed for better reliability.
+
 ## Compatibility
 
 As this is a collection of shell scripts, there aren't many dependencies. See [Native Dependencies](#native-dependencies) after this section for explicitly required program list.
@@ -98,7 +106,8 @@ Again, it has not been officially tested on windows, there shouldn't be anything
  | mktemp           | To generate temporary files ( optional )               |
  | sleep            | Self explanatory                                       |
  | ps               | To manage different processes                          |
- | du               | To get actual file sizes                               |
+  | du               | To get actual file sizes                               |
+  | jq               | JSON parsing                                           |
 
 ### Installation
 
