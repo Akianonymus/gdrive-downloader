@@ -26,9 +26,9 @@ _cleanup_config() {
 $(grep -F ACCESS_TOKEN_EXPIRY -- "${config}" || :)
 EOF
 
-    chmod u+w -- "${config}" &&
+    chmod u+w "${config}" &&
         printf "%s\n" "$(grep -Ev "^\$${values_regex:+|${values_regex}}" -- "${config}")" >| "${config}" &&
-        chmod "a-w-r-x,u+r" -- "${config}"
+        chmod "a-w-r-x,u+r" "${config}"
     return 0
 }
 

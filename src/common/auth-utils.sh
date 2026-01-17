@@ -106,9 +106,9 @@ _delete_account() {
     if _account_exists "${account_delete_account}"; then
         regex_delete_account="^ACCOUNT_${account_delete_account}_(CLIENT_ID=|CLIENT_SECRET=|REFRESH_TOKEN=|ROOT_FOLDER=|ROOT_FOLDER_NAME=|ACCESS_TOKEN=|ACCESS_TOKEN_EXPIRY=)|DEFAULT_ACCOUNT=\"${account_delete_account}\""
         config_without_values_delete_account="$(grep -vE "${regex_delete_account}" -- "${CONFIG}")"
-        chmod u+w -- "${CONFIG}" || return 1 # change perms to edit
+        chmod u+w "${CONFIG}" || return 1 # change perms to edit
         printf "%s\n" "${config_without_values_delete_account}" >| "${CONFIG}" || return 1
-        chmod "a-w-r-x,u+r" -- "${CONFIG}" || return 1 # restore perms
+        chmod "a-w-r-x,u+r" "${CONFIG}" || return 1 # restore perms
         "${QUIET:-_print_center}" "normal" " Successfully deleted account ( ${account_delete_account} ) from config. " "-"
     else
         "${QUIET:-_print_center}" "normal" " Error: Cannot delete account ( ${account_delete_account} ) from config. No such account exists " "-" 1>&2
@@ -132,7 +132,7 @@ _handle_old_config() {
         done
         regex_check_handle_old_config="^(CLIENT_ID=|CLIENT_SECRET=|REFRESH_TOKEN=|ROOT_FOLDER=|ROOT_FOLDER_NAME=|ACCESS_TOKEN=|ACCESS_TOKEN_EXPIRY=)"
         config_without_values_handle_old_config="$(grep -vE "${regex_check_handle_old_config}" -- "${CONFIG}")"
-        chmod u+w -- "${CONFIG}" || return 1 # change perms to edit
+        chmod u+w "${CONFIG}" || return 1 # change perms to edit
         printf "%s\n%s\n%s\n%s\n%s\n%s\n" \
             "ACCOUNT_${account_name_handle_old_config}_CLIENT_ID=\"${CLIENT_ID}\"" \
             "ACCOUNT_${account_name_handle_old_config}_CLIENT_SECRET=\"${CLIENT_SECRET}\"" \
@@ -141,7 +141,7 @@ _handle_old_config() {
             "ACCOUNT_${account_name_handle_old_config}_ROOT_FOLDER_NAME=\"${ROOT_FOLDER_NAME}\"" \
             "${config_without_values_handle_old_config}" >| "${CONFIG}" || return 1
 
-        chmod "a-w-r-x,u+r" -- "${CONFIG}" || return 1 # restore perms
+        chmod "a-w-r-x,u+r" "${CONFIG}" || return 1 # restore perms
 
         _reload_config || return 1 # reload config file
     }

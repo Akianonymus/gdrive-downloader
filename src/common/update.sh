@@ -68,6 +68,6 @@ _update_value() {
         printf "%s\n" "Update downloaded but malformed, try again and if the issue persists open an issue on github."
         return 1
     }
-    chmod u+w -- "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod "a-w-r-x,${PERM_MODE:-u}+r+x" -- "${command_path}"
+    chmod u+w "${command_path}" && printf "%s\n" "${new_script}" >| "${command_path}" && chmod "a-w-r-x,${PERM_MODE:-u}+r+x" "${command_path}"
     return 0
 }

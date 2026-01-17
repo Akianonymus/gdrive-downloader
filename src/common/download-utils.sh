@@ -446,7 +446,7 @@ ${json_search_fragment_fetch_folderinfo}"
     files_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].name')" || :
     files_mime_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].mimeType')" || :
 
-    chmod +w+r -- "${files_list_fetch_folderinfo}"
+    chmod +w+r "${files_list_fetch_folderinfo}"
     exec 5<< EOF
 $(printf "%s\n" "${files_id_fetch_folderinfo}")
 EOF
@@ -465,7 +465,7 @@ EOF
     done >> "${files_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&- && exec 7<&- && exec 8<&-
     _clear_line 1
-    chmod -w+r -- "${files_list_fetch_folderinfo}"
+    chmod -w+r "${files_list_fetch_folderinfo}"
 
     if [[ -f "${name_fetch_folderinfo}" ]]; then
         name_fetch_folderinfo="${name_fetch_folderinfo}$(_epoch)"
@@ -477,7 +477,7 @@ EOF
     folders_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[] | select(.mimeType | contains("folder")) | .id')" || :
     folders_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[] | select(.mimeType | contains("folder")) | .name')" || :
 
-    chmod +w+r -- "${folders_list_fetch_folderinfo}"
+    chmod +w+r "${folders_list_fetch_folderinfo}"
     exec 5<< EOF
 $(printf "%s\n" "${folders_id_fetch_folderinfo}")
 EOF
@@ -491,7 +491,7 @@ EOF
     done)"
     printf "%s" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&-
-    chmod -w+r -- "${folders_list_fetch_folderinfo}"
+    chmod -w+r "${folders_list_fetch_folderinfo}"
     _clear_line 1
 
     for _ in 1 2; do _clear_line 1; done
@@ -529,13 +529,13 @@ _download_folder() {
     _fetch_folderinfo false "${mode_download_folder}" "${folder_id_download_folder}" "${name_download_folder}" "${root_download_folder}" \
         "${files_list_download_folder}" "${folders_list_download_folder}" "${parallel_download_folder}"
 
-    chmod +w+r -- "${files_list_download_folder}" "${folders_list_download_folder}"
+    chmod +w+r "${files_list_download_folder}" "${folders_list_download_folder}"
     # include or exlude the files if -in or -ex flag was used, use grep
     [[ -n "${INCLUDE_FILES}" ]] && _tmp_filesinfo="$(grep -E "${INCLUDE_FILES}" "${files_list_download_folder}")" &&
         printf "%s\n" "${_tmp_filesinfo}" >> "${files_list_download_folder}"
     [[ -n "${EXCLUDE_FILES}" ]] && _tmp_filesinfo="$(grep -Ev "${EXCLUDE_FILES}" "${files_list_download_folder}")" &&
         printf "%s\n" "${_tmp_filesinfo}" >> "${files_list_download_folder}"
-    chmod -w+r -- "${files_list_download_folder}" "${folders_list_download_folder}"
+    chmod -w+r "${files_list_download_folder}" "${folders_list_download_folder}"
 
     num_of_files_download_folder="$(_count < "${files_list_download_folder}")"
     num_of_folders_download_folder="$(_count < "${folders_list_download_folder}")"
