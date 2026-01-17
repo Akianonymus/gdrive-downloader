@@ -23,6 +23,12 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v1
+      - name: Install bash (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash
+          echo "/opt/homebrew/bin/bash" >> $GITHUB_PATH
+          echo "/usr/local/bin/bash" >> $GITHUB_PATH
       - name: Install
         run: |
           set -e
@@ -63,7 +69,5 @@ jobs:
       - name: Download test
         run: |
           set -e
-          # update bash for macos
-          command -v brew && brew reinstall bash
           # download tests
           sh test.sh
