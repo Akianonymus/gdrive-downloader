@@ -20,7 +20,6 @@ main() {
             . "${COMMON_PATH}/gdl-common.sh"; } ||
             { printf "Error: Unable to source util files.\n" && exit 1; }
     }
-    # this var is used for posix scripts in download folder function inside xargs, but we don't need that here
     export SOURCE_UTILS=""
 
     [[ ${BASH_VERSINFO:-0} -ge 4 ]] || { printf "Bash version lower than 4.x not supported.\n" && return 1; }

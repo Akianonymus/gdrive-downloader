@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Install, Update or Uninstall gdrive-downloader
 # shellcheck source=/dev/null
 
@@ -16,7 +16,6 @@ Options:\n
   -s | --shell-rc <shell_file> - Specify custom rc file, where PATH is supposed to be appended, by default script detects .zshrc and .bashrc.\n
   -t | --time 'no of days' - Specify custom auto update time ( given input will taken as number of days ) after which script will try to automatically update itself.\n
   --skip-internet-check - Like the flag says.\n
-  --sh | --posix - Force install posix scripts even if system has compatible bash binary present.\n
   -q | --quiet - Only show critical error/sucess logs.\n
   -U | --uninstall - Uninstall the script and remove related files.\n
   -D | --debug - Display script command trace.\n
@@ -288,16 +287,11 @@ _variables() {
     TYPE="branch"
     TYPE_VALUE="master"
     SHELL_RC="$(_detect_profile)"
-    # If bash installation, then use bash printf else date
-    LAST_UPDATE_TIME="$(if [ "${INSTALLATION}" = bash ]; then
-        bash -c 'printf "%(%s)T\\n" "-1"'
-    else
-        date +'%s'
-    fi)" && export LAST_UPDATE_TIME
+    LAST_UPDATE_TIME="$(bash -c 'printf "%(%s)T\\n" "-1"')" && export LAST_UPDATE_TIME
     GLOBAL_INSTALL="false" PERM_MODE="u"
     export GDL_INSTALLED_WITH="script"
 
-    export VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL INSTALLATION GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH"
+    export VALUES_LIST="REPO COMMAND_NAME INSTALL_PATH TYPE TYPE_VALUE LAST_UPDATE_TIME AUTO_UPDATE_INTERVAL GLOBAL_INSTALL PERM_MODE GDL_INSTALLED_WITH"
 
     VALUES_REGEX="" && for i in VALUES_LIST ${VALUES_LIST}; do
         VALUES_REGEX="${VALUES_REGEX:+${VALUES_REGEX}|}^${i}=\".*\".* # added values"
@@ -315,9 +309,9 @@ _download_file() {
     [ -f "${INSTALL_PATH}/${COMMAND_NAME}" ] && chmod u+w -- "${INSTALL_PATH}/${COMMAND_NAME}"
     _print_center "justify" "${COMMAND_NAME}" "-"
     # now download the binary
-    if script_download_file="$(curl -Ls --compressed "https://github.com/${REPO}/raw/${LATEST_CURRENT_SHA}/release/${INSTALLATION:-}/gdl")"; then
+    if script_download_file="$(curl -Ls --compressed "https://github.com/${REPO}/raw/${LATEST_CURRENT_SHA}/release/gdl")"; then
         # check if the downloaded script has any syntax errors, return 2 will be used later
-        printf "%s\n" "${script_download_file}" | "${INSTALLATION}" -n || return 2
+        printf "%s\n" "${script_download_file}" | bash -n || return 2
         printf "%s\n" "${script_download_file}" >| "${COMMAND_NAME}" || return 1
     else
         return 1
@@ -486,7 +480,6 @@ _setup_arguments() {
                     exit 1
                 fi
                 ;;
-            --sh | --posix) INSTALLATION="sh" ;;
             -q | --quiet) QUIET="_print_quiet" ;;
             --skip-internet-check) SKIP_INTERNET_CHECK=":" ;;
             -U | --uninstall) UNINSTALL="true" ;;
@@ -522,8 +515,11 @@ _setup_arguments() {
 }
 
 main() {
-    { command -v bash && [ "$(bash -c 'printf "%s\n" ${BASH_VERSINFO:-0}')" -ge 4 ] && INSTALLATION="bash"; } 1>| /dev/null
-    _check_dependencies "${?}" && INSTALLATION="${INSTALLATION:-sh}"
+    { command -v bash && [[ "$(bash -c 'printf "%s\n" ${BASH_VERSINFO:-0}')" -ge 4 ]]; } 1>| /dev/null || {
+        printf "%s\n" "Error: Bash 4.x+ is required."
+        exit 1
+    }
+    _check_dependencies "${?}"
 
     set -o noclobber
 

@@ -198,12 +198,6 @@ These are the flags that are available in the install.sh script:
 
     ---
 
--   <strong>--sh | --posix</strong>
-
-    Force install posix scripts even if system has compatible bash binary present.
-
-    ---
-
 -   <strong>-q | --quiet</strong>
 
     Only show critical error/sucess logs.
@@ -239,7 +233,7 @@ Now, run the script and use flags according to your usecase.
 E.g:
 
 ```shell
-curl -Ls --compressed https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | sh -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
+curl -Ls --compressed https://github.com/Akianonymus/gdrive-downloader/raw/master/install.sh | bash -s -- -r username/reponame -p somepath -s shell_file -c command_name -b branch_name
 ```
 </details>
 

@@ -1911,7 +1911,7 @@ if [[ -n $parallel_download_folder ]];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
 [[ -f "$TMPFILE"SUCCESS ]]&&rm "$TMPFILE"SUCCESS
 [[ -f "$TMPFILE"ERROR ]]&&rm "$TMPFILE"ERROR
-(xargs -P"$NO_OF_PARALLEL_JOBS_FINAL" -I "{}" -n 1 "${_SHELL:-sh}" -c '
+(xargs -P"$NO_OF_PARALLEL_JOBS_FINAL" -I "{}" -n 1 bash -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
             ' <"$files_list_download_folder" 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&

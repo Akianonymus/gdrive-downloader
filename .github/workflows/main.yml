@@ -26,12 +26,12 @@ jobs:
       - name: Install
         run: |
           set -e
-          sh install.sh
+          bash install.sh
               PATH="${HOME}/.gdrive-downloader:${PATH}"
               gdl --info
-          sh install.sh -U && sh install.sh --posix
+          bash install.sh -U
               gdl --info
-          sh install.sh -U  && sh install.sh -c custom_gdl
+          bash install.sh -c custom_gdl
               custom_gdl --info
       - name: 'Format, lint ( shellcheck ) and release test'
         run: |

@@ -469,7 +469,7 @@ _download_folder() {
             [[ -f "${TMPFILE}"ERROR ]] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 "${_SHELL:-sh}" -c '
+            (xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -I "{}" -n 1 bash -c '
                 eval "${SOURCE_UTILS}"
                 _download_file_main parse "{}" true
             ' < "${files_list_download_folder}" 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &

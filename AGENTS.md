@@ -50,7 +50,7 @@ The GitHub workflow (.github/workflows/main.yml) runs:
 - Charset: UTF-8
 - Trim trailing whitespace: yes
 - Insert final newline: yes
-- shell_variant: posix (.sh), bash (.bash)
+- shell_variant: bash
 - switch_case_indent: true
 - space_redirects: true
 
