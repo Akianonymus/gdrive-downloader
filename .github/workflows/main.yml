@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         platform:
-          - ubuntu-18.04
+          - ubuntu-latest
           - macos-latest
     name: 'Test on ${{ matrix.platform }}'
     runs-on: '${{ matrix.platform }}'

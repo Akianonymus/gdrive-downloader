@@ -136,47 +136,51 @@ _test_unit() (
 
 _test() (
     use_key="${1:-}"
+    label="${use_key:-no-key}"
 
     cd release || exit 1
 
     count=0
     _error() {
-        printf "%s\n" "Error: Test $((count += 1)) failed for bash ${use_key}."
+        printf "%s\n" "Error: Test $((count += 1)) failed for bash ${label}${1:+: $1}."
         exit 1
     }
 
     _success() {
-        printf "\n%s\n\n" "Success: Test $((count += 1)) passed for bash ${use_key}."
+        printf "\n%s\n\n" "Success: Test $((count += 1)) passed for bash ${label}${1:+: $1}."
     }
 
     ### Folder ###
-    ./gdl --skip-internet-check "https://drive.google.com/folderview?id=${FOLDER_ID}&usp=sharing" -d Test "${use_key}" -aria || _error
+    ./gdl --skip-internet-check "https://drive.google.com/folderview?id=${FOLDER_ID}&usp=sharing" -d Test ${use_key:+"${use_key}"} -aria || _error
+    [[ -d Test ]] || _error "folder download missing Test/"
     _success
 
-    ./gdl --skip-internet-check "https://drive.google.com/drive/u/0/mobile/folders/${FOLDER_ID}" -d Test -p 2 "${use_key}" || _error
+    ./gdl --skip-internet-check "https://drive.google.com/drive/u/0/mobile/folders/${FOLDER_ID}" -d Test -p 2 ${use_key:+"${use_key}"} || _error
     _success
 
     # Do a check for log message when trying to download an existing folder contents
-    ./gdl --skip-internet-check "https://drive.google.com/drive/folders/${FOLDER_ID}" -d Test "${use_key}" || _error
+    ./gdl --skip-internet-check "https://drive.google.com/drive/folders/${FOLDER_ID}" -d Test ${use_key:+"${use_key}"} || _error
     _success
 
     rm -rf Test/
 
     ### File ###
-    ./gdl --skip-internet-check "https://drive.google.com/file/d/${FILE_ID}/view?usp=drivesdk" -d Test "${use_key}" -aria || _error
+    ./gdl --skip-internet-check "https://drive.google.com/file/d/${FILE_ID}/view?usp=drivesdk" -d Test ${use_key:+"${use_key}"} -aria || _error
+    [[ -d Test ]] || _error "file download missing Test/"
     _success
 
-    #./gdl --skip-internet-check "https://drive.google.com/uc?id=${FILE_ID}&export=download" -d Test "${use_key}"
+    #./gdl --skip-internet-check "https://drive.google.com/uc?id=${FILE_ID}&export=download" -d Test ${use_key:+"${use_key}"}
     #rm -rf Test/
 
-    #./gdl --skip-internet-check "https://drive.google.com/open?id=${FILE_ID}" -d Test "${use_key}"
+    #./gdl --skip-internet-check "https://drive.google.com/open?id=${FILE_ID}" -d Test ${use_key:+"${use_key}"}
 
     # Do a check for log message when trying to download an existing file
-    ./gdl --skip-internet-check "https://docs.google.com/file/d/${FILE_ID}/edit" -d Test "${use_key}" || _error
+    ./gdl --skip-internet-check "https://docs.google.com/file/d/${FILE_ID}/edit" -d Test ${use_key:+"${use_key}"} || _error
     _success
 
     ### Document ###
-    ./gdl --skip-internet-check "https://docs.google.com/document/d/${DOCUMENT_ID}/edit?usp=sharing" -d Test "${use_key}" || _error
+    ./gdl --skip-internet-check "https://docs.google.com/document/d/${DOCUMENT_ID}/edit?usp=sharing" -d Test ${use_key:+"${use_key}"} || _error
+    [[ -d Test ]] || _error "document download missing Test/"
     _success
 
     rm -rf Test/
@@ -188,18 +192,19 @@ _test() (
     ### File input list ###
     links_file="$(mktemp)"
     printf "%s\n" "# comment" "" "https://drive.google.com/file/d/${FILE_ID}/view" >| "${links_file}"
-    ./gdl --skip-internet-check -f "${links_file}" -d Test "${use_key}" || _error
+    ./gdl --skip-internet-check -f "${links_file}" -d Test ${use_key:+"${use_key}"} || _error
     rm -f "${links_file}"
+    [[ -d Test ]] || _error "file input download missing Test/"
     rm -rf Test/
     _success "file input download"
 
     ### List ###
-    list_file_output="$(./gdl --skip-internet-check "${FILE_ID}" -ls "${use_key}" 2>&1)" || _error "list file failed"
+    list_file_output="$(./gdl --skip-internet-check "${FILE_ID}" -ls ${use_key:+"${use_key}"} 2>&1)" || _error "list file failed"
     printf "%s\n" "${list_file_output}" | grep -q "Name:" || _error "list file missing name"
     printf "%s\n" "${list_file_output}" | grep -q "Size:" || _error "list file missing size"
     _success "list file"
 
-    list_folder_output="$(./gdl --skip-internet-check "${FOLDER_ID}" -ls -s "${use_key}" 2>&1)" || _error "list folder failed"
+    list_folder_output="$(./gdl --skip-internet-check "${FOLDER_ID}" -ls -s ${use_key:+"${use_key}"} 2>&1)" || _error "list folder failed"
     printf "%s\n" "${list_folder_output}" | grep -q "Name:" || _error "list folder missing name"
     printf "%s\n" "${list_folder_output}" | grep -Eq 'Folder|Size:' || _error "list folder missing contents"
     [[ ! -d Test ]] || _error "list folder created Test directory"
@@ -207,9 +212,23 @@ _test() (
 
 )
 
+_live_fixtures_available() {
+    cd release || return 1
+    probe_output="$(./gdl --skip-internet-check "${FILE_ID}" -ls 2>&1)" || true
+    printf "%s\n" "${probe_output}" | grep -q "Name:"
+}
+
 # Unit regressions for issue #47 (no real OAuth required)
 _test_unit
 
-# Test with bash
-_test bash
-_test bash --key
+# Live Drive downloads (skipped when sample IDs are no longer public)
+set +e
+_live_fixtures_available
+live_status="${?}"
+set -e
+if [[ "${live_status}" -eq 0 ]]; then
+    _test
+    _test --key
+else
+    printf "%s\n" "Skipping live Drive tests: sample FILE_ID/FOLDER_ID/DOCUMENT_ID are unavailable."
+fi
