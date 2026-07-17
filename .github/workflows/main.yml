@@ -70,4 +70,4 @@ jobs:
         run: |
           set -e
           # download tests
-          sh test.sh
+          bash test.sh
