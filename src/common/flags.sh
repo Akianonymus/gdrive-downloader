@@ -11,6 +11,7 @@ _parser_setup_flags() {
 The script can be used to download file/directory from google drive.
 
 Usage: ${0##*/} [options.. ] <file_[url|id]> or <folder[url|id]>
+       ${0##*/} -f/--file <path> [options..]
 
 Options:"
 
@@ -34,6 +35,35 @@ if [[ -n "${id_parse_arguments}" ]]; then
     # this works well in place of arrays
     _set_value d "INPUT_ID_$((TOTAL_INPUTS += 1))" "${id_parse_arguments}"
 fi
+EOF
+
+    ###################################################
+
+    _parser_setup_flag "-f --file" 1 required "path to file with urls/ids"
+    _parser_setup_flag_help \
+        "Read Drive urls or ids from a file, one per line.
+
+Blank lines and lines starting with # are ignored.
+
+Can be combined with normal positional inputs.
+Useful for cron or batch downloads."
+
+    _parser_setup_flag_process 4<< 'EOF'
+input_file_parse_arguments="${2}"
+if [[ ! -f "${input_file_parse_arguments}" ]] || [[ ! -r "${input_file_parse_arguments}" ]]; then
+    printf "%s\n" "Error: Input file '${input_file_parse_arguments}' does not exist or is not readable."
+    return 1
+fi
+while IFS= read -r line_parse_arguments || [[ -n "${line_parse_arguments}" ]]; do
+    [[ "${line_parse_arguments}" =~ ^[[:space:]]*$ ]] && continue
+    [[ "${line_parse_arguments}" =~ ^[[:space:]]*# ]] && continue
+    id_parse_arguments=""
+    _extract_id "${line_parse_arguments}" id_parse_arguments
+    if [[ -n "${id_parse_arguments}" ]]; then
+        _set_value d "INPUT_ID_$((TOTAL_INPUTS += 1))" "${id_parse_arguments}"
+    fi
+done < "${input_file_parse_arguments}"
+_parser_shift
 EOF
 
     ###################################################
@@ -466,6 +496,41 @@ EOF
 
     _parser_setup_flag_process 4<< 'EOF'
 export QUIET="_print_center_quiet"
+EOF
+
+    ###################################################
+
+    _parser_setup_flag "--background" 0
+    _parser_setup_flag_help \
+        "Run the download in the background and exit immediately.
+
+Requires --background-log to capture stdout and stderr.
+Parent process prints the background PID and exits.
+Useful for cron jobs."
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+unset BACKGROUND_DOWNLOAD
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+export BACKGROUND_DOWNLOAD="true"
+EOF
+
+    ###################################################
+
+    _parser_setup_flag "--background-log" 1 required "log file path"
+    _parser_setup_flag_help \
+        "Log file used with --background.
+
+Both stdout and stderr of the background process are appended here.
+Required when --background is used."
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+unset BACKGROUND_LOG
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+export BACKGROUND_LOG="${2}" && _parser_shift
 EOF
 
     ###################################################

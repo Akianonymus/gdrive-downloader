@@ -453,9 +453,43 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-f | --file 'path to file with urls/ids'</strong>
+
+    Read Drive urls or ids from a file, one per line.
+
+    Blank lines and lines starting with `#` are ignored.
+
+    Can be combined with normal positional inputs.
+
+    e.g: `gdl -f links.txt -d downloads`
+
+    ---
+
 -   <strong>-q | --quiet</strong>
 
     Supress the normal output, only show success/error download messages for files, and one extra line at the beginning for folder showing no. of files and sub folders.
+
+    ---
+
+-   <strong>--background</strong>
+
+    Run the download in the background and exit immediately.
+
+    Requires `--background-log` to capture stdout and stderr.
+
+    Parent process prints the background PID and exits.
+
+    Useful for cron jobs. OAuth first-run still needs a TTY; use a prefilled config for non-interactive runs.
+
+    ---
+
+-   <strong>--background-log 'log file path'</strong>
+
+    Log file used with `--background`.
+
+    Both stdout and stderr of the background process are appended here.
+
+    Required when `--background` is used.
 
     ---
 
@@ -588,6 +622,27 @@ You can use multiple inputs without any extra hassle.
 Pass arguments normally, e.g: `gdl url1 url2 id2 id2`
 
 where url1 and url2 are drive urls and rest two are gdrive ids.
+
+You can also load inputs from a file with `-f/--file`:
+
+```shell
+# links.txt
+# one url or id per line
+https://drive.google.com/file/d/FILE_ID/view
+FOLDER_ID
+```
+
+```shell
+gdl -f links.txt -d downloads
+```
+
+Positional inputs can be mixed with `-f`.
+
+For cron or detached downloads:
+
+```shell
+gdl -f links.txt -o -q -d /downloads --skip-internet-check --background --background-log /var/log/gdl.log
+```
 
 ### Resuming Interrupted Downloads
 

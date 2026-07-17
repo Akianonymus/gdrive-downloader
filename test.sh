@@ -97,6 +97,41 @@ _test_unit() (
     [[ ! -d "${PWD}/ListRoot" ]] || _error "list created local folder"
     unset LIST SKIP_SUBDIRS
     _success "list folder contents without mkdir"
+
+    help_output="$(./release/gdl --help file 2>&1)" || true
+    printf "%s\n" "${help_output}" | grep -q -- "-f" || _error "missing -f help"
+    printf "%s\n" "${help_output}" | grep -qi "file" || _error "missing file help text"
+    _success "file flag help"
+
+    help_output="$(./release/gdl --help background 2>&1)" || true
+    printf "%s\n" "${help_output}" | grep -q -- "--background" || _error "missing --background help"
+    _success "background flag help"
+
+    if output="$(./release/gdl --skip-internet-check -f /tmp/gdl-missing-links-$$.txt "${FILE_ID}" 2>&1)"; then
+        _error "missing input file should fail"
+    fi
+    printf "%s\n" "${output}" | grep -q "does not exist or is not readable" || _error "missing input file message"
+    _success "missing input file"
+
+    # shellcheck source=/dev/null
+    . src/common/parser.sh
+    # shellcheck source=/dev/null
+    . src/common/flags.sh
+    links_file="$(mktemp)"
+    printf "%s\n" "# comment" "" "  " "https://drive.google.com/drive/folders/${FOLDER_ID}?usp=drive_link" >| "${links_file}"
+    TOTAL_INPUTS="" INPUT_ID_1="" INPUT_ID_2=""
+    _parse_arguments "_parser_setup_flags" -f "${links_file}" "EXTRA_ID" || _error "file input parser failed"
+    [[ "${TOTAL_INPUTS}" = 2 ]] || _error "wrong file input count"
+    [[ "${INPUT_ID_1}" = "${FOLDER_ID}" ]] || _error "wrong extracted file input"
+    [[ "${INPUT_ID_2}" = "EXTRA_ID" ]] || _error "positional input not combined"
+    rm -f "${links_file}"
+    _success "file input parsing"
+
+    if output="$(./release/gdl --skip-internet-check --background "${FILE_ID}" 2>&1)"; then
+        _error "background without log should fail"
+    fi
+    printf "%s\n" "${output}" | grep -q -- "--background requires --background-log" || _error "missing background log requirement message"
+    _success "background requires log"
 )
 
 _test() (
@@ -149,6 +184,14 @@ _test() (
     # Do a test for invalid url/id
     ./gdl --skip-internet-check "testid" || _error
     _success
+
+    ### File input list ###
+    links_file="$(mktemp)"
+    printf "%s\n" "# comment" "" "https://drive.google.com/file/d/${FILE_ID}/view" >| "${links_file}"
+    ./gdl --skip-internet-check -f "${links_file}" -d Test "${use_key}" || _error
+    rm -f "${links_file}"
+    rm -rf Test/
+    _success "file input download"
 
     ### List ###
     list_file_output="$(./gdl --skip-internet-check "${FILE_ID}" -ls "${use_key}" 2>&1)" || _error "list file failed"

@@ -123,6 +123,33 @@ _setup_arguments() {
         [[ -n "${NEW_ACCOUNT_NAME}" ]] && CONTINUE_WITH_NO_INPUT="true"
     }
 
+    # post processing for --background / --background-log
+    [[ -n "${BACKGROUND_DOWNLOAD}" ]] && {
+        [[ -z "${BACKGROUND_LOG}" ]] && {
+            printf "%s\n" "Error: --background requires --background-log <path>."
+            return 1
+        }
+        [[ -z "${GDL_BACKGROUND_CHILD}" ]] && {
+            background_log_dir_setup_arguments="."
+            case "${BACKGROUND_LOG}" in
+                */*) background_log_dir_setup_arguments="${BACKGROUND_LOG%/*}" && background_log_dir_setup_arguments="${background_log_dir_setup_arguments:-/}" ;;
+                *) background_log_dir_setup_arguments="." ;;
+            esac
+            mkdir -p -- "${background_log_dir_setup_arguments}" || {
+                printf "%s\n" "Error: Unable to create directory for background log: ${background_log_dir_setup_arguments}"
+                return 1
+            }
+            if ! : >> "${BACKGROUND_LOG}"; then
+                printf "%s\n" "Error: Background log is not writable: ${BACKGROUND_LOG}"
+                return 1
+            fi
+            GDL_BACKGROUND_CHILD=1 nohup "${0}" "${@}" >> "${BACKGROUND_LOG}" 2>&1 < /dev/null &
+            printf "%s\n" "Background download started with PID: $!"
+            printf "%s\n" "Log: ${BACKGROUND_LOG}"
+            exit 0
+        }
+    }
+
     return 0
 }
 
