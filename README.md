@@ -441,7 +441,7 @@ These are the custom flags that are currently implemented:
 
 -   <strong>-l | --log 'log_file_name'</strong>
 
-    Save downloaded files info to the given filename.
+    Save downloaded files info to the given filename (date, name, size, link, start/end time, avg speed).
 
     ---
 

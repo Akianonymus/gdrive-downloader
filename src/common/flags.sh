@@ -430,7 +430,7 @@ EOF
 
     _parser_setup_flag "-l --log" 1 required "file to save info"
     _parser_setup_flag_help \
-        "Save downloaded files info to the given filename."
+        "Save downloaded files info to the given filename (date, name, size, link, start/end time, avg speed)."
 
     _parser_setup_flag_preprocess 4<< 'EOF'
 unset LOG_FILE_ID

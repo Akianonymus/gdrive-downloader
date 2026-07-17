@@ -130,12 +130,15 @@ _download_with_aria2c() {
     # also setup the cookies in no auth or no api key download
     _common_stuff || return 1
     download_status=0
+    initial_size_download_file="$(_actual_size_in_bytes "${name_download_file}" 2>| /dev/null || printf "0\n")"
+    start_epoch_download_file="$(_epoch)"
 
     # shellcheck disable=SC2086
     aria2c ${ARIA_FLAGS} \
         "${flag_download_file}" "${flag_value_download_file}" \
         "${url_download_file}" -o "${name_download_file}" || download_status=1
 
+    end_epoch_download_file="$(_epoch)"
     if [[ "${download_status}" -eq 0 ]]; then
         if _check_google_error "${name_download_file}"; then
             rm -f -- "${name}" "${name}.aria2"
@@ -161,7 +164,9 @@ _download_with_aria2c() {
         "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
         return 1
     fi
-    _log_in_file "${name_download_file}" "${server_size_readable_download_file}" "${file_id_download_file}"
+    _log_in_file "${name_download_file}" "${server_size_readable_download_file}" "${file_id_download_file}" \
+        "${start_epoch_download_file}" "${end_epoch_download_file}" \
+        "$(($(_actual_size_in_bytes "${name_download_file}") - initial_size_download_file))"
     return 0
 }
 
@@ -179,13 +184,17 @@ _download_with_curl() {
     server_size_readable_download_file="$(_bytes_to_human "${server_size_download_file}" 2>| /dev/null)"
     _print_center "justify" "${name_download_file}" " | ${server_size_readable_download_file}" "="
 
+    initial_size_download_file=0
     __check_for_resume_download_with_curl() {
         if [[ -s "${name_download_file}" ]]; then
             local_size_download_file="$(_actual_size_in_bytes "${name_download_file}")"
+            initial_size_download_file="${local_size_download_file}"
 
             if [[ "${local_size_download_file}" -ge "$((server_size_download_file))" ]]; then
                 "${QUIET:-_print_center}" "justify" "File already present" "=" && _newline "\n"
-                _log_in_file
+                _now_download_file="$(_epoch)"
+                _log_in_file "${name_download_file}" "${server_size_readable_download_file}" "${file_id_download_file}" \
+                    "${_now_download_file}" "${_now_download_file}" 0
                 return 1
             else
                 _print_center "justify" "File is partially" " present, resuming.." "-"
@@ -208,6 +217,7 @@ _download_with_curl() {
             ;;
     esac
 
+    start_epoch_download_file="$(_epoch)"
     # shellcheck disable=SC2086
     _curl -Ls \
         --header "${range_download_file}" \
@@ -235,6 +245,7 @@ _download_with_curl() {
             old_downloaded_download_file="${downloaded_download_file}"
         done
     fi
+    end_epoch_download_file="$(_epoch)"
 
     if [[ "$(_actual_size_in_bytes "${name_download_file}")" -ge "$((server_size_download_file))" ]]; then
         if _check_google_error "${name_download_file}"; then
@@ -262,7 +273,9 @@ _download_with_curl() {
         "${QUIET:-_print_center}" "justify" "Error: Incomplete" " download." "=" 1>&2
         return 1
     fi
-    _log_in_file "${name_download_file}" "${server_size_readable_download_file}" "${file_id_download_file}"
+    _log_in_file "${name_download_file}" "${server_size_readable_download_file}" "${file_id_download_file}" \
+        "${start_epoch_download_file}" "${end_epoch_download_file}" \
+        "$(($(_actual_size_in_bytes "${name_download_file}") - initial_size_download_file))"
     return 0
 }
 
@@ -546,16 +559,33 @@ _download_folder() {
 
 ###################################################
 # Log downloaded file info in case of -l / --log flag
-# Todo: write doc
+# ${1} = file name
+# ${2} = size (human readable)
+# ${3} = file id
+# ${4} = start epoch (optional)
+# ${5} = end epoch (optional)
+# ${6} = bytes transferred this session (optional)
 ###################################################
 _log_in_file() {
     export LOG_FILE_ID
     [[ -z "${LOG_FILE_ID}" ]] || [[ -d "${LOG_FILE_ID}" ]] && return 0
-    # shellcheck disable=SC2129
-    # https://github.com/koalaman/shellcheck/issues/1202#issuecomment-608239163
-    {
-        printf "%s\n" "Name: ${1}"
-        printf "%s\n" "Size: ${2}"
-        printf "%s\n\n" "ID: ${3}"
-    } >> "${LOG_FILE_ID}"
+    start_log_in_file="$((${4:-$(_epoch)}))"
+    end_log_in_file="$((${5:-start_log_in_file}))"
+    transferred_log_in_file="$((${6:-0}))"
+    duration_log_in_file="$((end_log_in_file - start_log_in_file))"
+    [[ "${duration_log_in_file}" -le 0 ]] && duration_log_in_file=1
+    if [[ "${transferred_log_in_file}" -gt 0 ]]; then
+        avg_speed_log_in_file="$(_bytes_to_human "$((transferred_log_in_file / duration_log_in_file))")/s"
+    else
+        avg_speed_log_in_file="N/A"
+    fi
+    printf "%s\n" \
+        "Date: $(printf "%(%Y-%m-%d %H:%M:%S)T" "${start_log_in_file}")" \
+        "Name: ${1}" \
+        "Size: ${2}" \
+        "Link: https://drive.google.com/open?id=${3}" \
+        "Start: $(printf "%(%Y-%m-%d %H:%M:%S)T" "${start_log_in_file}")" \
+        "End: $(printf "%(%Y-%m-%d %H:%M:%S)T" "${end_log_in_file}")" \
+        "Avg Speed: ${avg_speed_log_in_file}" \
+        "" >> "${LOG_FILE_ID}"
 }
