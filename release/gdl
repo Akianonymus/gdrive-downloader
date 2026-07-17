@@ -710,6 +710,15 @@ EOF
 _parser_setup_flag_process 4<<'EOF'
 export DRY_RUN="true"
 EOF
+_parser_setup_flag "-ls --list" 0
+_parser_setup_flag_help \
+"List name, id and size for the input. For folders, list contents without downloading. Use -s to list only the top level."
+_parser_setup_flag_preprocess 4<<'EOF'
+unset LIST
+EOF
+_parser_setup_flag_process 4<<'EOF'
+export LIST="true"
+EOF
 _parser_setup_flag "-s --skip-subdirs" 0
 _parser_setup_flag_help \
 "Skip downloading of sub folders present in case of folders."
@@ -1907,7 +1916,7 @@ done
 return 0
 }
 _fetch_folderinfo(){
-export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS
+export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS LIST
 parse_fetch_folderinfo="${1:?}"
 unset json_search_fetch_folderinfo json_search_fragment_fetch_folderinfo next_page_token_fetch_folderinfo \
 error_status_fetch_folderinfo success_status_fetch_folderinfo \
@@ -1958,10 +1967,12 @@ printf "%s\n" "$json_search_fetch_folderinfo"|jq -c --arg root "$root_name_fetch
     ' >>"$files_list_fetch_folderinfo"||:
 _clear_line 1
 chmod -w+r "$files_list_fetch_folderinfo"
+if [[ $LIST != "true" ]];then
 if [[ -f $name_fetch_folderinfo ]];then
 name_fetch_folderinfo="$name_fetch_folderinfo$(_epoch)"
 fi
 mkdir -p -- "$root_name_fetch_folderinfo/$name_fetch_folderinfo"
+fi
 "$EXTRA_LOG" "justify" "Preparing sub folders list.." "="
 chmod +w+r "$folders_list_fetch_folderinfo"
 _tmp_folders_list_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -c \
@@ -1987,7 +1998,7 @@ fi
 return 0
 }
 _download_folder(){
-export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS
+export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS LIST
 [[ $# == 4 ]]&&printf "Missing arguments\n"&&return 1
 mode_download_folder="$1" folder_id_download_folder="$2" name_download_folder="$3" root_download_folder="${4:-$PWD}" parallel_download_folder="$5"
 unset error_status_download_folder success_status_download_folder num_of_files_download_folder num_of_folders_download_folder
@@ -2008,12 +2019,39 @@ chmod +w+r "$files_list_download_folder" "$folders_list_download_folder"
 chmod -w+r "$files_list_download_folder" "$folders_list_download_folder"
 num_of_files_download_folder="$(_count <"$files_list_download_folder")"
 num_of_folders_download_folder="$(_count <"$folders_list_download_folder")"
-{ [[ $mode_download_folder == "alt" ]]&&_tmp_sum_download_folder="$((num_of_files_download_folder))";}||_tmp_sum_download_folder="$((num_of_files_download_folder+num_of_folders_download_folder))"
+if [[ $LIST == "true" ]];then
+_tmp_sum_download_folder="$((num_of_files_download_folder+num_of_folders_download_folder))"
+elif [[ $mode_download_folder == "alt" ]];then
+_tmp_sum_download_folder="$((num_of_files_download_folder))"
+else
+_tmp_sum_download_folder="$((num_of_files_download_folder+num_of_folders_download_folder))"
+fi
 [[ "$((_tmp_sum_download_folder))" -eq 0 ]]&&for _ in 1 2;do _clear_line 1;done&&_print_center "justify" "$name_download_folder" " | Empty Folder" "="&&_newline "\n"&&return 0
 _print_center "justify" \
 "$name_download_folder" \
 "${num_of_files_download_folder:+ | $num_of_files_download_folder files}${num_of_folders_download_folder:+ | $num_of_folders_download_folder sub folders}" "="
 _newline "\n\n"
+if [[ $LIST == "true" ]];then
+while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
+_list_name="$(jq -r '.name' <<<"$line")"
+_list_id="$(jq -r '.id' <<<"$line")"
+_list_root="$(jq -r '.root' <<<"$line")"
+_list_path="${_list_root##"$PWD"/}/$_list_name"
+_print_center "justify" "Name: $_list_path" " | $_list_id | Folder" "="
+_newline "\n"
+done 4<"$folders_list_download_folder"
+while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
+_list_name="$(jq -r '.name' <<<"$line")"
+_list_id="$(jq -r '.id' <<<"$line")"
+_list_root="$(jq -r '.root' <<<"$line")"
+_list_size="$(jq -r '.size' <<<"$line")"
+_list_path="${_list_root##"$PWD"/}/$_list_name"
+_print_center "justify" "Name: $_list_path" " | $_list_id | Size: $({ [[ -n $_list_size ]]&&_bytes_to_human "$_list_size";}||printf 'Unknown')" "="
+_newline "\n"
+done 4<"$files_list_download_folder"
+(rm -f -- "$files_list_download_folder" "$folders_list_download_folder")&
+return 0
+fi
 if [[ "$((num_of_files_download_folder))" -gt 0 ]];then
 if [[ -n $parallel_download_folder ]];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
@@ -2195,9 +2233,11 @@ trap '' TSTP
 export MAIN_PID="$$"
 }
 _process_arguments(){
-export DRY_RUN FOLDERNAME TOTAL_INPUTS PARALLEL_DOWNLOAD
+export DRY_RUN LIST FOLDERNAME TOTAL_INPUTS PARALLEL_DOWNLOAD
+if [[ $LIST != "true" ]];then
 [[ -n $FOLDERNAME ]]&&mkdir -p -- "$FOLDERNAME"
 cd -- "${FOLDERNAME:-.}" 2>|/dev/null 1>&2||exit 1
+fi
 _SEEN="" index_process_arguments=0
 TOTAL_INPUTS="$((TOTAL_INPUTS<0?0:TOTAL_INPUTS))"
 until [[ $index_process_arguments -eq $TOTAL_INPUTS ]];do
@@ -2208,6 +2248,18 @@ case "$_SEEN" in
 *)_SEEN="$_SEEN$FILE_ID"
 esac
 _check_id "$FILE_ID"||continue
+[[ $LIST == "true" ]]&&{
+_clear_line 1
+if [[ -n $FOLDER_ID ]];then
+_print_center "justify" "Name: $NAME" " | $FOLDER_ID | Folder" "="
+_newline "\n"
+_download_folder "${DOWNLOAD_METHOD:-alt}" "$FOLDER_ID" "$NAME" "$PWD" "${PARALLEL_DOWNLOAD-}"
+else
+_print_center "justify" "Name: $NAME" " | $FILE_ID | Size: $({ [[ -n $SIZE ]]&&_bytes_to_human "$SIZE";}||printf 'Unknown')" "="
+printf '\n'
+fi
+continue
+}
 [[ $DRY_RUN == "true" ]]&&{
 _clear_line 1
 if [[ -n $FOLDER_ID ]];then

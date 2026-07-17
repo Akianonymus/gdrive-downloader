@@ -347,7 +347,7 @@ _download_file_main() {
 # Todo: write doc
 ###################################################
 _fetch_folderinfo() {
-    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS
+    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS LIST
     parse_fetch_folderinfo="${1:?}"
 
     unset json_search_fetch_folderinfo json_search_fragment_fetch_folderinfo next_page_token_fetch_folderinfo \
@@ -414,10 +414,12 @@ ${json_search_fragment_fetch_folderinfo}"
     _clear_line 1
     chmod -w+r "${files_list_fetch_folderinfo}"
 
-    if [[ -f "${name_fetch_folderinfo}" ]]; then
-        name_fetch_folderinfo="${name_fetch_folderinfo}$(_epoch)"
+    if [[ "${LIST}" != "true" ]]; then
+        if [[ -f "${name_fetch_folderinfo}" ]]; then
+            name_fetch_folderinfo="${name_fetch_folderinfo}$(_epoch)"
+        fi
+        mkdir -p -- "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}"
     fi
-    mkdir -p -- "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}"
 
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
@@ -453,7 +455,7 @@ EOF
 }
 
 _download_folder() {
-    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS
+    export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES TMPFILE VERBOSE SKIP_SUBDIRS NO_OF_PARALLEL_JOBS LIST
     [[ $# = 4 ]] && printf "Missing arguments\n" && return 1
     mode_download_folder="${1}" folder_id_download_folder="${2}" name_download_folder="${3}" root_download_folder="${4:-${PWD}}" parallel_download_folder="${5}"
     unset error_status_download_folder success_status_download_folder num_of_files_download_folder num_of_folders_download_folder
@@ -483,7 +485,13 @@ _download_folder() {
     num_of_files_download_folder="$(_count < "${files_list_download_folder}")"
     num_of_folders_download_folder="$(_count < "${folders_list_download_folder}")"
 
-    { [[ "${mode_download_folder}" = "alt" ]] && _tmp_sum_download_folder="$((num_of_files_download_folder))"; } || _tmp_sum_download_folder="$((num_of_files_download_folder + num_of_folders_download_folder))"
+    if [[ "${LIST}" = "true" ]]; then
+        _tmp_sum_download_folder="$((num_of_files_download_folder + num_of_folders_download_folder))"
+    elif [[ "${mode_download_folder}" = "alt" ]]; then
+        _tmp_sum_download_folder="$((num_of_files_download_folder))"
+    else
+        _tmp_sum_download_folder="$((num_of_files_download_folder + num_of_folders_download_folder))"
+    fi
     [[ "$((_tmp_sum_download_folder))" -eq 0 ]] &&
         for _ in 1 2; do _clear_line 1; done && _print_center "justify" "${name_download_folder}" " | Empty Folder" "=" && _newline "\n" && return 0
 
@@ -491,6 +499,28 @@ _download_folder() {
         "${name_download_folder}" \
         "${num_of_files_download_folder:+ | ${num_of_files_download_folder} files}${num_of_folders_download_folder:+ | ${num_of_folders_download_folder} sub folders}" "="
     _newline "\n\n"
+
+    if [[ "${LIST}" = "true" ]]; then
+        while IFS= read -r line <&4 && { [[ -n "${line}" ]] || continue; }; do
+            _list_name="$(jq -r '.name' <<< "${line}")"
+            _list_id="$(jq -r '.id' <<< "${line}")"
+            _list_root="$(jq -r '.root' <<< "${line}")"
+            _list_path="${_list_root##"${PWD}"/}/${_list_name}"
+            _print_center "justify" "Name: ${_list_path}" " | ${_list_id} | Folder" "="
+            _newline "\n"
+        done 4< "${folders_list_download_folder}"
+        while IFS= read -r line <&4 && { [[ -n "${line}" ]] || continue; }; do
+            _list_name="$(jq -r '.name' <<< "${line}")"
+            _list_id="$(jq -r '.id' <<< "${line}")"
+            _list_root="$(jq -r '.root' <<< "${line}")"
+            _list_size="$(jq -r '.size' <<< "${line}")"
+            _list_path="${_list_root##"${PWD}"/}/${_list_name}"
+            _print_center "justify" "Name: ${_list_path}" " | ${_list_id} | Size: $({ [[ -n "${_list_size}" ]] && _bytes_to_human "${_list_size}"; } || printf 'Unknown')" "="
+            _newline "\n"
+        done 4< "${files_list_download_folder}"
+        (rm -f -- "${files_list_download_folder}" "${folders_list_download_folder}") &
+        return 0
+    fi
 
     if [[ "$((num_of_files_download_folder))" -gt 0 ]]; then
         if [[ -n "${parallel_download_folder}" ]]; then

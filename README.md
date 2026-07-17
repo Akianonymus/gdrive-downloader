@@ -377,6 +377,14 @@ These are the custom flags that are currently implemented:
 
     ---
 
+-   <strong>-ls | --list</strong>
+
+    List name, id and size for the given input without downloading.
+
+    For folders, list contents as well. Use <strong>-s | --skip-subdirs</strong> to list only the top level.
+
+    ---
+
 -   <strong>-s | --skip-subdirs</strong>
 
     Skip downloading of sub folders present in case of folders.

@@ -180,12 +180,13 @@ _setup_traps() {
 # Process all the values in "${ID_INPUT_ARRAY}"
 ###################################################
 _process_arguments() {
-    export DRY_RUN FOLDERNAME TOTAL_INPUTS PARALLEL_DOWNLOAD
+    export DRY_RUN LIST FOLDERNAME TOTAL_INPUTS PARALLEL_DOWNLOAD
 
-    # --directory flag
-    [[ -n "${FOLDERNAME}" ]] && mkdir -p -- "${FOLDERNAME}"
-
-    cd -- "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
+    if [[ "${LIST}" != "true" ]]; then
+        # --directory flag
+        [[ -n "${FOLDERNAME}" ]] && mkdir -p -- "${FOLDERNAME}"
+        cd -- "${FOLDERNAME:-.}" 2>| /dev/null 1>&2 || exit 1
+    fi
 
     _SEEN="" index_process_arguments=0
     # TOTAL_INPUTS and INPUT_ID_* is exported in _parser_process_input function, see flags.sh
@@ -201,6 +202,18 @@ _process_arguments() {
 
         # _check_id exports FILE_ID, FOLDER_ID, NAME, SIZE
         _check_id "${FILE_ID}" || continue
+        [[ "${LIST}" = "true" ]] && {
+            _clear_line 1
+            if [[ -n "${FOLDER_ID}" ]]; then
+                _print_center "justify" "Name: ${NAME}" " | ${FOLDER_ID} | Folder" "="
+                _newline "\n"
+                _download_folder "${DOWNLOAD_METHOD:-alt}" "${FOLDER_ID}" "${NAME}" "${PWD}" "${PARALLEL_DOWNLOAD:-}"
+            else
+                _print_center "justify" "Name: ${NAME}" " | ${FILE_ID} | Size: $({ [[ -n "${SIZE}" ]] && _bytes_to_human "${SIZE}"; } || printf 'Unknown')" "="
+                printf '\n'
+            fi
+            continue
+        }
         [[ "${DRY_RUN}" = "true" ]] && {
             _clear_line 1
             if [[ -n "${FOLDER_ID}" ]]; then

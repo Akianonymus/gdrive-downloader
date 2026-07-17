@@ -23,6 +23,8 @@ _test_unit() (
     . src/common/auth-utils.sh
     # shellcheck source=/dev/null
     . src/common/drive-utils.sh
+    # shellcheck source=/dev/null
+    . src/common/download-utils.sh
 
     _account_name_valid "default" || _error "valid account name default"
     _account_name_valid "my_account" || _error "valid account name with underscore"
@@ -65,6 +67,36 @@ _test_unit() (
     fi
     printf "%s\n" "${output}" | grep -q "did not include a usable file/folder name" || _error "missing metadata error message"
     _success "drive missing name message"
+
+    # shellcheck disable=SC2317
+    _api_request_list_folder() {
+        case "${1}" in
+            files\?q=*)
+                printf '%s' '{"files":[{"id":"childfile1","name":"listed.txt","size":"42","mimeType":"text/plain"},{"id":"childfolder1","name":"listed-sub","mimeType":"application/vnd.google-apps.folder"}]}'
+                ;;
+            *)
+                printf '%s' '{}'
+                ;;
+        esac
+    }
+    export API_REQUEST_FUNCTION="_api_request_list_folder"
+    export LIST="true" EXTRA_LOG=":" SKIP_SUBDIRS="true"
+    unset QUIET DEBUG
+    # shellcheck disable=SC2317
+    _print_center() { { [[ $# = 3 ]] && printf "%s\n" "${2}"; } || { printf "%s%s\n" "${2}" "${3}"; }; }
+    # shellcheck disable=SC2317
+    _clear_line() { :; }
+    # shellcheck disable=SC2317
+    _newline() { :; }
+    TMPFILE="$(mktemp -u)"
+    export TMPFILE
+    list_output="$(_download_folder alt "parentfolder" "ListRoot" "${PWD}" "" 2>&1)" || _error "list folder mock failed"
+    printf "%s\n" "${list_output}" | grep -q "listed.txt" || _error "list missing file name"
+    printf "%s\n" "${list_output}" | grep -q "listed-sub" || _error "list missing folder name"
+    printf "%s\n" "${list_output}" | grep -q "Folder" || _error "list missing folder marker"
+    [[ ! -d "${PWD}/ListRoot" ]] || _error "list created local folder"
+    unset LIST SKIP_SUBDIRS
+    _success "list folder contents without mkdir"
 )
 
 _test() (
@@ -117,6 +149,18 @@ _test() (
     # Do a test for invalid url/id
     ./gdl --skip-internet-check "testid" || _error
     _success
+
+    ### List ###
+    list_file_output="$(./gdl --skip-internet-check "${FILE_ID}" -ls "${use_key}" 2>&1)" || _error "list file failed"
+    printf "%s\n" "${list_file_output}" | grep -q "Name:" || _error "list file missing name"
+    printf "%s\n" "${list_file_output}" | grep -q "Size:" || _error "list file missing size"
+    _success "list file"
+
+    list_folder_output="$(./gdl --skip-internet-check "${FOLDER_ID}" -ls -s "${use_key}" 2>&1)" || _error "list folder failed"
+    printf "%s\n" "${list_folder_output}" | grep -q "Name:" || _error "list folder missing name"
+    printf "%s\n" "${list_folder_output}" | grep -Eq 'Folder|Size:' || _error "list folder missing contents"
+    [[ ! -d Test ]] || _error "list folder created Test directory"
+    _success "list folder"
 
 )
 

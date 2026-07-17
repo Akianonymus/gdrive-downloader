@@ -291,6 +291,20 @@ EOF
 
     ###################################################
 
+    _parser_setup_flag "-ls --list" 0
+    _parser_setup_flag_help \
+        "List name, id and size for the input. For folders, list contents without downloading. Use -s to list only the top level."
+
+    _parser_setup_flag_preprocess 4<< 'EOF'
+unset LIST
+EOF
+
+    _parser_setup_flag_process 4<< 'EOF'
+export LIST="true"
+EOF
+
+    ###################################################
+
     _parser_setup_flag "-s --skip-subdirs" 0
     _parser_setup_flag_help \
         "Skip downloading of sub folders present in case of folders."
