@@ -7,11 +7,31 @@
 - Click on "Credentials".
 - Click "Create credentials" and select oauth client id.
 - Select Application type "Desktop app" or "other".
-- Provide name for the new credentials. ( anything )
+- Provide name for the new credentials. ( anything; this Google Console label is unrelated to gdl account names )
 - This would provide a new Client ID and Client Secret.
 - Download your credentials.json by clicking on the download button.
 
-Now, we have obtained our credentials, move to the [First run](#first-run) section to use those credentials:
+Now, we have obtained our credentials, move to the [First run](#first-run) section to use those credentials.
+
+## First run
+
+Run:
+
+```shell
+gdl gdrive_url/gdrive_id -o
+```
+
+Important:
+
+- `-o/--oauth` takes no Client ID or Client Secret arguments.
+- Do not pass credentials on the command line.
+- The first prompt asks for a **local account name** (alias), for example `default`.
+- That account name is only used inside `${HOME}/.gdl.conf` (`ACCOUNT_<name>_CLIENT_ID`, etc). It is not your Google account and not the Client ID.
+- Allowed characters: alphabets, numbers, underscores.
+
+After the account name, paste Client ID and Client Secret from `credentials.json`, then either paste an existing Refresh Token or leave it blank and complete the browser authorization flow.
+
+For the full authentication and config reference, see the Authentication section in [README.md](README.md#authentication).
 
 ## Enable Drive API
 

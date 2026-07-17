@@ -505,11 +505,17 @@ For oauth or api key authentication, see [auth.md](https://github.com/Akianonymu
 
 On first run, the script asks for all the required credentials, which we have obtained in the previous section.
 
-Execute the script: `gdl gdrive_url/gdrive_id -o`
+Execute the script:
 
-Note: `-o/ --oauth` flag is needed if file should be downloaded with authentication.
+```shell
+gdl gdrive_url/gdrive_id -o
+```
 
-Now, it will ask for following credentials:
+Note: `-o/--oauth` takes **no** Client ID or Client Secret arguments. Do not run `gdl URL -o CLIENT_ID CLIENT_SECRET`. Credentials are collected interactively, or from the config file.
+
+The first prompt is for a **local account name** (alias), such as `default`. This is **not** your Google account email and **not** the OAuth Client ID. Account names may only contain alphabets, numbers, or underscores.
+
+Then the script asks for:
 
 **Client ID:** Copy and paste from credentials.json
 

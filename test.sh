@@ -6,6 +6,67 @@ FILE_ID="14eh2_N3rGeGzUMamk2uyoU_CF9O7YUkA"
 DOCUMENT_ID="1Dziv2X5_UCMQ2weMI9duSUT6iayMikqRdoftJCwq_vg"
 FOLDER_ID="1AC0UsKfLZfflIkO7Ork78et5VzIvFSDM"
 
+_test_unit() (
+    count=0
+    _error() {
+        printf "%s\n" "Error: Unit test $((count += 1)) failed${1:+: $1}."
+        exit 1
+    }
+
+    _success() {
+        printf "\n%s\n\n" "Success: Unit test $((count += 1)) passed${1:+: $1}."
+    }
+
+    # shellcheck source=/dev/null
+    . src/common/common-utils.sh
+    # shellcheck source=/dev/null
+    . src/common/auth-utils.sh
+    # shellcheck source=/dev/null
+    . src/common/drive-utils.sh
+
+    _account_name_valid "default" || _error "valid account name default"
+    _account_name_valid "my_account" || _error "valid account name with underscore"
+    _account_name_valid "Account123" || _error "valid account name alphanumerics"
+    if _account_name_valid "my-account"; then
+        _error "dash should be invalid"
+    fi
+    if _account_name_valid "bad name"; then
+        _error "space should be invalid"
+    fi
+    _success "account name validation"
+
+    if output="$(./release/gdl --skip-internet-check "${FOLDER_ID}" -o "123456789012-abcdefghijklmnopqrstuvwxyzABCDEF.apps.googleusercontent.com" "client-secret" 2>&1)"; then
+        _error "oauth client id as input should fail"
+    fi
+    printf "%s\n" "${output}" | grep -q "OAuth Client ID was given as a Drive input" || _error "missing client id guard message"
+    printf "%s\n" "${output}" | grep -q "takes no arguments" || _error "missing usage hint"
+    _success "reject oauth credentials as positionals"
+
+    export EXTRA_LOG=":"
+    unset QUIET
+    # shellcheck disable=SC2317
+    _api_request_error() {
+        printf '%s' '{"error":{"code":404,"message":"File not found."}}'
+    }
+    export API_REQUEST_FUNCTION="_api_request_error"
+    if output="$(_check_id "badid" 2>&1)"; then
+        _error "api error should fail"
+    fi
+    printf "%s\n" "${output}" | grep -q "File not found" || _error "missing api error message"
+    _success "drive api error message"
+
+    # shellcheck disable=SC2317
+    _api_request_missing_name() {
+        printf '%s' '{"size":"1","mimeType":"text/plain"}'
+    }
+    export API_REQUEST_FUNCTION="_api_request_missing_name"
+    if output="$(_check_id "nonameid" 2>&1)"; then
+        _error "missing name should fail"
+    fi
+    printf "%s\n" "${output}" | grep -q "did not include a usable file/folder name" || _error "missing metadata error message"
+    _success "drive missing name message"
+)
+
 _test() (
     use_key="${1:-}"
 
@@ -58,6 +119,9 @@ _test() (
     _success
 
 )
+
+# Unit regressions for issue #47 (no real OAuth required)
+_test_unit
 
 # Test with bash
 _test bash

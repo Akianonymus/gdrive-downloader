@@ -570,6 +570,13 @@ _parser_setup_flag "-o --oauth" 0
 _parser_setup_flag_help \
 "Use this flag to trigger oauth authentication.
 
+This flag takes no arguments. Do not pass Client ID or Client Secret after -o.
+Credentials are collected interactively, or from the config file.
+
+On first run, the script asks for a local account name (alias), then Client ID,
+Client Secret, and Refresh Token. The account name is only a local label such as
+default, and may contain alphabets, numbers, or underscores.
+
 Note: If both --oauth and --key flag is used, --oauth flag is preferred."
 _parser_setup_flag_preprocess 4<<'EOF'
 unset OAUTH_ENABLED ACCOUNT_NAME \
@@ -947,7 +954,8 @@ new_account_name_set_new_account_name="${1:-}"&&unset name_valid_set_new_account
 [[ -z $new_account_name_set_new_account_name ]]&&{
 _all_accounts 2>|/dev/null
 "${QUIET:-_print_center}" "normal" " New account name: " "="
-"${QUIET:-_print_center}" "normal" "Info: Account names can only contain alphabets / numbers / dashes." " "&&printf '\n'
+"${QUIET:-_print_center}" "normal" "Info: Local account alias (e.g. default). Not your Google account or Client ID." " "&&printf '\n'
+"${QUIET:-_print_center}" "normal" "Info: Account names can only contain alphabets / numbers / underscores." " "&&printf '\n'
 }
 until [[ -n $name_valid_set_new_account_name ]];do
 if [[ -n $new_account_name_set_new_account_name ]];then
@@ -1553,14 +1561,15 @@ return 1
 }
 error_code="$(printf "%s\n" "$json_check_id"|jq -r '.error.code' 2>|/dev/null)"
 [[ $error_code != "null" ]]&&[[ -n $error_code ]]&&{
-__error_check_id "Invalid URL/ID" "$id_check_id" pretty&&return 1
+error_message_check_id="$(printf "%s\n" "$json_check_id"|jq -r '.error.message // empty' 2>|/dev/null)"
+__error_check_id "Invalid URL/ID" "$id_check_id${error_message_check_id:+ ($error_message_check_id)}" pretty&&return 1
 }
 NAME="$(printf "%s\n" "$json_check_id"|_json_value name 1 1)"||{
-__error_check_id "Cannot fetch name."
+__error_check_id "Cannot fetch name." "Drive API response for $id_check_id did not include a usable file/folder name."
 return 1
 }
 mime_check_id="$(printf "%s\n" "$json_check_id"|_json_value mimeType 1 1)"||{
-__error_check_id "Cannot fetch mimetype."
+__error_check_id "Cannot fetch mimetype." "Drive API response for $id_check_id did not include a usable mimetype."
 return 1
 }
 _clear_line 1
@@ -1628,24 +1637,11 @@ elif [[ $type_get_export_mime == "mime" ]];then
 printf "%s" "$format_get_export_mime"
 fi
 }
-_create_file_record(){
-local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}"
-printf '{"root":"%s","id":"%s","name":"%s","size":"%s","mime":"%s"}' \
-"$_root" "$_id" "$_name" "$_size" "$_mime"
-}
 _check_google_error(){
-local _file="${1:?}" _head
+local _file="${1:?}"
 [[ -f $_file ]]||return 1
-_head="$(head -c 2000 "$_file" 2>/dev/null)"
-[[ $_head == *"<html"* ]]||return 1
-[[ $_head == *"<title>Sorry..."* ]]&&return 0
-[[ $_head == *"your computer or network may be sending automated queries"* ]]&&return 0
-return 1
-}
-_create_folder_record(){
-local _parent_id="${1:?}" _root="${2:?}" _id="${3:?}" _name="${4:?}"
-printf '{"parent_id":"%s","root":"%s","id":"%s","name":"%s"}' \
-"$_parent_id" "$_root" "$_id" "$_name"
+{ head -c 2000 "$_file" 2>/dev/null||:;}|grep -aFq "<html"||return 1
+{ head -c 2000 "$_file" 2>/dev/null||:;}|grep -aEq '<title>Sorry\.\.\.|your computer or network may be sending automated queries'
 }
 _cookies_and_document_stuff(){
 "$EXTRA_LOG" "justify" "Fetching" " ${1:?}.." "-"
@@ -1665,10 +1661,7 @@ url_download_file="$API_URL/drive/$API_VERSION/files/$file_id_download_file$(cas
 esac)&supportsAllDrives=true&includeItemsFromAllDrives=true"
 if [[ -n $OAUTH_ENABLED ]];then
 . "${TMPFILE}_ACCESS_TOKEN"
-flag_value_download_file="${5:-}"
-if [[ -n $flag_value_download_file ]];then
 flag_download_file="--header" flag_value_download_file="Authorization: Bearer $ACCESS_TOKEN"
-fi
 elif [[ -n $API_KEY_DOWNLOAD ]];then
 flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
 url_download_file="$url_download_file&key=${API_KEY//[[:space:]]/}"
@@ -1886,9 +1879,7 @@ export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE 
 parse_fetch_folderinfo="${1:?}"
 unset json_search_fetch_folderinfo json_search_fragment_fetch_folderinfo next_page_token_fetch_folderinfo \
 error_status_fetch_folderinfo success_status_fetch_folderinfo \
-files_id_fetch_folderinfo folders_id_fetch_folderinfo files_size_fetch_folderinfo \
-files_name_fetch_folderinfo folders_name_fetch_folderinfo files_mime_fetch_folderinfo \
-num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
+_tmp_folders_list_fetch_folderinfo num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
 if [[ $parse_fetch_folderinfo == "true" ]];then
 mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
 line_fetch_folderinfo="${3:?_fetch_folderinfo: 3}"
@@ -1926,29 +1917,13 @@ else
 _search_error_message_fetch_folderinfo "$json_search_fetch_folderinfo"
 fi&&_clear_line 1
 "$EXTRA_LOG" "justify" "Preparing files list.." "="
-files_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].id')"||:
-files_size_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].size')"||:
-files_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].name')"||:
-files_mime_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].mimeType')"||:
 chmod +w+r "$files_list_fetch_folderinfo"
-exec 5<<EOF
-$(printf "%s\n" "$files_id_fetch_folderinfo")
-EOF
-exec 6<<EOF
-$(printf "%s\n" "$files_size_fetch_folderinfo")
-EOF
-exec 7<<EOF
-$(printf "%s\n" "$files_name_fetch_folderinfo")
-EOF
-exec 8<<EOF
-$(printf "%s\n" "$files_mime_fetch_folderinfo")
-EOF
-while IFS= read -r id <&5&&read -r size <&6&&read -r name <&7&&read -r mime <&8;do
-[[ -n ${id:+$name} ]]||continue
-[[ $mime == *folder* ]]&&continue
-printf "%s\n" "$(_create_file_record "$root_name_fetch_folderinfo/$name_fetch_folderinfo" "$id" "$name" "$((size))" "$mime")"
-done >>"$files_list_fetch_folderinfo"
-exec 5<&-&&exec 6<&-&&exec 7<&-&&exec 8<&-
+printf "%s\n" "$json_search_fetch_folderinfo"|jq -c --arg root "$root_name_fetch_folderinfo/$name_fetch_folderinfo" '
+        .files[]?
+        | select(.mimeType != "application/vnd.google-apps.folder")
+        | select(.id != null and .name != null and .mimeType != null)
+        | {root: $root, id: .id, name: .name, size: ((.size // 0) | tostring), mime: .mimeType}
+    ' >>"$files_list_fetch_folderinfo"||:
 _clear_line 1
 chmod -w+r "$files_list_fetch_folderinfo"
 if [[ -f $name_fetch_folderinfo ]];then
@@ -1956,25 +1931,21 @@ name_fetch_folderinfo="$name_fetch_folderinfo$(_epoch)"
 fi
 mkdir -p -- "$root_name_fetch_folderinfo/$name_fetch_folderinfo"
 "$EXTRA_LOG" "justify" "Preparing sub folders list.." "="
-folders_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[] | select(.mimeType | contains("folder")) | .id')"||:
-folders_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[] | select(.mimeType | contains("folder")) | .name')"||:
 chmod +w+r "$folders_list_fetch_folderinfo"
-exec 5<<EOF
-$(printf "%s\n" "$folders_id_fetch_folderinfo")
-EOF
-exec 6<<EOF
-$(printf "%s\n" "$folders_name_fetch_folderinfo")
-EOF
-_tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5&&read -r name <&6;do
-[[ -n ${id:+$name} ]]&&printf "%s\n" "$(_create_folder_record "$folder_id_fetch_folderinfo" "$root_name_fetch_folderinfo/$name_fetch_folderinfo" "$id" "$name")"
-done)"
-printf "%s" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
-exec 5<&-&&exec 6<&-
+_tmp_folders_list_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -c \
+--arg parent_id "$folder_id_fetch_folderinfo" \
+--arg root "$root_name_fetch_folderinfo/$name_fetch_folderinfo" '
+            .files[]?
+            | select(.mimeType == "application/vnd.google-apps.folder")
+            | select(.id != null and .name != null)
+            | {parent_id: $parent_id, root: $root, id: .id, name: .name}
+        '||:)"
+[[ -n $_tmp_folders_list_fetch_folderinfo ]]&&printf "%s\n" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
 chmod -w+r "$folders_list_fetch_folderinfo"
 _clear_line 1
 for _ in 1 2;do _clear_line 1;done
 [[ $mode_fetch_folderinfo == "alt" ]]||return 0
-if [[ -z $SKIP_SUBDIRS ]]&&[[ -n $folders_list_fetch_folderinfo ]];then
+if [[ -z $SKIP_SUBDIRS ]]&&[[ -n $_tmp_folders_list_fetch_folderinfo ]];then
 while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
 _fetch_folderinfo true "$mode_fetch_folderinfo" "$line" "$files_list_fetch_folderinfo" "$folders_list_fetch_folderinfo"
 done 4<<EOF
@@ -2111,6 +2082,22 @@ done
 export ARIA_FLAGS="$ARIA_FLAGS --auto-file-renaming=false --continue $ARIA_extra_flags"
 export CURL_FLAGS="$CURL_FLAGS $CURL_extra_flags"
 [[ -n $OAUTH_ENABLED ]]&&unset API_KEY_DOWNLOAD
+{
+index_oauth_client_id_guard=0
+input_id_oauth_client_id_guard=""
+oauth_client_id_regex='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
+TOTAL_INPUTS="$((TOTAL_INPUTS<0?0:TOTAL_INPUTS))"
+until [[ $index_oauth_client_id_guard -eq $TOTAL_INPUTS ]];do
+_set_value i input_id_oauth_client_id_guard "INPUT_ID_$((index_oauth_client_id_guard+=1))"
+if _assert_regex "$oauth_client_id_regex" "$input_id_oauth_client_id_guard";then
+printf "%s\n" "Error: OAuth Client ID was given as a Drive input."
+printf "%s\n" "The -o/--oauth flag takes no arguments. Do not pass Client ID or Client Secret on the command line."
+printf "%s\n" "Usage: gdl <drive_url_or_id> -o"
+printf "%s\n" "Credentials are collected interactively after a local account name, or from $CONFIG."
+return 1
+fi
+done
+}
 [[ -n $API_KEY_DOWNLOAD ]]&&{
 API_KEY="$(_sanitize_api_key "${API_KEY:-}")"&&"${UPDATE_DEFAULT_API_KEY:-:}" API_KEY "$API_KEY" "$CONFIG"
 }

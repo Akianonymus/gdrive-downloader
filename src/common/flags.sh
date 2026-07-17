@@ -104,6 +104,13 @@ EOF
     _parser_setup_flag_help \
         "Use this flag to trigger oauth authentication.
 
+This flag takes no arguments. Do not pass Client ID or Client Secret after -o.
+Credentials are collected interactively, or from the config file.
+
+On first run, the script asks for a local account name (alias), then Client ID,
+Client Secret, and Refresh Token. The account name is only a local label such as
+default, and may contain alphabets, numbers, or underscores.
+
 Note: If both --oauth and --key flag is used, --oauth flag is preferred."
 
     _parser_setup_flag_preprocess 4<< 'EOF'

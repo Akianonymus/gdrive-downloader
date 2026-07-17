@@ -66,7 +66,8 @@ _set_new_account_name() {
     [[ -z "${new_account_name_set_new_account_name}" ]] && {
         _all_accounts 2>| /dev/null
         "${QUIET:-_print_center}" "normal" " New account name: " "="
-        "${QUIET:-_print_center}" "normal" "Info: Account names can only contain alphabets / numbers / dashes." " " && printf '\n'
+        "${QUIET:-_print_center}" "normal" "Info: Local account alias (e.g. default). Not your Google account or Client ID." " " && printf '\n'
+        "${QUIET:-_print_center}" "normal" "Info: Account names can only contain alphabets / numbers / underscores." " " && printf '\n'
     }
     until [[ -n "${name_valid_set_new_account_name}" ]]; do
         if [[ -n "${new_account_name_set_new_account_name}" ]]; then

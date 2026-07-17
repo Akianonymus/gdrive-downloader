@@ -81,6 +81,24 @@ _setup_arguments() {
     # post processing for --oauth flag
     [[ -n "${OAUTH_ENABLED}" ]] && unset API_KEY_DOWNLOAD
 
+    # Reject OAuth Client IDs accidentally passed as Drive inputs (common -o misuse)
+    {
+        index_oauth_client_id_guard=0
+        input_id_oauth_client_id_guard=""
+        oauth_client_id_regex='[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com'
+        TOTAL_INPUTS="$((TOTAL_INPUTS < 0 ? 0 : TOTAL_INPUTS))"
+        until [[ "${index_oauth_client_id_guard}" -eq "${TOTAL_INPUTS}" ]]; do
+            _set_value i input_id_oauth_client_id_guard "INPUT_ID_$((index_oauth_client_id_guard += 1))"
+            if _assert_regex "${oauth_client_id_regex}" "${input_id_oauth_client_id_guard}"; then
+                printf "%s\n" "Error: OAuth Client ID was given as a Drive input."
+                printf "%s\n" "The -o/--oauth flag takes no arguments. Do not pass Client ID or Client Secret on the command line."
+                printf "%s\n" "Usage: gdl <drive_url_or_id> -o"
+                printf "%s\n" "Credentials are collected interactively after a local account name, or from ${CONFIG}."
+                return 1
+            fi
+        done
+    }
+
     # post processing for --key flag
     [[ -n "${API_KEY_DOWNLOAD}" ]] && {
         API_KEY="$(_sanitize_api_key "${API_KEY:-}")" &&

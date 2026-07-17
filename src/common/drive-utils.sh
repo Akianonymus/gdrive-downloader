@@ -57,16 +57,17 @@ _check_id() {
 
     error_code="$(printf "%s\n" "${json_check_id}" | jq -r '.error.code' 2>| /dev/null)"
     [[ "${error_code}" != "null" ]] && [[ -n "${error_code}" ]] && {
-        __error_check_id "Invalid URL/ID" "${id_check_id}" pretty && return 1
+        error_message_check_id="$(printf "%s\n" "${json_check_id}" | jq -r '.error.message // empty' 2>| /dev/null)"
+        __error_check_id "Invalid URL/ID" "${id_check_id}${error_message_check_id:+ (${error_message_check_id})}" pretty && return 1
     }
 
     NAME="$(printf "%s\n" "${json_check_id}" | _json_value name 1 1)" || {
-        __error_check_id "Cannot fetch name."
+        __error_check_id "Cannot fetch name." "Drive API response for ${id_check_id} did not include a usable file/folder name."
         return 1
     }
 
     mime_check_id="$(printf "%s\n" "${json_check_id}" | _json_value mimeType 1 1)" || {
-        __error_check_id "Cannot fetch mimetype."
+        __error_check_id "Cannot fetch mimetype." "Drive API response for ${id_check_id} did not include a usable mimetype."
         return 1
     }
 
