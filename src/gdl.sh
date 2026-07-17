@@ -19,16 +19,14 @@ main() {
             . "${COMMON_PATH}/download-utils.sh" &&
             . "${COMMON_PATH}/gdl-common.sh"; } ||
             { printf "Error: Unable to source util files.\n" && exit 1; }
-        _export_functions() {
-            local func
-            for func in $(compgen -A function | grep '^_'); do
-                export -f "${func}"
-            done
-        }
-        _export_functions
     }
 
     [[ ${BASH_VERSINFO:-0} -ge 4 ]] || { printf "Bash version lower than 4.x not supported.\n" && return 1; }
+
+    local _func
+    for _func in $(compgen -A function | grep '^_'); do
+        export -f "${_func}"
+    done
     set -o noclobber -o pipefail || exit 1
 
     # the kill signal which is used to kill the whole script and children in case of ctrl + c

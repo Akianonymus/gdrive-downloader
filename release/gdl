@@ -211,10 +211,10 @@ _update_config(){
 [[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
 value_name_update_config="$1" value_update_config="$2" config_path_update_config="$3"
 ! [[ -f $config_path_update_config ]]&&: >|"$config_path_update_config"
-chmod u+w -- "$config_path_update_config"||return 1
+chmod u+w "$config_path_update_config"||return 1
 printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name_update_config=" -- "$config_path_update_config"||:)" \
 "$value_name_update_config=\"$value_update_config\"" >|"$config_path_update_config"||return 1
-chmod a-w-r-x,u+r -- "$config_path_update_config"||return 1
+chmod a-w-r-x,u+r "$config_path_update_config"||return 1
 return 0
 }
 _assert_regex(){
@@ -305,7 +305,7 @@ printf "%s\n" "$new_script"|"${INSTALLATION:-bash}" -n||{
 printf "%s\n" "Update downloaded but malformed, try again and if the issue persists open an issue on github."
 return 1
 }
-chmod u+w -- "$command_path"&&printf "%s\n" "$new_script" >|"$command_path"&&chmod "a-w-r-x,${PERM_MODE:-u}+r+x" -- "$command_path"
+chmod u+w "$command_path"&&printf "%s\n" "$new_script" >|"$command_path"&&chmod "a-w-r-x,${PERM_MODE:-u}+r+x" "$command_path"
 return 0
 }
 _is_fd_open(){
@@ -981,9 +981,9 @@ account_delete_account="${1:?Error: give account name}"&&unset regex_delete_acco
 if _account_exists "$account_delete_account";then
 regex_delete_account="^ACCOUNT_${account_delete_account}_(CLIENT_ID=|CLIENT_SECRET=|REFRESH_TOKEN=|ROOT_FOLDER=|ROOT_FOLDER_NAME=|ACCESS_TOKEN=|ACCESS_TOKEN_EXPIRY=)|DEFAULT_ACCOUNT=\"$account_delete_account\""
 config_without_values_delete_account="$(grep -vE "$regex_delete_account" -- "$CONFIG")"
-chmod u+w -- "$CONFIG"||return 1
+chmod u+w "$CONFIG"||return 1
 printf "%s\n" "$config_without_values_delete_account" >|"$CONFIG"||return 1
-chmod "a-w-r-x,u+r" -- "$CONFIG"||return 1
+chmod "a-w-r-x,u+r" "$CONFIG"||return 1
 "${QUIET:-_print_center}" "normal" " Successfully deleted account ( $account_delete_account ) from config. " "-"
 else
 "${QUIET:-_print_center}" "normal" " Error: Cannot delete account ( $account_delete_account ) from config. No such account exists " "-" 1>&2
@@ -999,7 +999,7 @@ account_name_handle_old_config="$account_name_handle_old_config$((count_handle_o
 done
 regex_check_handle_old_config="^(CLIENT_ID=|CLIENT_SECRET=|REFRESH_TOKEN=|ROOT_FOLDER=|ROOT_FOLDER_NAME=|ACCESS_TOKEN=|ACCESS_TOKEN_EXPIRY=)"
 config_without_values_handle_old_config="$(grep -vE "$regex_check_handle_old_config" -- "$CONFIG")"
-chmod u+w -- "$CONFIG"||return 1
+chmod u+w "$CONFIG"||return 1
 printf "%s\n%s\n%s\n%s\n%s\n%s\n" \
 "ACCOUNT_${account_name_handle_old_config}_CLIENT_ID=\"$CLIENT_ID\"" \
 "ACCOUNT_${account_name_handle_old_config}_CLIENT_SECRET=\"$CLIENT_SECRET\"" \
@@ -1007,7 +1007,7 @@ printf "%s\n%s\n%s\n%s\n%s\n%s\n" \
 "ACCOUNT_${account_name_handle_old_config}_ROOT_FOLDER=\"$ROOT_FOLDER\"" \
 "ACCOUNT_${account_name_handle_old_config}_ROOT_FOLDER_NAME=\"$ROOT_FOLDER_NAME\"" \
 "$config_without_values_handle_old_config" >|"$CONFIG"||return 1
-chmod "a-w-r-x,u+r" -- "$CONFIG"||return 1
+chmod "a-w-r-x,u+r" "$CONFIG"||return 1
 _reload_config||return 1
 }
 return 0
@@ -1467,10 +1467,10 @@ _update_config(){
 [[ $# -lt 3 ]]&&printf "Missing arguments\n"&&return 1
 value_name_update_config="$1" value_update_config="$2" config_path_update_config="$3"
 ! [[ -f $config_path_update_config ]]&&: >|"$config_path_update_config"
-chmod u+w -- "$config_path_update_config"||return 1
+chmod u+w "$config_path_update_config"||return 1
 printf "%s\n%s\n" "$(grep -v -e "^$" -e "^$value_name_update_config=" -- "$config_path_update_config"||:)" \
 "$value_name_update_config=\"$value_update_config\"" >|"$config_path_update_config"||return 1
-chmod a-w-r-x,u+r -- "$config_path_update_config"||return 1
+chmod a-w-r-x,u+r "$config_path_update_config"||return 1
 return 0
 }
 _assert_regex(){
@@ -1865,7 +1865,10 @@ name_download_file_main="$name_download_file_main.$DOCUMENT_FORMAT"
 esac
 unset RETURN_STATUS&&until [[ $retry_download_file_main -le 0 ]]&&[[ -n $RETURN_STATUS ]];do
 if [[ -n $parallel_download_file_main ]];then
-("_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main" true 2>|/dev/null 1>&2)&&RETURN_STATUS=1&&break
+([[ -n $root_download_file_main ]]&&{
+cd -- "$root_download_file_main"||return 1
+}
+"_download_with_$DOWNLOADER" "$fileid_download_file_main" "$name_download_file_main" "$mime_download_file_main" "$size_download_file_main" true 2>|/dev/null 1>&2)&&RETURN_STATUS=1&&break
 else
 ([[ $1 == parse ]]&&{
 cd -- "$root_download_file_main"||return 1
@@ -1877,12 +1880,6 @@ RETURN_STATUS=2 retry_download_file_main="$((retry_download_file_main-1))"&&cont
 done
 { [[ $RETURN_STATUS == 1 ]]&&printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}";}||printf "%b" "${parallel_download_file_main:+$RETURN_STATUS\n}" 1>&2
 return 0
-}
-_download_file_main_aarr(){
-local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}" _parallel="$6"
-cd -- "$_root"||return 1
-PARALLEL_ROOT="$_root" _download_file_main "" "$_id" "$_name" "$_mime" "$_size" true
-return $?
 }
 _fetch_folderinfo(){
 export EXTRA_LOG QUIET API_REQUEST_FUNCTION INCLUDE_FILES EXCLUDE_FILES VERBOSE SKIP_SUBDIRS
@@ -1933,7 +1930,7 @@ files_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r
 files_size_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].size')"||:
 files_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].name')"||:
 files_mime_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[].mimeType')"||:
-chmod +w+r -- "$files_list_fetch_folderinfo"
+chmod +w+r "$files_list_fetch_folderinfo"
 exec 5<<EOF
 $(printf "%s\n" "$files_id_fetch_folderinfo")
 EOF
@@ -1947,11 +1944,13 @@ exec 8<<EOF
 $(printf "%s\n" "$files_mime_fetch_folderinfo")
 EOF
 while IFS= read -r id <&5&&read -r size <&6&&read -r name <&7&&read -r mime <&8;do
-[[ -n ${id:+$name} ]]&&printf "%s\n" "$(_create_file_record "$root_name_fetch_folderinfo/$name_fetch_folderinfo" "$id" "$name" "$((size))" "$mime")"
+[[ -n ${id:+$name} ]]||continue
+[[ $mime == *folder* ]]&&continue
+printf "%s\n" "$(_create_file_record "$root_name_fetch_folderinfo/$name_fetch_folderinfo" "$id" "$name" "$((size))" "$mime")"
 done >>"$files_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-&&exec 7<&-&&exec 8<&-
 _clear_line 1
-chmod -w+r -- "$files_list_fetch_folderinfo"
+chmod -w+r "$files_list_fetch_folderinfo"
 if [[ -f $name_fetch_folderinfo ]];then
 name_fetch_folderinfo="$name_fetch_folderinfo$(_epoch)"
 fi
@@ -1959,7 +1958,7 @@ mkdir -p -- "$root_name_fetch_folderinfo/$name_fetch_folderinfo"
 "$EXTRA_LOG" "justify" "Preparing sub folders list.." "="
 folders_id_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[] | select(.mimeType | contains("folder")) | .id')"||:
 folders_name_fetch_folderinfo="$(printf "%s\n" "$json_search_fetch_folderinfo"|jq -r '.files[] | select(.mimeType | contains("folder")) | .name')"||:
-chmod +w+r -- "$folders_list_fetch_folderinfo"
+chmod +w+r "$folders_list_fetch_folderinfo"
 exec 5<<EOF
 $(printf "%s\n" "$folders_id_fetch_folderinfo")
 EOF
@@ -1971,7 +1970,7 @@ _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5&&read -r name <&
 done)"
 printf "%s" "$_tmp_folders_list_fetch_folderinfo" >>"$folders_list_fetch_folderinfo"
 exec 5<&-&&exec 6<&-
-chmod -w+r -- "$folders_list_fetch_folderinfo"
+chmod -w+r "$folders_list_fetch_folderinfo"
 _clear_line 1
 for _ in 1 2;do _clear_line 1;done
 [[ $mode_fetch_folderinfo == "alt" ]]||return 0
@@ -2000,10 +1999,10 @@ printf '' >|"$files_list_download_folder"
 printf '' >|"$folders_list_download_folder"
 _fetch_folderinfo false "$mode_download_folder" "$folder_id_download_folder" "$name_download_folder" "$root_download_folder" \
 "$files_list_download_folder" "$folders_list_download_folder" "$parallel_download_folder"
-chmod +w+r -- "$files_list_download_folder" "$folders_list_download_folder"
+chmod +w+r "$files_list_download_folder" "$folders_list_download_folder"
 [[ -n $INCLUDE_FILES ]]&&_tmp_filesinfo="$(grep -E "$INCLUDE_FILES" "$files_list_download_folder")"&&printf "%s\n" "$_tmp_filesinfo" >>"$files_list_download_folder"
 [[ -n $EXCLUDE_FILES ]]&&_tmp_filesinfo="$(grep -Ev "$EXCLUDE_FILES" "$files_list_download_folder")"&&printf "%s\n" "$_tmp_filesinfo" >>"$files_list_download_folder"
-chmod -w+r -- "$files_list_download_folder" "$folders_list_download_folder"
+chmod -w+r "$files_list_download_folder" "$folders_list_download_folder"
 num_of_files_download_folder="$(_count <"$files_list_download_folder")"
 num_of_folders_download_folder="$(_count <"$folders_list_download_folder")"
 { [[ $mode_download_folder == "alt" ]]&&_tmp_sum_download_folder="$((num_of_files_download_folder))";}||_tmp_sum_download_folder="$((num_of_files_download_folder+num_of_folders_download_folder))"
@@ -2017,10 +2016,9 @@ if [[ -n $parallel_download_folder ]];then
 NO_OF_PARALLEL_JOBS_FINAL="$((NO_OF_PARALLEL_JOBS>num_of_files_download_folder?num_of_files_download_folder:NO_OF_PARALLEL_JOBS))"
 [[ -f "$TMPFILE"SUCCESS ]]&&rm "$TMPFILE"SUCCESS
 [[ -f "$TMPFILE"ERROR ]]&&rm "$TMPFILE"ERROR
-(xargs -P"$NO_OF_PARALLEL_JOBS_FINAL" -d '\n' -n 1 bash -c '
-                line="${1}"
-                _download_file_main_aarr "$(jq -r ".root" <<< "${line}")" "$(jq -r ".id" <<< "${line}")" "$(jq -r ".name" <<< "${line}")" "$(jq -r ".size" <<< "${line}")" "$(jq -r ".mime" <<< "${line}")" true
-            ' _ <"$files_list_download_folder" 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&
+(tr '\n' '\0' <"$files_list_download_folder"|xargs -0 -P"$NO_OF_PARALLEL_JOBS_FINAL" -n 1 bash -c '
+                _download_file_main parse "${1}" true
+            ' _ 1>|"$TMPFILE"SUCCESS 2>|"$TMPFILE"ERROR)&
 pid="$!"
 until [[ -f "$TMPFILE"SUCCESS ]]||[[ -f "$TMPFILE"ERROR ]];do sleep 0.5;done
 _clear_line 1
@@ -2058,7 +2056,7 @@ while IFS= read -r line <&4&&{ [[ -n $line ]]||continue;};do
 (id="$(jq -r '.id' <<<"$line")"
 name="$(jq -r '.name' <<<"$line")"
 root="$(jq -r '.root' <<<"$line")"
-_download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel:-}")
+_download_folder "$mode_download_folder" "$id" "$name" "$root" "${parallel_download_folder:-}")
 done 4<"$folders_list_download_folder"
 fi
 (rm -f -- "$files_list_download_folder" "$folders_list_download_folder")&
@@ -2084,7 +2082,7 @@ _tmp="${line##*=}"&&_tmp="${_tmp%\"}"&&expiry="${_tmp#\"}"
 done 4<<EOF
 $(grep -F ACCESS_TOKEN_EXPIRY -- "$config"||:)
 EOF
-chmod u+w -- "$config"&&printf "%s\n" "$(grep -Ev "^\$${values_regex:+|$values_regex}" -- "$config")" >|"$config"&&chmod "a-w-r-x,u+r" -- "$config"
+chmod u+w "$config"&&printf "%s\n" "$(grep -Ev "^\$${values_regex:+|$values_regex}" -- "$config")" >|"$config"&&chmod "a-w-r-x,u+r" "$config"
 return 0
 }
 _setup_arguments(){
@@ -2221,15 +2219,12 @@ exit 0
 export UTILS_FOLDER="${UTILS_FOLDER:-$PWD}"
 export COMMON_PATH="${COMMON_UTILS_FILE:-$PWD}/common"
 { . "$COMMON_PATH/parser.sh"&&. "$COMMON_PATH/flags.sh"&&. "$COMMON_PATH/auth-utils.sh"&&. "$COMMON_PATH/common-utils.sh"&&. "$COMMON_PATH/drive-utils.sh"&&. "$COMMON_PATH/download-utils.sh"&&. "$COMMON_PATH/gdl-common.sh";}||{ printf "Error: Unable to source util files.\n"&&exit 1;}
-_export_functions(){
-local func
-for func in $(compgen -A function|grep '^_');do
-export -f "$func"
-done
-}
-_export_functions
 }
 [[ ${BASH_VERSINFO:-0} -ge 4 ]]||{ printf "Bash version lower than 4.x not supported.\n"&&return 1;}
+local _func
+for _func in $(compgen -A function|grep '^_');do
+export -f "$_func"
+done
 set -o noclobber -o pipefail||exit 1
 export _SCRIPT_KILL_SIGNAL="--"
 _main_helper "$@"||exit 1

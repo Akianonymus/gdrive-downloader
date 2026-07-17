@@ -341,6 +341,7 @@ _download_file_main() {
     unset RETURN_STATUS && until [[ "${retry_download_file_main}" -le 0 ]] && [[ -n "${RETURN_STATUS}" ]]; do
         if [[ -n "${parallel_download_file_main}" ]]; then
             (
+                [[ -n "${root_download_file_main}" ]] && { cd -- "${root_download_file_main}" || return 1; }
                 "_download_with_${DOWNLOADER}" "${fileid_download_file_main}" "${name_download_file_main}" "${mime_download_file_main}" "${size_download_file_main}" true 2>| /dev/null 1>&2
             ) && RETURN_STATUS=1 && break
         else
@@ -354,26 +355,6 @@ _download_file_main() {
     done
     { [[ "${RETURN_STATUS}" = 1 ]] && printf "%b" "${parallel_download_file_main:+${RETURN_STATUS}\n}"; } || printf "%b" "${parallel_download_file_main:+${RETURN_STATUS}\n}" 1>&2
     return 0
-}
-
-###################################################
-# Download file main function - associative array version
-# Used by parallel execution
-# Arguments: 6
-#   ${1} = root folder path
-#   ${2} = file id
-#   ${3} = file name
-#   ${4} = file size
-#   ${5} = file mime type
-#   ${6} = parallel flag (optional)
-# Result: same as _download_file_main
-###################################################
-_download_file_main_aarr() {
-    local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}" _parallel="${6}"
-
-    cd -- "${_root}" || return 1
-    PARALLEL_ROOT="${_root}" _download_file_main "" "${_id}" "${_name}" "${_mime}" "${_size}" true
-    return $?
 }
 
 ###################################################
@@ -460,8 +441,9 @@ EOF
 $(printf "%s\n" "${files_mime_fetch_folderinfo}")
 EOF
     while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7 && read -r mime <&8; do
-        [[ -n "${id:+${name}}" ]] &&
-            printf "%s\n" "$(_create_file_record "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" "${id}" "${name}" "$((size))" "${mime}")"
+        [[ -n "${id:+${name}}" ]] || continue
+        [[ "${mime}" = *folder* ]] && continue
+        printf "%s\n" "$(_create_file_record "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" "${id}" "${name}" "$((size))" "${mime}")"
     done >> "${files_list_fetch_folderinfo}"
     exec 5<&- && exec 6<&- && exec 7<&- && exec 8<&-
     _clear_line 1
@@ -557,10 +539,9 @@ _download_folder() {
             [[ -f "${TMPFILE}"ERROR ]] && rm "${TMPFILE}"ERROR
 
             # shellcheck disable=SC2016
-            (xargs -P"${NO_OF_PARALLEL_JOBS_FINAL}" -d '\n' -n 1 bash -c '
-                line="${1}"
-                _download_file_main_aarr "$(jq -r ".root" <<< "${line}")" "$(jq -r ".id" <<< "${line}")" "$(jq -r ".name" <<< "${line}")" "$(jq -r ".size" <<< "${line}")" "$(jq -r ".mime" <<< "${line}")" true
-            ' _ < "${files_list_download_folder}" 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
+            (tr '\n' '\0' < "${files_list_download_folder}" | xargs -0 -P"${NO_OF_PARALLEL_JOBS_FINAL}" -n 1 bash -c '
+                _download_file_main parse "${1}" true
+            ' _ 1>| "${TMPFILE}"SUCCESS 2>| "${TMPFILE}"ERROR) &
             pid="${!}"
 
             until [[ -f "${TMPFILE}"SUCCESS ]] || [[ -f "${TMPFILE}"ERROR ]]; do sleep 0.5; done
@@ -606,7 +587,7 @@ _download_folder() {
                 name="$(jq -r '.name' <<< "${line}")"
                 root="$(jq -r '.root' <<< "${line}")"
 
-                _download_folder "${mode_download_folder}" "${id}" "${name}" "${root}" "${parallel:-}"
+                _download_folder "${mode_download_folder}" "${id}" "${name}" "${root}" "${parallel_download_folder:-}"
             )
         done 4< "${folders_list_download_folder}"
     fi
