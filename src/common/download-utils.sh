@@ -2,47 +2,21 @@
 # shellcheck source=/dev/null
 
 ###################################################
-# Create serialized file record string
-# Arguments: 5
-#   ${1} = root folder path
-#   ${2} = file id
-#   ${3} = file name
-#   ${4} = file size
-#   ${5} = file mime type
-# Result: print serialized associative array
-###################################################
-_create_file_record() {
-    local _root="${1:?}" _id="${2:?}" _name="${3:?}" _size="${4:-0}" _mime="${5:?}"
-    printf '{"root":"%s","id":"%s","name":"%s","size":"%s","mime":"%s"}' \
-        "${_root}" "${_id}" "${_name}" "${_size}" "${_mime}"
-}
-
-###################################################
 # Check if downloaded file is Google rate limit error page
 # Arguments: 1
 #   ${1} = filename to check
 # Result: Return 0 if error page, 1 otherwise
 ###################################################
 _check_google_error() {
-    local _file="${1:?}" _head
+    local _file="${1:?}"
     [[ -f "${_file}" ]] || return 1
 
-    _head="$(head -c 2000 "${_file}" 2> /dev/null)"
-
     # Check for Google error page indicators
-    [[ "${_head}" == *"<html"* ]] || return 1
+    { head -c 2000 "${_file}" 2> /dev/null || :; } | grep -aFq "<html" || return 1
 
     # Check for error indicators (avoid apostrophe issues)
-    [[ "${_head}" == *"<title>Sorry..."* ]] && return 0
-    [[ "${_head}" == *"your computer or network may be sending automated queries"* ]] && return 0
-
-    return 1
-}
-
-_create_folder_record() {
-    local _parent_id="${1:?}" _root="${2:?}" _id="${3:?}" _name="${4:?}"
-    printf '{"parent_id":"%s","root":"%s","id":"%s","name":"%s"}' \
-        "${_parent_id}" "${_root}" "${_id}" "${_name}"
+    { head -c 2000 "${_file}" 2> /dev/null || :; } |
+        grep -aEq '<title>Sorry\.\.\.|your computer or network may be sending automated queries'
 }
 
 # a wrapper function to handle cookies for unauthenticated downloads and to fetch document size all
@@ -76,10 +50,7 @@ _common_stuff() {
 
         if [[ -n "${OAUTH_ENABLED}" ]]; then
             . "${TMPFILE}_ACCESS_TOKEN"
-            flag_value_download_file="${5:-}"
-            if [[ -n "${flag_value_download_file}" ]]; then
-                flag_download_file="--header" flag_value_download_file="Authorization: Bearer ${ACCESS_TOKEN}"
-            fi
+            flag_download_file="--header" flag_value_download_file="Authorization: Bearer ${ACCESS_TOKEN}"
         elif [[ -n "${API_KEY_DOWNLOAD}" ]]; then
             # download with api key
             flag_download_file="--referer" flag_value_download_file="https://drive.google.com"
@@ -368,9 +339,7 @@ _fetch_folderinfo() {
 
     unset json_search_fetch_folderinfo json_search_fragment_fetch_folderinfo next_page_token_fetch_folderinfo \
         error_status_fetch_folderinfo success_status_fetch_folderinfo \
-        files_id_fetch_folderinfo folders_id_fetch_folderinfo files_size_fetch_folderinfo \
-        files_name_fetch_folderinfo folders_name_fetch_folderinfo files_mime_fetch_folderinfo \
-        num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
+        _tmp_folders_list_fetch_folderinfo num_of_files_fetch_folderinfo num_of_folders_fetch_folderinfo
 
     if [[ "${parse_fetch_folderinfo}" = "true" ]]; then
         mode_fetch_folderinfo="${2:?_fetch_folderinfo: 2}"
@@ -422,30 +391,13 @@ ${json_search_fragment_fetch_folderinfo}"
 
     # parse the fetched json and make a list containing files size, name, id and mimeType
     "${EXTRA_LOG}" "justify" "Preparing files list.." "="
-    files_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].id')" || :
-    files_size_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].size')" || :
-    files_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].name')" || :
-    files_mime_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[].mimeType')" || :
-
     chmod +w+r "${files_list_fetch_folderinfo}"
-    exec 5<< EOF
-$(printf "%s\n" "${files_id_fetch_folderinfo}")
-EOF
-    exec 6<< EOF
-$(printf "%s\n" "${files_size_fetch_folderinfo}")
-EOF
-    exec 7<< EOF
-$(printf "%s\n" "${files_name_fetch_folderinfo}")
-EOF
-    exec 8<< EOF
-$(printf "%s\n" "${files_mime_fetch_folderinfo}")
-EOF
-    while IFS= read -r id <&5 && read -r size <&6 && read -r name <&7 && read -r mime <&8; do
-        [[ -n "${id:+${name}}" ]] || continue
-        [[ "${mime}" = *folder* ]] && continue
-        printf "%s\n" "$(_create_file_record "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" "${id}" "${name}" "$((size))" "${mime}")"
-    done >> "${files_list_fetch_folderinfo}"
-    exec 5<&- && exec 6<&- && exec 7<&- && exec 8<&-
+    printf "%s\n" "${json_search_fetch_folderinfo}" | jq -c --arg root "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" '
+        .files[]?
+        | select(.mimeType != "application/vnd.google-apps.folder")
+        | select(.id != null and .name != null and .mimeType != null)
+        | {root: $root, id: .id, name: .name, size: ((.size // 0) | tostring), mime: .mimeType}
+    ' >> "${files_list_fetch_folderinfo}" || :
     _clear_line 1
     chmod -w+r "${files_list_fetch_folderinfo}"
 
@@ -456,23 +408,19 @@ EOF
 
     # parse the fetched json and make a list containing sub folders name and id
     "${EXTRA_LOG}" "justify" "Preparing sub folders list.." "="
-    folders_id_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[] | select(.mimeType | contains("folder")) | .id')" || :
-    folders_name_fetch_folderinfo="$(printf "%s\n" "${json_search_fetch_folderinfo}" | jq -r '.files[] | select(.mimeType | contains("folder")) | .name')" || :
-
     chmod +w+r "${folders_list_fetch_folderinfo}"
-    exec 5<< EOF
-$(printf "%s\n" "${folders_id_fetch_folderinfo}")
-EOF
-    exec 6<< EOF
-$(printf "%s\n" "${folders_name_fetch_folderinfo}")
-EOF
-    # shellcheck disable=SC2030
-    _tmp_folders_list_fetch_folderinfo="$(while IFS= read -r id <&5 && read -r name <&6; do
-        [[ -n "${id:+${name}}" ]] &&
-            printf "%s\n" "$(_create_folder_record "${folder_id_fetch_folderinfo}" "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" "${id}" "${name}")"
-    done)"
-    printf "%s" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
-    exec 5<&- && exec 6<&-
+    _tmp_folders_list_fetch_folderinfo="$(
+        printf "%s\n" "${json_search_fetch_folderinfo}" | jq -c \
+            --arg parent_id "${folder_id_fetch_folderinfo}" \
+            --arg root "${root_name_fetch_folderinfo}/${name_fetch_folderinfo}" '
+            .files[]?
+            | select(.mimeType == "application/vnd.google-apps.folder")
+            | select(.id != null and .name != null)
+            | {parent_id: $parent_id, root: $root, id: .id, name: .name}
+        ' || :
+    )"
+    [[ -n "${_tmp_folders_list_fetch_folderinfo}" ]] &&
+        printf "%s\n" "${_tmp_folders_list_fetch_folderinfo}" >> "${folders_list_fetch_folderinfo}"
     chmod -w+r "${folders_list_fetch_folderinfo}"
     _clear_line 1
 
@@ -480,7 +428,7 @@ EOF
 
     [[ "${mode_fetch_folderinfo}" = "alt" ]] || return 0
 
-    if [[ -z "${SKIP_SUBDIRS}" ]] && [[ -n "${folders_list_fetch_folderinfo}" ]]; then
+    if [[ -z "${SKIP_SUBDIRS}" ]] && [[ -n "${_tmp_folders_list_fetch_folderinfo}" ]]; then
         while IFS= read -r line <&4 && { [[ -n "${line}" ]] || continue; }; do
             _fetch_folderinfo true "${mode_fetch_folderinfo}" "${line}" "${files_list_fetch_folderinfo}" "${folders_list_fetch_folderinfo}"
         done 4<< EOF
