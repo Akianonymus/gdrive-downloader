@@ -36,7 +36,7 @@ jobs:
               PATH="${HOME}/.gdrive-downloader:${PATH}"
               gdl --info
           bash install.sh -U
-              gdl --info
+              ! command -v gdl
           bash install.sh -c custom_gdl
               custom_gdl --info
       - name: 'Format, lint ( shellcheck ) and release test'
